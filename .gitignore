@@ -1,0 +1,33 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+
+# IDE metadata
+.idea/
+.vscode/
+*.code-workspace
+
+# STM32CubeIDE / Eclipse generated
+firmware/Debug/
+firmware/Release/
+firmware/**/Debug/
+firmware/**/Release/
+firmware/.settings/
+firmware/*.launch
+
+# Build outputs / binary artifacts
+*.o
+*.d
+*.su
+*.elf
+*.map
+*.list
+*.bin
+*.hex
+*.a
+
+# Logs
+*.log

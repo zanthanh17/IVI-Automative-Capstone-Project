@@ -1,0 +1,164 @@
+# 📖 Tổng Quan Dự Án IVI Automotive - Đồ Án Tốt Nghiệp
+
+## 1. Mục Tiêu Dự Án
+
+Xây dựng hệ thống **In-Vehicle Infotainment (IVI)** kết hợp:
+
+| Thành phần | Mô tả |
+|---|---|
+| **Instrument Cluster** | Dashboard hiển thị tốc độ, RPM, nhiên liệu, nhiệt độ, xi nhan, đèn pha... |
+| **Driver Monitoring System (DMS)** | AI phát hiện buồn ngủ qua camera (EAR, MAR, Head Pose) |
+| **Cảnh báo thông minh** | Kết hợp trạng thái xe + AI → cảnh báo theo ngữ cảnh |
+
+---
+
+## 2. Kiến Trúc Hệ Thống
+
+```mermaid
+graph LR
+    subgraph "Phần cứng đầu vào"
+        A["Rotary Encoder KY-040"] --> C["STM32F103C8T6<br>Blue Pill"]
+        B["6 Nút nhấn + 2 Công tắc gạt"] --> C
+        D["2 Biến trở<br>(Nhiên liệu + Nhiệt độ)"] --> C
+    end
+    
+    subgraph "Xử lý trung tâm"
+        C -->|"CAN Bus 500kbps<br>qua TJA1050"| E["Raspberry Pi"]
+        F["Camera USB"] --> E
+    end
+    
+    subgraph "Đầu ra"
+        E -->|"QML UI"| G["Màn hình HMI Dashboard"]
+        E -->|"AI Alert"| H["Còi + LED cảnh báo"]
+    end
+```
+
+---
+
+## 3. Chi Tiết Phần Cứng (từ `stm32_huong_dan.docx`)
+
+### 3.1 Sơ Đồ Chân STM32F103C8T6
+
+| Chân | Kết nối | Giao thức |
+|------|---------|-----------|
+| PA0 | Biến trở 1 (Nhiên liệu) | ADC1_IN0 |
+| PA1 | Biến trở 2 (Nhiệt độ) | ADC1_IN1 |
+| PA6 | Encoder A (KY-040 CLK) | TIM3_CH1 |
+| PA7 | Encoder B (KY-040 DT) | TIM3_CH2 |
+| PB0 | Encoder SW (nút nhấn giữa) | GPIO Input |
+| PB1-PB6 | 6 nút nhấn (xi nhan T/P, đèn pha, còi, cửa, dây an toàn) | GPIO EXTI |
+| PA8, PA9 | 2 công tắc gạt (Đèn, Gear) | GPIO Input |
+| PA11, PA12 | CAN TX/RX → TJA1050 | CAN1 |
+| PC13 | LED debug onboard | GPIO Output |
+
+### 3.2 CAN Bus Protocol (0x100 & 0x101)
+
+**Frame 0x100 - VEHICLE_MOTION:**
+| Byte 0 | Byte 1 | Byte 2 | Byte 3 | Byte 4-7 |
+|--------|--------|--------|--------|----------|
+| Speed High | Speed Low | RPM High | RPM Low | Reserved |
+
+**Frame 0x101 - VEHICLE_STATUS:**
+| Byte 0 | Byte 1 | Byte 2 (Signals) | Byte 3 (Doors) | Byte 4-7 |
+|--------|--------|-------------------|-----------------|----------|
+| Fuel % | Temp °C | Bit0=LeftSignal, Bit1=RightSignal, Bit2=Headlight, Bit3=Horn, Bit4=Seatbelt | Bit0=DoorOpen, Bit1=LightSwitch, Bit2=GearSwitch | Reserved |
+
+---
+
+## 4. Cấu Trúc Module Firmware STM32
+
+```mermaid
+graph TD
+    MAIN["main.c<br>Vòng lặp chính"] --> GPIO["gpio_handler.c/h<br>Nút nhấn + Công tắc"]
+    MAIN --> ADC["adc_handler.c/h<br>Biến trở (DMA)"]
+    MAIN --> ENC["encoder_handler.c/h<br>Rotary Encoder"]
+    MAIN --> CAN["can_handler.c/h<br>Gửi CAN Frame"]
+    
+    TIM["TIM2 Interrupt 100ms"] -->|"Callback"| ENC
+    TIM -->|"Callback"| CAN
+    
+    style MAIN fill:#2196F3,color:white
+    style TIM fill:#FF9800,color:white
+```
+
+| Module | File | Chức năng |
+|--------|------|-----------|
+| GPIO Handler | `gpio_handler.c/h` | Đọc 6 nút nhấn qua EXTI interrupt (toggle), 2 công tắc gạt qua polling, có debounce 50ms |
+| ADC Handler | `adc_handler.c/h` | Đọc 2 biến trở qua DMA liên tục, map ADC 0-4095 → fuel 0-100%, temp 0-120°C |
+| Encoder Handler | `encoder_handler.c/h` | Đọc Rotary Encoder qua TIM3 Encoder Mode, tính tốc độ 0-200 km/h |
+| CAN Handler | `can_handler.c/h` | Đóng gói & gửi 2 frame CAN (0x100 Motion, 0x101 Status) |
+| Timer | TIM2 100ms interrupt | Gọi `Encoder_Update()` + `CAN_SendMotionFrame()` + `CAN_SendStatusFrame()` |
+
+---
+
+## 5. Lộ Trình Thực Hiện 3 Tháng (từ `ke_hoach_do_an.docx`)
+
+### Tháng 1 - Nền Tảng & Phần Cứng (Tuần 1-4)
+
+| Tuần | Công việc | Milestone |
+|------|-----------|-----------|
+| **1** | Setup môi trường (CubeIDE, SquareLine Studio, Python RPi), mua linh kiện | ✅ Môi trường hoàn chỉnh |
+| **2** | STM32 đọc Encoder, nút nhấn (EXTI), ADC biến trở, test UART | ✅ STM32 đọc đúng ngoại vi |
+| **3** | Thiết kế UI Dashboard trong SquareLine Studio, xuất code LVGL, giao thức UART | ✅ Dashboard hiển thị realtime |
+| **4** | Tích hợp STM32 + HMI: encoder→kim tốc độ, nút→icon, biến trở→thanh bar | ✅ Dashboard hoạt động như xe thật |
+
+### Tháng 2 - AI & Tích Hợp (Tuần 5-8)
+
+| Tuần | Công việc | Milestone |
+|------|-----------|-----------|
+| **5** | OpenCV + MediaPipe trên RPi, detect face landmark, tính EAR/MAR | ✅ AI phát hiện buồn ngủ cơ bản |
+| **6** | Head Pose Estimation, logic kết hợp EAR+MAR+HeadPose, bộ đếm thời gian | ✅ AI ổn định, FPS > 20 |
+| **7** | UART serial RPi↔STM32, lệnh cảnh báo ALERT_L1/L2/CLEAR, context tốc độ | ✅ RPi→STM32 cảnh báo realtime |
+| **8** | Tích hợp toàn hệ thống, fix bug timing/UART/lag, test kịch bản thực tế | ✅ End-to-end ổn định |
+
+### Tháng 3 - Hoàn Thiện & Báo Cáo (Tuần 9-12)
+
+| Tuần | Công việc | Milestone |
+|------|-----------|-----------|
+| **9** | Đo accuracy AI (100 trường hợp), FPS, độ trễ cảnh báo (ms) | ✅ Số liệu định lượng đầy đủ |
+| **10** | Làm hộp/khung, cố định dây, script khởi động tự động (systemd) | ✅ Sản phẩm demo ổn định |
+| **11** | Viết báo cáo 5 chương | ✅ Báo cáo hoàn chỉnh |
+| **12** | Slide thuyết trình, tập thuyết trình, chuẩn bị demo | ✅ Sẵn sàng bảo vệ |
+
+---
+
+## 6. Kiến Thức Cần Nắm
+
+```mermaid
+mindmap
+  root["Kiến thức cần thiết"]
+    STM32["Lập trình STM32"]
+      GPIO, UART, SPI, I2C
+      ADC, Timer, Interrupt
+      HAL Library
+    HMI["Giao diện HMI"]
+      LVGL cơ bản
+      SquareLine Studio
+      UART protocol
+    Python["Python trên RPi"]
+      OpenCV
+      MediaPipe Face Mesh
+      PySerial
+    AI["Thuật toán DMS"]
+      EAR - Eye Aspect Ratio
+      MAR - Mouth Aspect Ratio
+      Head Pose Estimation
+    Nền tảng["Hỗ trợ"]
+      Git
+      Linux cơ bản
+      Mạch điện cơ bản
+```
+
+---
+
+## 7. Trạng Thái Hiện Tại Của Project
+
+Dự án hiện tại đã có:
+- ✅ STM32CubeIDE project cho STM32F103C8T6 (file [.ioc](file:///d:/User_Space/Capstone%20Project/IVI%20Automative%20CP/IVI%20Automative%20CP.ioc) đã tồn tại)
+- ✅ Thư mục `Core/` với `Inc/` và `Src/` (code HAL generated)
+- ✅ Thư mục `Drivers/` (HAL drivers)
+- ⬜ Chưa có các module handler (`gpio_handler`, `adc_handler`, `encoder_handler`, `can_handler`)
+- ⬜ Chưa có code Raspberry Pi / QML / AI
+
+> [!IMPORTANT]
+> Bước tiếp theo nên bắt đầu từ **Tuần 1-2**: Tạo các module handler cho STM32 theo hướng dẫn trong `stm32_huong_dan.docx`.
