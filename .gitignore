@@ -6,6 +6,8 @@ Thumbs.db
 *.tmp
 
 # IDE metadata
+.metadata/
+**/.metadata/
 .idea/
 .vscode/
 *.code-workspace
@@ -31,3 +33,6 @@ firmware/*.launch
 
 # Logs
 *.log
+
+# Qt build artifacts
+software/**/build/

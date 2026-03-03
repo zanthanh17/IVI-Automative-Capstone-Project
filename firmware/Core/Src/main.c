@@ -23,6 +23,8 @@
 /* USER CODE BEGIN Includes */
 #include "gpio_handler.h"
 #include "encoder_handler.h"
+#include "adc_handler.h"
+#include "uart_protocol.h"
 #include <stdio.h>
 #include <string.h>
 /* USER CODE END Includes */
@@ -34,8 +36,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define ENCODER_UART_LOG_ENABLE  1
-#define ENCODER_UART_LOG_MS      100U
+#define UART_DATA_SEND_MS    100U   /* Gửi DATA frame mỗi 100ms         */
+#define ADC_UPDATE_MS        200U   /* Cập nhật ADC mỗi 200ms           */
+#define ENCODER_UPDATE_MS     50U   /* Cập nhật encoder mỗi 50ms        */
 
 /* USER CODE END PD */
 
@@ -49,10 +52,11 @@ TIM_HandleTypeDef htim3;
 
 UART_HandleTypeDef huart1;
 
+ADC_HandleTypeDef hadc1;
+
 /* USER CODE BEGIN PV */
-#if ENCODER_UART_LOG_ENABLE
-static uint32_t s_encoder_log_tick = 0;
-#endif
+static uint32_t s_data_send_tick = 0;
+static uint32_t s_adc_update_tick = 0;
 
 /* USER CODE END PV */
 
@@ -61,25 +65,13 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static const char *ButtonNameFromId(uint8_t id)
-{
-  switch (id)
-  {
-    case 1: return "left_signal";
-    case 2: return "right_signal";
-    case 3: return "headlight";
-    case 4: return "horn";
-    case 5: return "door_open";
-    case 6: return "seatbelt";
-    default: return "unknown";
-  }
-}
 
 /* USER CODE END 0 */
 
@@ -114,15 +106,13 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM3_Init();
   MX_USART1_UART_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   GPIO_Handler_Init();
   Encoder_Init();
+  ADC_Handler_Init();
+  UART_Protocol_Init();
 
-  /* Boot message - xác nhận firmware đang chạy */
-  {
-    const char *boot_msg = "\r\n=== IVI Automative CP Started ===\r\n";
-    HAL_UART_Transmit(&huart1, (uint8_t *)boot_msg, strlen(boot_msg), 100);
-  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -132,52 +122,59 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    /* Cập nhật tốc độ từ encoder */
+    uint32_t now = HAL_GetTick();
+
+    /* === 1. Cập nhật tốc độ từ encoder (mỗi 50ms) === */
     Encoder_Update();
 
+    /* === 2. Cập nhật ADC fuel + battery (mỗi 200ms) === */
+    if ((now - s_adc_update_tick) >= ADC_UPDATE_MS)
+    {
+      ADC_Handler_Update();
+      s_adc_update_tick = now;
+    }
+
+    /* === 3. Đọc công tắc gạt (polling) === */
+    GPIO_Handler_PollSwitches();
+
+    /* === 4. Xử lý sự kiện nút nhấn → gửi BTN frame qua UART === */
     {
       uint8_t button_id;
       uint8_t button_state;
       if (GPIO_Handler_PopButtonEvent(&button_id, &button_state) != 0U)
       {
-        char btn_msg[96];
-        int n = snprintf(
-          btn_msg,
-          sizeof(btn_msg),
-          "button=%s state=%s\r\n",
-          ButtonNameFromId(button_id),
-          (button_state != 0U) ? "ON" : "OFF"
-        );
-        if (n > 0)
-        {
-          HAL_UART_Transmit(&huart1, (uint8_t *)btn_msg, (uint16_t)n, 30);
-        }
+        UART_Protocol_SendButtonEvent(button_id, button_state);
       }
     }
 
-#if ENCODER_UART_LOG_ENABLE
-    if ((HAL_GetTick() - s_encoder_log_tick) >= ENCODER_UART_LOG_MS)
+    /* === 5. Gửi DATA frame định kỳ (mỗi 100ms) === */
+    if ((now - s_data_send_tick) >= UART_DATA_SEND_MS)
     {
-      char msg[96];
-      int n = snprintf(
-        msg,
-        sizeof(msg),
-        "cnt=%u delta=%d speed=%u updates=%lu\r\n",
-        (unsigned)g_encoder_cnt_dbg,
-        (int)g_encoder.delta,
-        (unsigned)g_encoder.speed_kmh,
-        (unsigned long)g_encoder_update_count_dbg
-      );
-      if (n > 0)
-      {
-        HAL_UART_Transmit(&huart1, (uint8_t *)msg, (uint16_t)n, 20);
+      /* Tính RPM từ speed (mô phỏng đơn giản: RPM = speed * 35) */
+      uint16_t rpm = (uint16_t)((uint32_t)g_encoder.speed_kmh * 35U);
+      if (rpm > 7000U) rpm = 7000U;
+
+      /* Gear: P nếu speed=0, D nếu đang chạy */
+      char gear = (g_encoder.speed_kmh == 0U) ? 'P' : 'D';
+
+      /* Ghi đè gear bằng drive_mode switch nếu cần */
+      if (g_buttons.drive_mode != 0U && g_encoder.speed_kmh == 0U) {
+        gear = 'P';
       }
-      s_encoder_log_tick = HAL_GetTick();
+
+      UART_Protocol_SendData(
+        g_encoder.speed_kmh,
+        rpm,
+        g_adc.fuel_percent,
+        g_adc.battery_percent,
+        gear
+      );
+
+      s_data_send_tick = now;
     }
-#endif
 
     /* Delay 50ms → ~20Hz update rate */
-    HAL_Delay(50);
+    HAL_Delay(ENCODER_UPDATE_MS);
   }
   /* USER CODE END 3 */
 }
@@ -303,6 +300,39 @@ static void MX_USART1_UART_Init(void)
 }
 
 /**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Common config */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -324,21 +354,20 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
-  /*Configure GPIO pin : PA3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  /*Configure GPIO pins : PA0 PA1 (ADC inputs for Fuel & Battery) */
+  GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PB1 PB2 PB3 PB4
-                           PB5 PB6 */
+                           PB5 PB6 PB7 PB8 (8 nút nhấn EXTI) */
   GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4
-                          |GPIO_PIN_5|GPIO_PIN_6;
+                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PA8 */
+  /*Configure GPIO pin : PA8 (Công tắc gạt Drive Mode - polling) */
   GPIO_InitStruct.Pin = GPIO_PIN_8;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
@@ -361,17 +390,7 @@ static void MX_GPIO_Init(void)
   HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
-  /*
-   * Override PA3: CubeMX sinh AF_PP nhưng không có peripheral nào dùng PA3.
-   * Đổi về Input để tránh floating output gây nhiễu.
-   */
-  {
-    GPIO_InitTypeDef fix = {0};
-    fix.Pin = GPIO_PIN_3;
-    fix.Mode = GPIO_MODE_INPUT;
-    fix.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(GPIOA, &fix);
-  }
+
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
