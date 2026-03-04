@@ -20,6 +20,7 @@
 #include <QDBusInterface>
 #include <QDBusMessage>
 #include <QDBusObjectPath>
+#include <QDBusVariant>
 #endif
 
 #if defined(Q_OS_LINUX)
@@ -450,9 +451,7 @@ void ExternalMediaController::probeSystemSession()
 
     m_linuxPlayerPath = playerPath;
 
-    // GetManagedObjects returns Track as a raw QDBusArgument (a{sv}) which
-    // QVariant::toMap() cannot convert.  Fetch properties separately via
-    // org.freedesktop.DBus.Properties.GetAll for reliable deserialization.
+    // ---------- Fetch properties via Properties.GetAll ----------
     QDBusInterface propsIface(QStringLiteral("org.bluez"),
                               playerPath,
                               QStringLiteral("org.freedesktop.DBus.Properties"),
@@ -463,48 +462,56 @@ void ExternalMediaController::probeSystemSession()
     QString artist;
 
     if (propsIface.isValid()) {
-        const QDBusMessage allReply = propsIface.call(
-            QStringLiteral("GetAll"),
-            QStringLiteral("org.bluez.MediaPlayer1"));
+        // --- 1. Get Status ---
+        const QDBusMessage statusReply = propsIface.call(
+            QStringLiteral("Get"),
+            QStringLiteral("org.bluez.MediaPlayer1"),
+            QStringLiteral("Status"));
+        if (statusReply.type() == QDBusMessage::ReplyMessage && !statusReply.arguments().isEmpty()) {
+            // Properties.Get returns variant(variant(string))
+            const QVariant outer = statusReply.arguments().constFirst();
+            const QDBusVariant dbusVar = outer.value<QDBusVariant>();
+            status = dbusVar.variant().toString();
+        }
+        qDebug() << "[ExternalMedia] Player:" << playerPath << "Status:" << status;
 
-        QVariantMap allProps;
-        if (allReply.type() == QDBusMessage::ReplyMessage && !allReply.arguments().isEmpty()) {
-            const QVariant arg = allReply.arguments().constFirst();
-            if (arg.canConvert<QDBusArgument>()) {
-                const QDBusArgument dbusArg = arg.value<QDBusArgument>();
-                dbusArg >> allProps;
+        // --- 2. Get Track dict ---
+        const QDBusMessage trackReply = propsIface.call(
+            QStringLiteral("Get"),
+            QStringLiteral("org.bluez.MediaPlayer1"),
+            QStringLiteral("Track"));
+
+        QVariantMap track;
+        if (trackReply.type() == QDBusMessage::ReplyMessage && !trackReply.arguments().isEmpty()) {
+            // Properties.Get wraps in variant → the inner value is a{sv} (QDBusArgument)
+            const QDBusVariant outerVar = trackReply.arguments().constFirst().value<QDBusVariant>();
+            const QVariant innerVal = outerVar.variant();
+
+            if (innerVal.canConvert<QDBusArgument>()) {
+                const QDBusArgument trackArg = innerVal.value<QDBusArgument>();
+                trackArg >> track;
             } else {
-                allProps = arg.toMap();
+                track = innerVal.toMap();
             }
+        } else {
+            qDebug() << "[ExternalMedia] Track property error:"
+                     << (trackReply.type() == QDBusMessage::ErrorMessage
+                         ? trackReply.errorMessage() : "empty reply");
         }
 
-        status = allProps.value(QStringLiteral("Status")).toString();
-
-        // Track is itself a dict (a{sv}) — may arrive as QDBusArgument
-        QVariantMap track;
-        const QVariant trackVariant = allProps.value(QStringLiteral("Track"));
-        if (trackVariant.canConvert<QDBusArgument>()) {
-            const QDBusArgument trackArg = trackVariant.value<QDBusArgument>();
-            trackArg >> track;
+        if (!track.isEmpty()) {
+            qDebug() << "[ExternalMedia] Track keys:" << track.keys();
+            qDebug() << "[ExternalMedia] Track values:" << track;
         } else {
-            track = trackVariant.toMap();
+            qDebug() << "[ExternalMedia] Track dict is EMPTY";
         }
 
         title = track.value(QStringLiteral("Title")).toString();
         artist = trackArtistFromVariant(track.value(QStringLiteral("Artist")));
+
+        qDebug() << "[ExternalMedia] Title:" << title << "Artist:" << artist;
     } else {
-        // Fallback: try values from GetManagedObjects (may be incomplete)
-        status = playerProps.value(QStringLiteral("Status")).toString();
-        const QVariant trackVariant = playerProps.value(QStringLiteral("Track"));
-        QVariantMap track;
-        if (trackVariant.canConvert<QDBusArgument>()) {
-            const QDBusArgument trackArg = trackVariant.value<QDBusArgument>();
-            trackArg >> track;
-        } else {
-            track = trackVariant.toMap();
-        }
-        title = track.value(QStringLiteral("Title")).toString();
-        artist = trackArtistFromVariant(track.value(QStringLiteral("Artist")));
+        qDebug() << "[ExternalMedia] Properties interface invalid for" << playerPath;
     }
 
     const bool isPlaying = status.compare(QStringLiteral("playing"), Qt::CaseInsensitive) == 0;
