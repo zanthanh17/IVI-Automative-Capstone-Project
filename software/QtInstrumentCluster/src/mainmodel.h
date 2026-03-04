@@ -2,7 +2,6 @@
 #define MAINMODEL_H
 
 #include <QObject>
-#include "DriveTrain.h"
 
 class SerialReceiver;
 
@@ -19,7 +18,8 @@ class MainModel : public QObject
     Q_PROPERTY(bool hardwareConnected READ hardwareConnected NOTIFY hardwareConnectedChanged)
 
 public:
-    static MainModel* instance();
+    static MainModel *instance();
+
     float speed() const;
     float rpm() const;
     float odo() const;
@@ -37,13 +37,8 @@ public:
     void setBatteryLevel(float newValue);
     void setGearText(const QString &text);
 
-    void update(const Drivetrain::DriveData &data);
-
-    /** Khởi tạo SerialReceiver và kết nối signals */
     void initSerialReceiver();
-
-    /** Trả về con trỏ SerialReceiver (để QML truy cập nếu cần) */
-    SerialReceiver* serialReceiver() const;
+    SerialReceiver *serialReceiver() const;
 
 signals:
     void modelUpdated();
@@ -57,7 +52,8 @@ signals:
     void gearTextChanged();
 
 private:
-    explicit MainModel(QObject* parent = nullptr);
+    explicit MainModel(QObject *parent = nullptr);
+
     float m_speed;
     float m_rpm;
     float m_odo;

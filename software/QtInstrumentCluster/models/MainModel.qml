@@ -11,7 +11,6 @@ QtObject {
     property int clusterMode: MainModel.ModeNormal
     property bool introSequenceStarted: false
     property bool introSequenceCompleted: false
-    property bool simulationRunning: false
 
     property int speedLimitWarning: SpeedLimitValues.Slow
     readonly property real initialOdo: 300
@@ -45,7 +44,7 @@ QtObject {
     readonly property int gaugesValueChangeDurationSlow: 1250
     property int gaugesValueChangeDuration: gaugesValueChangeDurationNormal
 
-    property bool laneAssistCarMoving: simulationRunning || MainModelData.hardwareConnected
+    property bool laneAssistCarMoving: speed > minMovingSpeedKph
     readonly property real minMovingSpeedKph: 0.3
     readonly property real rangeSmoothingFactor: 0.22
     property double lastHardwareTickMs: Date.now()

@@ -8,10 +8,78 @@
 #include <QJsonObject>
 #include <QMediaMetaData>
 #include <QMediaPlayer>
+#include <QMetaType>
 #include <QProcess>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QUrl>
+
+#if defined(Q_OS_LINUX)
+#include <QDBusArgument>
+#include <QDBusConnection>
+#include <QDBusInterface>
+#include <QDBusMessage>
+#include <QDBusObjectPath>
+#endif
+
+#if defined(Q_OS_LINUX)
+namespace {
+using DBusProperties = QVariantMap;
+using DBusInterfaceMap = QMap<QString, DBusProperties>;
+using DBusManagedObjects = QMap<QDBusObjectPath, DBusInterfaceMap>;
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, DBusInterfaceMap &map)
+{
+    map.clear();
+    argument.beginMap();
+    while (!argument.atEnd()) {
+        QString interfaceName;
+        DBusProperties properties;
+        argument.beginMapEntry();
+        argument >> interfaceName >> properties;
+        argument.endMapEntry();
+        map.insert(interfaceName, properties);
+    }
+    argument.endMap();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, DBusManagedObjects &map)
+{
+    map.clear();
+    argument.beginMap();
+    while (!argument.atEnd()) {
+        QDBusObjectPath objectPath;
+        DBusInterfaceMap interfaceMap;
+        argument.beginMapEntry();
+        argument >> objectPath >> interfaceMap;
+        argument.endMapEntry();
+        map.insert(objectPath, interfaceMap);
+    }
+    argument.endMap();
+    return argument;
+}
+
+QString trackArtistFromVariant(const QVariant &artistValue)
+{
+    if (artistValue.metaType().id() == QMetaType::QStringList) {
+        return artistValue.toStringList().join(", ");
+    }
+    if (artistValue.metaType().id() == QMetaType::QVariantList) {
+        QStringList artists;
+        const QVariantList values = artistValue.toList();
+        for (const QVariant &value : values) {
+            const QString artist = value.toString().trimmed();
+            if (!artist.isEmpty()) {
+                artists << artist;
+            }
+        }
+        return artists.join(", ");
+    }
+    return artistValue.toString();
+}
+} // namespace
+#endif
 
 ExternalMediaController *ExternalMediaController::instance()
 {
@@ -33,6 +101,7 @@ ExternalMediaController::ExternalMediaController(QObject *parent)
     , m_proxyPlaying(false)
     , m_systemSessionAvailable(false)
     , m_systemPlaying(false)
+    , m_linuxPlayerPath()
 {
     m_audioOutput->setVolume(1.0);
     m_player->setAudioOutput(m_audioOutput);
@@ -118,6 +187,30 @@ QString ExternalMediaController::currentArtist() const
         return QStringLiteral("Host media");
     }
     return QString();
+}
+
+void ExternalMediaController::setSystemSessionState(bool available,
+                                                    bool playing,
+                                                    const QString &song,
+                                                    const QString &artist)
+{
+    const bool oldAvailable = m_systemSessionAvailable;
+    const bool oldPlaying = m_systemPlaying;
+    const QString oldSong = m_systemSong;
+    const QString oldArtist = m_systemArtist;
+
+    m_systemSessionAvailable = available;
+    m_systemPlaying = available ? playing : false;
+    m_systemSong = available ? song : QString();
+    m_systemArtist = available ? artist : QString();
+    if (!available) {
+        m_linuxPlayerPath.clear();
+    }
+
+    if (oldAvailable != m_systemSessionAvailable) emit availableChanged();
+    if (oldPlaying != m_systemPlaying) emit playingChanged();
+    if (oldSong != m_systemSong) emit currentSongChanged();
+    if (oldArtist != m_systemArtist) emit currentArtistChanged();
 }
 
 bool ExternalMediaController::hostModeEnabled() const
@@ -277,6 +370,7 @@ if($boolResult) { 'true' } else { 'false' }
 
 void ExternalMediaController::probeSystemSession()
 {
+#if defined(Q_OS_WIN)
     if (m_probeProcess->state() != QProcess::NotRunning) {
         return;
     }
@@ -284,10 +378,96 @@ void ExternalMediaController::probeSystemSession()
                           {QStringLiteral("-NoProfile"),
                            QStringLiteral("-ExecutionPolicy"), QStringLiteral("Bypass"),
                            QStringLiteral("-Command"), sessionProbeScript()});
+#elif defined(Q_OS_LINUX)
+    QDBusInterface objectManager(QStringLiteral("org.bluez"),
+                                 QStringLiteral("/"),
+                                 QStringLiteral("org.freedesktop.DBus.ObjectManager"),
+                                 QDBusConnection::systemBus());
+    if (!objectManager.isValid()) {
+        setSystemSessionState(false, false, QString(), QString());
+        return;
+    }
+
+    const QDBusMessage reply = objectManager.call(QStringLiteral("GetManagedObjects"));
+    if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty()) {
+        setSystemSessionState(false, false, QString(), QString());
+        return;
+    }
+
+    DBusManagedObjects managedObjects;
+    const QDBusArgument managedArg = reply.arguments().constFirst().value<QDBusArgument>();
+    managedArg >> managedObjects;
+
+    QString playerPath;
+    QVariantMap playerProps;
+
+    // Prefer active player from connected MediaControl1 object.
+    for (auto it = managedObjects.cbegin(); it != managedObjects.cend(); ++it) {
+        const DBusInterfaceMap interfaces = it.value();
+        if (!interfaces.contains(QStringLiteral("org.bluez.MediaControl1"))) {
+            continue;
+        }
+        const QVariantMap controlProps = interfaces.value(QStringLiteral("org.bluez.MediaControl1"));
+        if (!controlProps.value(QStringLiteral("Connected")).toBool()) {
+            continue;
+        }
+
+        const QDBusObjectPath playerObjectPath = qvariant_cast<QDBusObjectPath>(controlProps.value(QStringLiteral("Player")));
+        const QString candidatePath = playerObjectPath.path();
+        if (candidatePath.isEmpty() || candidatePath == QStringLiteral("/")) {
+            continue;
+        }
+        const auto playerIt = managedObjects.find(QDBusObjectPath(candidatePath));
+        if (playerIt == managedObjects.end()) {
+            continue;
+        }
+        const DBusInterfaceMap candidateInterfaces = playerIt.value();
+        if (!candidateInterfaces.contains(QStringLiteral("org.bluez.MediaPlayer1"))) {
+            continue;
+        }
+        playerPath = candidatePath;
+        playerProps = candidateInterfaces.value(QStringLiteral("org.bluez.MediaPlayer1"));
+        break;
+    }
+
+    // Fallback: first available MediaPlayer1 object.
+    if (playerPath.isEmpty()) {
+        for (auto it = managedObjects.cbegin(); it != managedObjects.cend(); ++it) {
+            const DBusInterfaceMap interfaces = it.value();
+            if (!interfaces.contains(QStringLiteral("org.bluez.MediaPlayer1"))) {
+                continue;
+            }
+            playerPath = it.key().path();
+            playerProps = interfaces.value(QStringLiteral("org.bluez.MediaPlayer1"));
+            break;
+        }
+    }
+
+    if (playerPath.isEmpty()) {
+        setSystemSessionState(false, false, QString(), QString());
+        return;
+    }
+
+    const QString status = playerProps.value(QStringLiteral("Status")).toString();
+    const bool isPlaying = status.compare(QStringLiteral("playing"), Qt::CaseInsensitive) == 0;
+
+    const QVariantMap track = playerProps.value(QStringLiteral("Track")).toMap();
+    const QString title = track.value(QStringLiteral("Title")).toString();
+    const QString artist = trackArtistFromVariant(track.value(QStringLiteral("Artist")));
+
+    m_linuxPlayerPath = playerPath;
+    setSystemSessionState(true, isPlaying, title, artist);
+#else
+    setSystemSessionState(false, false, QString(), QString());
+#endif
 }
 
 void ExternalMediaController::applySystemSessionPayload(const QString &jsonPayload)
 {
+#if !defined(Q_OS_WIN)
+    Q_UNUSED(jsonPayload)
+    return;
+#else
     if (jsonPayload.isEmpty()) {
         return;
     }
@@ -299,31 +479,19 @@ void ExternalMediaController::applySystemSessionPayload(const QString &jsonPaylo
     }
 
     const QJsonObject obj = doc.object();
-    const bool oldAvailable = m_systemSessionAvailable;
-    const bool oldPlaying = m_systemPlaying;
-    const QString oldSong = m_systemSong;
-    const QString oldArtist = m_systemArtist;
+    const bool available = obj.value(QStringLiteral("available")).toBool(false);
+    const QString title = obj.value(QStringLiteral("title")).toString();
+    const QString artist = obj.value(QStringLiteral("artist")).toString();
+    const QString status = obj.value(QStringLiteral("status")).toString();
+    const bool isPlaying = status.compare(QStringLiteral("Playing"), Qt::CaseInsensitive) == 0;
 
-    m_systemSessionAvailable = obj.value(QStringLiteral("available")).toBool(false);
-    if (!m_systemSessionAvailable) {
-        m_systemPlaying = false;
-        m_systemSong.clear();
-        m_systemArtist.clear();
-    } else {
-        m_systemSong = obj.value(QStringLiteral("title")).toString();
-        m_systemArtist = obj.value(QStringLiteral("artist")).toString();
-        const QString status = obj.value(QStringLiteral("status")).toString();
-        m_systemPlaying = status.compare(QStringLiteral("Playing"), Qt::CaseInsensitive) == 0;
-    }
-
-    if (oldAvailable != m_systemSessionAvailable) emit availableChanged();
-    if (oldPlaying != m_systemPlaying) emit playingChanged();
-    if (oldSong != m_systemSong) emit currentSongChanged();
-    if (oldArtist != m_systemArtist) emit currentArtistChanged();
+    setSystemSessionState(available, isPlaying, title, artist);
+#endif
 }
 
 bool ExternalMediaController::sendSystemCommand(const QString &command)
 {
+#if defined(Q_OS_WIN)
     QProcess cmd;
     cmd.start(QStringLiteral("powershell"),
               {QStringLiteral("-NoProfile"),
@@ -335,12 +503,45 @@ bool ExternalMediaController::sendSystemCommand(const QString &command)
     const QString out = QString::fromUtf8(cmd.readAllStandardOutput()).trimmed().toLower();
     probeSystemSession();
     return out.contains(QStringLiteral("true"));
+#elif defined(Q_OS_LINUX)
+    if (m_linuxPlayerPath.isEmpty()) {
+        probeSystemSession();
+    }
+    if (m_linuxPlayerPath.isEmpty()) {
+        return false;
+    }
+
+    QString method;
+    if (command == QStringLiteral("play")) method = QStringLiteral("Play");
+    else if (command == QStringLiteral("pause")) method = QStringLiteral("Pause");
+    else if (command == QStringLiteral("next")) method = QStringLiteral("Next");
+    else if (command == QStringLiteral("previous")) method = QStringLiteral("Previous");
+    else method = QStringLiteral("PlayPause");
+
+    QDBusInterface player(QStringLiteral("org.bluez"),
+                          m_linuxPlayerPath,
+                          QStringLiteral("org.bluez.MediaPlayer1"),
+                          QDBusConnection::systemBus());
+    if (!player.isValid()) {
+        probeSystemSession();
+        return false;
+    }
+
+    const QDBusMessage reply = player.call(method);
+    probeSystemSession();
+    return reply.type() != QDBusMessage::ErrorMessage;
+#else
+    Q_UNUSED(command)
+    return false;
+#endif
 }
 
 void ExternalMediaController::play()
 {
-    if (m_hostModeEnabled && sendSystemCommand(QStringLiteral("play"))) {
-        return;
+    if (m_hostModeEnabled) {
+        if (sendSystemCommand(QStringLiteral("play")) || m_systemSessionAvailable) {
+            return;
+        }
     }
     if (!m_tracks.isEmpty()) {
         if (m_index < 0) loadTrack(0, true);
@@ -353,8 +554,10 @@ void ExternalMediaController::play()
 
 void ExternalMediaController::pause()
 {
-    if (m_hostModeEnabled && sendSystemCommand(QStringLiteral("pause"))) {
-        return;
+    if (m_hostModeEnabled) {
+        if (sendSystemCommand(QStringLiteral("pause")) || m_systemSessionAvailable) {
+            return;
+        }
     }
     if (!m_tracks.isEmpty()) {
         m_player->pause();
@@ -366,8 +569,10 @@ void ExternalMediaController::pause()
 
 void ExternalMediaController::togglePlayback()
 {
-    if (m_hostModeEnabled && sendSystemCommand(QStringLiteral("toggle"))) {
-        return;
+    if (m_hostModeEnabled) {
+        if (sendSystemCommand(QStringLiteral("toggle")) || m_systemSessionAvailable) {
+            return;
+        }
     }
     if (!m_tracks.isEmpty()) {
         if (playing()) pause();
@@ -380,8 +585,10 @@ void ExternalMediaController::togglePlayback()
 
 void ExternalMediaController::next()
 {
-    if (m_hostModeEnabled && sendSystemCommand(QStringLiteral("next"))) {
-        return;
+    if (m_hostModeEnabled) {
+        if (sendSystemCommand(QStringLiteral("next")) || m_systemSessionAvailable) {
+            return;
+        }
     }
     if (!m_tracks.isEmpty()) {
         loadTrack(m_index + 1, true);
@@ -390,8 +597,10 @@ void ExternalMediaController::next()
 
 void ExternalMediaController::previous()
 {
-    if (m_hostModeEnabled && sendSystemCommand(QStringLiteral("previous"))) {
-        return;
+    if (m_hostModeEnabled) {
+        if (sendSystemCommand(QStringLiteral("previous")) || m_systemSessionAvailable) {
+            return;
+        }
     }
     if (!m_tracks.isEmpty()) {
         loadTrack(m_index - 1, true);

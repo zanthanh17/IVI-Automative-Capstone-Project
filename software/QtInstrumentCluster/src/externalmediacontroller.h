@@ -51,6 +51,7 @@ private:
     void loadTrack(int index, bool autoPlay);
     void emitTrackMetaChanged();
     QString fileNameFallback(const QString &path) const;
+    void setSystemSessionState(bool available, bool playing, const QString &song, const QString &artist);
     void probeSystemSession();
     void applySystemSessionPayload(const QString &jsonPayload);
     bool sendSystemCommand(const QString &command);
@@ -70,6 +71,7 @@ private:
     bool m_systemPlaying;
     QString m_systemSong;
     QString m_systemArtist;
+    QString m_linuxPlayerPath;
 };
 
 #endif // EXTERNALMEDIACONTROLLER_H

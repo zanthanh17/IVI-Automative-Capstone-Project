@@ -30,13 +30,19 @@ sudo apt install -y \
     qt6-multimedia-dev \
     qt6-tools-dev-tools \
     qt6-l10n-tools \
+    qml6-module-qtqml \
+    qml6-module-qtqml-models \
+    qml6-module-qtqml-workerscript \
     qml6-module-qtquick \
     qml6-module-qtquick-window \
     qml6-module-qtquick-controls \
     libgl1-mesa-dri \
     libgles2 \
     libxkbcommon0 \
-    libpulse0
+    libpulse0 \
+    pulseaudio \
+    pulseaudio-module-bluetooth \
+    bluez
 
 echo "[INFO] Adding user '${USER}' to dialout group for serial access..."
 sudo usermod -aG dialout "${USER}"

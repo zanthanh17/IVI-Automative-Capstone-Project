@@ -5,8 +5,6 @@
 #include <QLocale>
 #include <QTranslator>
 
-#include "src/simulationcontroller.h"
-#include "src/DriveTrain.h"
 #include "src/externalmediacontroller.h"
 #include "src/mainmodel.h"
 #include "src/serialreceiver.h"
@@ -27,9 +25,6 @@ int main(int argc, char *argv[])
             break;
         }
     }
-
-    qmlRegisterType<SimulationController>("SimulationController", 1, 0, "SimulationController");
-    qmlRegisterType<Drivetrain>("Drivetrain", 1, 0, "DriveTrain");
 
     qmlRegisterSingletonType<MainModel>("MainModelData", 1, 0, "MainModelData", [](QQmlEngine*, QJSEngine*) -> QObject* {
             return MainModel::instance();
