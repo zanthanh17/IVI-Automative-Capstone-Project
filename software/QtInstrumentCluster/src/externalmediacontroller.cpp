@@ -103,6 +103,7 @@ ExternalMediaController::ExternalMediaController(QObject *parent)
     , m_systemSessionAvailable(false)
     , m_systemPlaying(false)
     , m_linuxPlayerPath()
+    , m_linuxPlayerPathConnected()
 {
     m_audioOutput->setVolume(1.0);
     m_player->setAudioOutput(m_audioOutput);
@@ -206,6 +207,9 @@ void ExternalMediaController::setSystemSessionState(bool available,
     m_systemArtist = available ? artist : QString();
     if (!available) {
         m_linuxPlayerPath.clear();
+#if defined(Q_OS_LINUX)
+        disconnectPlayerSignals();
+#endif
     }
 
     if (oldAvailable != m_systemSessionAvailable) emit availableChanged();
@@ -516,6 +520,10 @@ void ExternalMediaController::probeSystemSession()
 
     const bool isPlaying = status.compare(QStringLiteral("playing"), Qt::CaseInsensitive) == 0;
     setSystemSessionState(true, isPlaying, title, artist);
+
+    // Subscribe to PropertiesChanged signal for real-time metadata updates
+    // iPhone sends Track metadata ONLY via this signal, not via Properties.Get
+    connectPlayerSignals();
 #else
     setSystemSessionState(false, false, QString(), QString());
 #endif
@@ -694,3 +702,111 @@ void ExternalMediaController::rescan()
         loadTrack(0, false);
     }
 }
+
+#if defined(Q_OS_LINUX)
+void ExternalMediaController::disconnectPlayerSignals()
+{
+    if (m_linuxPlayerPathConnected.isEmpty()) {
+        return;
+    }
+    QDBusConnection::systemBus().disconnect(
+        QStringLiteral("org.bluez"),
+        m_linuxPlayerPathConnected,
+        QStringLiteral("org.freedesktop.DBus.Properties"),
+        QStringLiteral("PropertiesChanged"),
+        this,
+        SLOT(onPlayerPropertiesChanged(QString,QVariantMap,QStringList)));
+    qDebug() << "[ExternalMedia] Disconnected signals from" << m_linuxPlayerPathConnected;
+    m_linuxPlayerPathConnected.clear();
+}
+
+void ExternalMediaController::connectPlayerSignals()
+{
+    if (m_linuxPlayerPath.isEmpty() || m_linuxPlayerPath == m_linuxPlayerPathConnected) {
+        return;
+    }
+    // Disconnect previous if different
+    disconnectPlayerSignals();
+
+    const bool ok = QDBusConnection::systemBus().connect(
+        QStringLiteral("org.bluez"),
+        m_linuxPlayerPath,
+        QStringLiteral("org.freedesktop.DBus.Properties"),
+        QStringLiteral("PropertiesChanged"),
+        this,
+        SLOT(onPlayerPropertiesChanged(QString,QVariantMap,QStringList)));
+
+    if (ok) {
+        m_linuxPlayerPathConnected = m_linuxPlayerPath;
+        qDebug() << "[ExternalMedia] Subscribed to PropertiesChanged on" << m_linuxPlayerPath;
+    } else {
+        qWarning() << "[ExternalMedia] Failed to subscribe PropertiesChanged on" << m_linuxPlayerPath;
+    }
+}
+
+void ExternalMediaController::onPlayerPropertiesChanged(
+    const QString &interface,
+    const QVariantMap &changedProps,
+    const QStringList &invalidated)
+{
+    Q_UNUSED(invalidated)
+
+    if (interface != QStringLiteral("org.bluez.MediaPlayer1")) {
+        return;
+    }
+
+    qDebug() << "[ExternalMedia] PropertiesChanged keys:" << changedProps.keys();
+
+    bool changed = false;
+
+    // Status changed?
+    if (changedProps.contains(QStringLiteral("Status"))) {
+        const QString status = changedProps.value(QStringLiteral("Status")).toString();
+        const bool isPlaying = status.compare(QStringLiteral("playing"), Qt::CaseInsensitive) == 0;
+        if (m_systemPlaying != isPlaying) {
+            m_systemPlaying = isPlaying;
+            emit playingChanged();
+            changed = true;
+        }
+        qDebug() << "[ExternalMedia] Status changed:" << status;
+    }
+
+    // Track changed?
+    if (changedProps.contains(QStringLiteral("Track"))) {
+        QVariantMap track;
+        const QVariant trackVariant = changedProps.value(QStringLiteral("Track"));
+
+        if (trackVariant.canConvert<QDBusArgument>()) {
+            const QDBusArgument trackArg = trackVariant.value<QDBusArgument>();
+            trackArg >> track;
+        } else {
+            track = trackVariant.toMap();
+        }
+
+        qDebug() << "[ExternalMedia] Track signal keys:" << track.keys();
+        qDebug() << "[ExternalMedia] Track signal values:" << track;
+
+        const QString title = track.value(QStringLiteral("Title")).toString();
+        const QString artist = trackArtistFromVariant(track.value(QStringLiteral("Artist")));
+
+        qDebug() << "[ExternalMedia] Signal Title:" << title << "Artist:" << artist;
+
+        if (m_systemSong != title) {
+            m_systemSong = title;
+            emit currentSongChanged();
+            changed = true;
+        }
+        if (m_systemArtist != artist) {
+            m_systemArtist = artist;
+            emit currentArtistChanged();
+            changed = true;
+        }
+    }
+
+    if (changed) {
+        qDebug() << "[ExternalMedia] Updated → Song:" << m_systemSong
+                 << "Artist:" << m_systemArtist
+                 << "Playing:" << m_systemPlaying;
+    }
+}
+#endif

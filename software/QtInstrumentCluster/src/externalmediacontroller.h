@@ -58,6 +58,14 @@ private:
     QString sessionProbeScript() const;
     QString sessionCommandScript(const QString &command) const;
 
+#if defined(Q_OS_LINUX)
+    void connectPlayerSignals();
+    void disconnectPlayerSignals();
+    void onPlayerPropertiesChanged(const QString &interface,
+                                   const QVariantMap &changedProps,
+                                   const QStringList &invalidated);
+#endif
+
     QMediaPlayer *m_player;
     QAudioOutput *m_audioOutput;
     QProcess *m_probeProcess;
@@ -72,6 +80,7 @@ private:
     QString m_systemSong;
     QString m_systemArtist;
     QString m_linuxPlayerPath;
+    QString m_linuxPlayerPathConnected;  // path currently subscribed to signals
 };
 
 #endif // EXTERNALMEDIACONTROLLER_H
