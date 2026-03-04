@@ -42,10 +42,9 @@ sudo apt install -y \
     libgles2 \
     libxkbcommon0 \
     libpulse0 \
-    pulseaudio \
-    pulseaudio-module-bluetooth \
     bluez \
-    bluez-tools
+    bluez-tools \
+    libspa-0.2-bluetooth
 
 echo "[INFO] Adding user '${USER}' to dialout group for serial access..."
 sudo usermod -aG dialout "${USER}"

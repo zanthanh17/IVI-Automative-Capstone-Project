@@ -18,8 +18,7 @@ class MainModel : public QObject
     Q_PROPERTY(bool hardwareConnected READ hardwareConnected NOTIFY hardwareConnectedChanged)
 
 public:
-    static MainModel *instance();
-
+    static MainModel* instance();
     float speed() const;
     float rpm() const;
     float odo() const;
@@ -37,8 +36,11 @@ public:
     void setBatteryLevel(float newValue);
     void setGearText(const QString &text);
 
+    /** Khởi tạo SerialReceiver và kết nối signals */
     void initSerialReceiver();
-    SerialReceiver *serialReceiver() const;
+
+    /** Trả về con trỏ SerialReceiver (để QML truy cập nếu cần) */
+    SerialReceiver* serialReceiver() const;
 
 signals:
     void modelUpdated();
@@ -52,8 +54,7 @@ signals:
     void gearTextChanged();
 
 private:
-    explicit MainModel(QObject *parent = nullptr);
-
+    explicit MainModel(QObject* parent = nullptr);
     float m_speed;
     float m_rpm;
     float m_odo;

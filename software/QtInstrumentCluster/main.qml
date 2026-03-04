@@ -3,25 +3,29 @@ import QtQuick.Window 2.12
 
 import MainModel 1.0
 import MediaPlayerModel 1.0
-import ExternalMedia 1.0
 import TellTalesModel 1.0
 import NormalModeModel 1.0
-import NavigationFeed 1.0
 import "view" as View
 
 Window {
-    id: window
-    width: 1024
-    height: 600
+    id: window;
+    width: 800;
+    height: 480;
     visible: true
     title: qsTr("Instrument Cluster Demo")
-    readonly property real designWidth: 1024
-    readonly property real designHeight: 600
+    readonly property real designWidth: 800
+    readonly property real designHeight: 480
     readonly property real sceneScale: Math.min(width / designWidth, height / designHeight)
 
+    /*
+     * Kết nối SerialReceiver signals → QML Models
+     * Đây là cầu nối giữa phần cứng STM32 và Dashboard UI
+     * Code này chạy GIỐNG HỆT trên PC host và Raspberry Pi
+     */
     Connections {
         target: serialReceiver
 
+        /* Khi phần cứng kết nối, log trạng thái */
         function onConnectedChanged() {
             if (serialReceiver.connected) {
                 console.log("[QML] Hardware connected on port: " + serialReceiver.portName)
@@ -30,24 +34,29 @@ Window {
             }
         }
 
+        /* === Tell-Tales: nút nhấn phần cứng → đèn cảnh báo trên dashboard === */
         function onTurnLeftChanged(active)  { TellTalesModel.turnLeftActive = active;  TellTalesModel.turnLeftBlinking = active; }
         function onTurnRightChanged(active) { TellTalesModel.turnRightActive = active; TellTalesModel.turnRightBlinking = active; }
         function onBeamChanged(active)      { TellTalesModel.beamActive = active; }
-        function onHighBeamsChanged(active) { TellTalesModel.highBeamsActive = active; }
+        function onHighBeamsChanged(active)  { TellTalesModel.highBeamsActive = active; }
         function onParkedChanged(active)    { TellTalesModel.parkedActive = active; }
         function onAirbagChanged(active)    { TellTalesModel.airbagActive = active; }
 
-        function onMediaPlayToggled() {
+        /* === Media Player: nút nhấn phần cứng → điều khiển nhạc === */
+        function onMediaPlayToggled()   {
             if (MediaPlayerModel.mediaPlayback) MediaPlayerModel.stop()
             else MediaPlayerModel.play()
         }
-        function onMediaNextTriggered() { MediaPlayerModel.nextSong() }
+        function onMediaNextTriggered() { MediaPlayerModel.nextSong(); }
 
-        function onSpeedReceived(speed)       { MainModel.speed = speed }
-        function onRpmReceived(rpm)           { MainModel.rpm = rpm }
-        function onFuelLevelReceived(level)   { MainModel.fuelLevel = level }
-        function onBatteryLevelReceived(level){ MainModel.batteryLevel = level }
-        function onGearReceived(gear)         { MainModel.gearShiftText = gear }
+        /* === Sensor Data: cập nhật speed, rpm từ phần cứng === */
+        function onSpeedReceived(speed) {
+            MainModel.speed = speed
+        }
+        function onRpmReceived(rpm)       { MainModel.rpm = rpm }
+        function onFuelLevelReceived(level)    { MainModel.fuelLevel = level }
+        function onBatteryLevelReceived(level) { MainModel.batteryLevel = level }
+        function onGearReceived(gear)     { MainModel.gearShiftText = gear }
     }
 
     function handleKey(key : int) {
@@ -77,20 +86,6 @@ Window {
             NormalModeModel.nextMenu()
         } else if (key === Qt.Key_M) {
             NormalModeModel.previousMenu()
-        } else if (key === Qt.Key_G) {
-            NavigationFeed.useMockGps = !NavigationFeed.useMockGps
-            if (NavigationFeed.useMockGps) {
-                NavigationFeed.start()
-                console.log("[NAV] Source switched to MOCK GPS")
-            } else {
-                console.log("[NAV] Source switched to HARDWARE GPS (awaiting external positions)")
-            }
-        } else if (key === Qt.Key_H) {
-            ExternalMedia.hostModeEnabled = !ExternalMedia.hostModeEnabled
-            console.log("[MEDIA] External host mode: " + (ExternalMedia.hostModeEnabled ? "ON" : "OFF"))
-        } else if (key === Qt.Key_B) {
-            ExternalMedia.rescan()
-            console.log("[MEDIA] Rescanned local tracks")
         }
     }
 
@@ -112,9 +107,6 @@ Window {
     Shortcut { sequence: "U"; onActivated: handleKey(Qt.Key_U) }
     Shortcut { sequence: "N"; onActivated: handleKey(Qt.Key_N) }
     Shortcut { sequence: "M"; onActivated: handleKey(Qt.Key_M) }
-    Shortcut { sequence: "G"; onActivated: handleKey(Qt.Key_G) }
-    Shortcut { sequence: "H"; onActivated: handleKey(Qt.Key_H) }
-    Shortcut { sequence: "B"; onActivated: handleKey(Qt.Key_B) }
 
     Item {
         id: sceneRoot
@@ -129,31 +121,37 @@ Window {
         }
 
         Rectangle {
-            id: root
-            anchors.fill: parent
+            id: root;
+            anchors.fill: parent;
             focus: true
+
             color: "#00091a"
 
             View.TellTales {
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: 16
+                anchors.horizontalCenter: parent.horizontalCenter;
+                y:16;
             }
 
             View.Car {
-                anchors.fill: parent
+                anchors.fill: parent;
             }
 
             View.NormalMode {
-                id: normalMode
-                anchors.fill: parent
+                id: normalMode;
+                anchors.fill: parent;
             }
 
             View.StatusBar {
-                anchors.fill: parent
+                anchors.fill: parent;
             }
 
             Component.onCompleted: {
                 root.forceActiveFocus()
+                if (serialReceiver.connected) {
+                    console.log("[QML] Hardware already connected")
+                } else {
+                    console.log("[QML] No hardware detected, waiting for connection...")
+                }
             }
         }
     }

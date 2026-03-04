@@ -1,120 +1,104 @@
 #include "mainmodel.h"
-
 #include "serialreceiver.h"
-
 #include <QDebug>
 
-MainModel::MainModel(QObject *parent)
+MainModel::MainModel(QObject* parent)
     : QObject(parent)
-    , m_speed(0.0f)
-    , m_rpm(0.0f)
-    , m_odo(0.0f)
-    , m_range(0.0f)
+    , m_speed(0)
+    , m_rpm(0)
+    , m_odo(0)
+    , m_range(0)
     , m_fuelLevel(0.2f)
     , m_batteryLevel(0.2f)
     , m_gearText("P")
     , m_serialReceiver(nullptr)
-{
-}
+{}
 
-MainModel *MainModel::instance()
+MainModel* MainModel::instance()
 {
-    static MainModel *s_instance = nullptr;
-    if (!s_instance) {
+    static MainModel* s_instance = nullptr;
+    if (!s_instance)
         s_instance = new MainModel();
-    }
     return s_instance;
 }
 
-float MainModel::speed() const { return m_speed; }
-float MainModel::rpm() const { return m_rpm; }
-float MainModel::odo() const { return m_odo; }
-float MainModel::range() const { return m_range; }
-float MainModel::fuelLevel() const { return m_fuelLevel; }
+float MainModel::speed() const       { return m_speed; }
+float MainModel::rpm() const         { return m_rpm; }
+float MainModel::odo() const         { return m_odo; }
+float MainModel::range() const       { return m_range; }
+float MainModel::fuelLevel() const   { return m_fuelLevel; }
 float MainModel::batteryLevel() const { return m_batteryLevel; }
-QString MainModel::gearText() const { return m_gearText; }
+QString MainModel::gearText() const  { return m_gearText; }
 
 bool MainModel::hardwareConnected() const
 {
     return m_serialReceiver && m_serialReceiver->isConnected();
 }
 
-void MainModel::setSpeed(float newValue)
-{
-    if (m_speed == newValue) {
-        return;
+void MainModel::setSpeed(float newValue) {
+    if (m_speed != newValue) {
+        m_speed = newValue;
+        emit speedChanged();
     }
-    m_speed = newValue;
-    emit speedChanged();
 }
 
-void MainModel::setRPM(float newValue)
-{
-    if (m_rpm == newValue) {
-        return;
+void MainModel::setRPM(float newValue) {
+    if (m_rpm != newValue) {
+        m_rpm = newValue;
+        emit rpmChanged();
     }
-    m_rpm = newValue;
-    emit rpmChanged();
 }
 
-void MainModel::setOdo(float newValue)
-{
-    if (m_odo == newValue) {
-        return;
+void MainModel::setOdo(float newValue) {
+    if (m_odo != newValue) {
+        m_odo = newValue;
+        emit odoChanged();
     }
-    m_odo = newValue;
-    emit odoChanged();
 }
 
-void MainModel::setRange(float newValue)
-{
-    if (m_range == newValue) {
-        return;
+void MainModel::setRange(float newValue) {
+    if (m_range != newValue) {
+        m_range = newValue;
+        emit rangeChanged();
     }
-    m_range = newValue;
-    emit rangeChanged();
 }
 
-void MainModel::setFuelLevel(float newValue)
-{
-    if (m_fuelLevel == newValue) {
-        return;
+void MainModel::setFuelLevel(float newValue) {
+    if (m_fuelLevel != newValue) {
+        m_fuelLevel = newValue;
+        emit fuelLevelChanged();
     }
-    m_fuelLevel = newValue;
-    emit fuelLevelChanged();
 }
 
-void MainModel::setBatteryLevel(float newValue)
-{
-    if (m_batteryLevel == newValue) {
-        return;
+void MainModel::setBatteryLevel(float newValue) {
+    if (m_batteryLevel != newValue) {
+        m_batteryLevel = newValue;
+        emit batteryLevelChanged();
     }
-    m_batteryLevel = newValue;
-    emit batteryLevelChanged();
 }
 
-void MainModel::setGearText(const QString &text)
-{
-    if (m_gearText == text) {
-        return;
+void MainModel::setGearText(const QString &text) {
+    if (m_gearText != text) {
+        m_gearText = text;
+        emit gearTextChanged();
     }
-    m_gearText = text;
-    emit gearTextChanged();
 }
 
-SerialReceiver *MainModel::serialReceiver() const
+SerialReceiver* MainModel::serialReceiver() const
 {
     return m_serialReceiver;
 }
 
 void MainModel::initSerialReceiver()
 {
-    if (m_serialReceiver) {
-        return;
-    }
+    if (m_serialReceiver) return;
 
     m_serialReceiver = new SerialReceiver(this);
 
+    /*
+     * Kết nối signals từ SerialReceiver → MainModel
+     * Khi nhận DATA frame từ STM32, cập nhật properties và emit modelUpdated()
+     */
     connect(m_serialReceiver, &SerialReceiver::speedReceived, this, [this](int speed) {
         setSpeed(static_cast<float>(speed));
         emit modelUpdated();
@@ -135,7 +119,7 @@ void MainModel::initSerialReceiver()
         emit modelUpdated();
     });
 
-    connect(m_serialReceiver, &SerialReceiver::gearReceived, this, [this](const QString &gear) {
+    connect(m_serialReceiver, &SerialReceiver::gearReceived, this, [this](QString gear) {
         setGearText(gear);
         emit modelUpdated();
     });
@@ -143,9 +127,7 @@ void MainModel::initSerialReceiver()
     connect(m_serialReceiver, &SerialReceiver::connectedChanged, this, [this]() {
         emit hardwareConnectedChanged();
         if (m_serialReceiver->isConnected()) {
-            qDebug() << "[MainModel] Hardware connected";
-        } else {
-            qDebug() << "[MainModel] Hardware disconnected";
+            qDebug() << "[MainModel] Hardware connected, simulation data will be ignored";
         }
     });
 

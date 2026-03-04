@@ -13,11 +13,11 @@ QtObject {
     property bool introSequenceCompleted: false
 
     property int speedLimitWarning: SpeedLimitValues.Slow
-    readonly property real initialOdo: 300
-    property real odo: initialOdo
+    readonly property int initialOdo: 300
+    property int odo: initialOdo
 
-    readonly property real fullRange: 895
-    property real range: fullRange - odo
+    readonly property int fullRange: 895
+    property int range: fullRange - odo
     property real speed: 0
     property real rpm: 0
     property string gearShiftText: "P"
@@ -44,23 +44,7 @@ QtObject {
     readonly property int gaugesValueChangeDurationSlow: 1250
     property int gaugesValueChangeDuration: gaugesValueChangeDurationNormal
 
-    property bool laneAssistCarMoving: speed > minMovingSpeedKph
-    readonly property real minMovingSpeedKph: 0.3
-    readonly property real rangeSmoothingFactor: 0.22
-    property double lastHardwareTickMs: Date.now()
-
-    function clamp01(v) {
-        return Math.max(0, Math.min(1, v))
-    }
-
-    function syncRangeFromFuel(immediate) {
-        var targetRange = clamp01(fuelLevel) * fullRange
-        if (immediate) {
-            range = targetRange
-            return
-        }
-        range = range + (targetRange - range) * rangeSmoothingFactor
-    }
+    property bool laneAssistCarMoving: MainModelData.hardwareConnected
 
     Component.onCompleted: {
         MainModelData.modelUpdated.connect(modelUpdated);
@@ -79,43 +63,6 @@ QtObject {
             MainModel.fuelLevel = MainModelData.fuelLevel
             MainModel.batteryLevel = MainModelData.batteryLevel
             MainModel.gearShiftText = MainModelData.gearText
-        }
-    }
-
-    onFuelLevelChanged: {
-        if (MainModelData.hardwareConnected) {
-            syncRangeFromFuel(false)
-        }
-    }
-
-    property Connections hardwareConnection: Connections {
-        target: MainModelData
-        function onHardwareConnectedChanged() {
-            mainmodel.lastHardwareTickMs = Date.now()
-            if (MainModelData.hardwareConnected) {
-                mainmodel.syncRangeFromFuel(true)
-            }
-        }
-    }
-
-    property Timer hardwareTelemetryTimer: Timer {
-        interval: 200
-        running: true
-        repeat: true
-        onTriggered: {
-            var nowMs = Date.now()
-            var dtMs = Math.max(0, nowMs - mainmodel.lastHardwareTickMs)
-            mainmodel.lastHardwareTickMs = nowMs
-
-            if (!MainModelData.hardwareConnected) {
-                return
-            }
-
-            if (mainmodel.speed > mainmodel.minMovingSpeedKph) {
-                mainmodel.odo = mainmodel.odo + (mainmodel.speed * dtMs / 3600000.0)
-            }
-
-            mainmodel.syncRangeFromFuel(false)
         }
     }
 }
