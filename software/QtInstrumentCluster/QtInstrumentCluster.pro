@@ -1,4 +1,5 @@
-QT += quick serialport multimedia dbus
+QT += quick serialport multimedia
+linux: QT += dbus
 
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
@@ -6,9 +7,12 @@ QT += quick serialport multimedia dbus
 
 SOURCES += \
         main.cpp \
+        src/DriveState.cpp \
+        src/DriveTrain.cpp \
         src/externalmediacontroller.cpp \
         src/mainmodel.cpp \
-        src/serialreceiver.cpp
+        src/serialreceiver.cpp \
+        src/simulationcontroller.cpp
 
 RESOURCES += qml.qrc
 
@@ -29,7 +33,10 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 HEADERS += \
+    src/DriveState.h \
+    src/DriveTrain.h \
     src/externalmediacontroller.h \
     src/mainmodel.h \
     src/mathutils.h \
-    src/serialreceiver.h
+    src/serialreceiver.h \
+    src/simulationcontroller.h
