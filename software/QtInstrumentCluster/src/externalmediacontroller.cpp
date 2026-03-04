@@ -759,19 +759,17 @@ void ExternalMediaController::onPlayerPropertiesChanged(
     const QVariantMap &changedProps,
     const QStringList &invalidated)
 {
-    Q_UNUSED(invalidated)
-
     if (interface != QStringLiteral("org.bluez.MediaPlayer1")) {
         return;
     }
 
-    qDebug() << "[ExternalMedia] PropertiesChanged keys:" << changedProps.keys();
+    qDebug() << "[ExternalMedia] PropertiesChanged keys:" << changedProps.keys()
+             << "invalidated:" << invalidated;
 
     bool changed = false;
 
-    // ---------- Status ----------
+    // ---------- Status (from changedProps) ----------
     if (changedProps.contains(QStringLiteral("Status"))) {
-        // D-Bus signal wraps each value as variant — unwrap first
         const QString status = unwrapDBusVariant(changedProps.value(QStringLiteral("Status"))).toString();
         const bool isPlaying = status.compare(QStringLiteral("playing"), Qt::CaseInsensitive) == 0;
         if (m_systemPlaying != isPlaying) {
@@ -782,47 +780,110 @@ void ExternalMediaController::onPlayerPropertiesChanged(
         qDebug() << "[ExternalMedia] Status changed:" << status;
     }
 
-    // ---------- Track ----------
+    // ---------- Track (from changedProps — some devices send it here) ----------
     if (changedProps.contains(QStringLiteral("Track"))) {
-        // Unwrap the outer variant(s) — result should be a{sv} (QDBusArgument)
         const QVariant trackUnwrapped = unwrapDBusVariant(changedProps.value(QStringLiteral("Track")));
         QVariantMap track;
 
         if (trackUnwrapped.canConvert<QDBusArgument>()) {
             const QDBusArgument trackArg = trackUnwrapped.value<QDBusArgument>();
-            trackArg >> track;   // deserializes a{sv} → QVariantMap
+            trackArg >> track;
         } else {
             track = trackUnwrapped.toMap();
         }
 
-        // Values inside the a{sv} dict may themselves be QDBusVariant
-        // Unwrap them so .toString() / .toUInt() actually works
         QVariantMap unwrappedTrack;
         for (auto it = track.cbegin(); it != track.cend(); ++it) {
             unwrappedTrack.insert(it.key(), unwrapDBusVariant(it.value()));
         }
 
-        qDebug() << "[ExternalMedia] Track signal keys:" << unwrappedTrack.keys();
-        qDebug() << "[ExternalMedia] Track signal values:" << unwrappedTrack;
-
+        qDebug() << "[ExternalMedia] Track from changedProps:" << unwrappedTrack;
         const QString title = unwrappedTrack.value(QStringLiteral("Title")).toString();
         const QString artist = unwrappedTrack.value(QStringLiteral("Artist")).toString();
 
-        qDebug() << "[ExternalMedia] Signal Title:" << title << "Artist:" << artist;
+        if (m_systemSong != title) { m_systemSong = title; emit currentSongChanged(); changed = true; }
+        if (m_systemArtist != artist) { m_systemArtist = artist; emit currentArtistChanged(); changed = true; }
+    }
 
-        if (m_systemSong != title) {
-            m_systemSong = title;
-            emit currentSongChanged();
-            changed = true;
-        }
-        if (m_systemArtist != artist) {
-            m_systemArtist = artist;
-            emit currentArtistChanged();
-            changed = true;
+    // ---------- Track INVALIDATED (iPhone/AVRCP sends Track in invalidated list) ----------
+    // When Track is in the invalidated list, we must re-fetch it via Properties.GetAll
+    // because Properties.Get("Track") often returns "No such property" on iPhone
+    if (invalidated.contains(QStringLiteral("Track")) ||
+        invalidated.contains(QStringLiteral("Status"))) {
+
+        qDebug() << "[ExternalMedia] Invalidated properties detected, re-fetching via GetAll...";
+
+        QDBusInterface propsIface(QStringLiteral("org.bluez"),
+                                  m_linuxPlayerPath,
+                                  QStringLiteral("org.freedesktop.DBus.Properties"),
+                                  QDBusConnection::systemBus());
+        if (propsIface.isValid()) {
+            const QDBusMessage reply = propsIface.call(
+                QStringLiteral("GetAll"),
+                QStringLiteral("org.bluez.MediaPlayer1"));
+
+            if (reply.type() == QDBusMessage::ReplyMessage && !reply.arguments().isEmpty()) {
+                // GetAll returns a{sv}
+                QVariantMap allProps;
+                const QVariant arg = reply.arguments().constFirst();
+                if (arg.canConvert<QDBusArgument>()) {
+                    arg.value<QDBusArgument>() >> allProps;
+                } else {
+                    allProps = arg.toMap();
+                }
+
+                // --- Status ---
+                if (invalidated.contains(QStringLiteral("Status")) &&
+                    allProps.contains(QStringLiteral("Status"))) {
+                    const QString status = unwrapDBusVariant(allProps.value(QStringLiteral("Status"))).toString();
+                    const bool isPlaying = status.compare(QStringLiteral("playing"), Qt::CaseInsensitive) == 0;
+                    if (m_systemPlaying != isPlaying) {
+                        m_systemPlaying = isPlaying;
+                        emit playingChanged();
+                        changed = true;
+                    }
+                    qDebug() << "[ExternalMedia] Re-fetched Status:" << status;
+                }
+
+                // --- Track ---
+                if (allProps.contains(QStringLiteral("Track"))) {
+                    const QVariant trackUnwrapped = unwrapDBusVariant(allProps.value(QStringLiteral("Track")));
+                    QVariantMap track;
+                    if (trackUnwrapped.canConvert<QDBusArgument>()) {
+                        trackUnwrapped.value<QDBusArgument>() >> track;
+                    } else {
+                        track = trackUnwrapped.toMap();
+                    }
+
+                    QVariantMap unwrappedTrack;
+                    for (auto it = track.cbegin(); it != track.cend(); ++it) {
+                        unwrappedTrack.insert(it.key(), unwrapDBusVariant(it.value()));
+                    }
+
+                    qDebug() << "[ExternalMedia] Re-fetched Track:" << unwrappedTrack;
+
+                    const QString title = unwrappedTrack.value(QStringLiteral("Title")).toString();
+                    const QString artist = unwrappedTrack.value(QStringLiteral("Artist")).toString();
+
+                    qDebug() << "[ExternalMedia] Re-fetched Title:" << title << "Artist:" << artist;
+
+                    if (m_systemSong != title) { m_systemSong = title; emit currentSongChanged(); changed = true; }
+                    if (m_systemArtist != artist) { m_systemArtist = artist; emit currentArtistChanged(); changed = true; }
+                } else {
+                    qDebug() << "[ExternalMedia] GetAll did not contain Track property";
+                    // Track was invalidated and not yet available — schedule a delayed retry
+                    QTimer::singleShot(500, this, [this]() {
+                        qDebug() << "[ExternalMedia] Delayed Track re-fetch...";
+                        probeSystemSession();
+                    });
+                }
+            } else {
+                qDebug() << "[ExternalMedia] GetAll failed:" << reply.errorMessage();
+            }
         }
     }
 
-    // ---------- Position (optional — useful for future seek bar) ----------
+    // ---------- Position ----------
     if (changedProps.contains(QStringLiteral("Position"))) {
         const uint pos = unwrapDBusVariant(changedProps.value(QStringLiteral("Position"))).toUInt();
         qDebug() << "[ExternalMedia] Position:" << pos << "ms";
