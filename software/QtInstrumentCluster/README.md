@@ -30,3 +30,34 @@ The following events are handled using the key press
 1. Simulation can be paused and resumed by pressing the space bar key
 2. The albums can be changed by pressing the left and right arrow keys on the keyboard.
 
+## Raspberry Pi (Native Qt6)
+
+Target: Raspberry Pi OS (Debian-based, e.g. Bookworm), build directly on Pi.
+
+From `software/QtInstrumentCluster`:
+
+```bash
+chmod +x scripts/pi/*.sh
+./scripts/pi/setup_pi_native_qt6.sh
+```
+
+After setup, re-login (or run `newgrp dialout`), then:
+
+```bash
+./scripts/pi/build_pi.sh
+./scripts/pi/run_pi.sh
+```
+
+If you use UART from STM32, verify serial devices:
+
+```bash
+ls -l /dev/ttyAMA0
+ls -l /dev/ttyUSB*
+```
+
+If no desktop/X11 session is available, run:
+
+```bash
+QT_QPA_PLATFORM=eglfs ./scripts/pi/run_pi.sh
+```
+
