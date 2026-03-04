@@ -36,6 +36,7 @@
         <file>images/albums/thievery-corp.png</file>
         <file>images/albums/tycho.png</file>
         <file>models/MediaPlayerModel.qml</file>
+        <file>models/NavigationFeed.qml</file>
         <file>models/NavigationModel.qml</file>
         <file>view/BaseGauge.qml</file>
         <file>view/Car.qml</file>

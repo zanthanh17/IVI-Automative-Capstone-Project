@@ -4,8 +4,10 @@ import QtQuick.Window 2.12
 import MainModel 1.0
 import SimulationController 1.0
 import MediaPlayerModel 1.0
+import ExternalMedia 1.0
 import TellTalesModel 1.0
 import NormalModeModel 1.0
+import NavigationFeed 1.0
 import "view" as View
 
 Window {
@@ -92,6 +94,20 @@ Window {
             NormalModeModel.nextMenu()
         } else if (key === Qt.Key_M) {
             NormalModeModel.previousMenu()
+        } else if (key === Qt.Key_G) {
+            NavigationFeed.useMockGps = !NavigationFeed.useMockGps
+            if (NavigationFeed.useMockGps) {
+                NavigationFeed.start()
+                console.log("[NAV] Source switched to MOCK GPS")
+            } else {
+                console.log("[NAV] Source switched to HARDWARE GPS (awaiting external positions)")
+            }
+        } else if (key === Qt.Key_H) {
+            ExternalMedia.hostModeEnabled = !ExternalMedia.hostModeEnabled
+            console.log("[MEDIA] External host mode: " + (ExternalMedia.hostModeEnabled ? "ON" : "OFF"))
+        } else if (key === Qt.Key_B) {
+            ExternalMedia.rescan()
+            console.log("[MEDIA] Rescanned local tracks")
         }
     }
 
@@ -123,6 +139,9 @@ Window {
     Shortcut { sequence: "U"; onActivated: handleKey(Qt.Key_U) }
     Shortcut { sequence: "N"; onActivated: handleKey(Qt.Key_N) }
     Shortcut { sequence: "M"; onActivated: handleKey(Qt.Key_M) }
+    Shortcut { sequence: "G"; onActivated: handleKey(Qt.Key_G) }
+    Shortcut { sequence: "H"; onActivated: handleKey(Qt.Key_H) }
+    Shortcut { sequence: "B"; onActivated: handleKey(Qt.Key_B) }
 
     Item {
         id: sceneRoot

@@ -1,81 +1,204 @@
 pragma Singleton
 import QtQuick 2.15
+import NavigationFeed 1.0
 
 QtObject {
     id: navigationModel
 
-    /* === Maneuver types === */
     enum Maneuver { TurnLeft, TurnRight, GoStraight, UTurn, Arrive }
 
-    /* === Navigation state === */
     property bool active: true
+    property bool loopRouteDemo: true
+    property string source: "mock"
+
     property string currentStreet: ""
     property string nextStreet: ""
     property int maneuver: NavigationModel.GoStraight
-    property real distanceToTurn: 0       // meters
-    property string distanceToTurnText: ""
-    property string eta: ""
-    property string totalDistance: ""
+    property real distanceToTurn: 0
+    property string distanceToTurnText: "0 m"
+    property string eta: "--:--"
+    property string totalDistance: "0 m"
     property int currentStep: 0
+    property real routeProgress: 0
 
-    /* === Simulated route === */
+    property real traveledMeters: 0
+    property real remainingMeters: 0
+
+    property bool hasFix: false
+    property real latitude: 0
+    property real longitude: 0
+    property real speedKmh: 0
+    property real headingDeg: 0
+
+    property real _lastLat: 0
+    property real _lastLon: 0
+    property real _lastTimestampMs: 0
+
     readonly property var route: [
-        { street: "Nguyen Van Linh",   next: "Pham Hung",          maneuver: NavigationModel.TurnRight,  dist: 850,  eta: "14:52", total: "12.3 km" },
-        { street: "Pham Hung",         next: "Le Van Luong",       maneuver: NavigationModel.TurnLeft,   dist: 1200, eta: "14:55", total: "11.1 km" },
-        { street: "Le Van Luong",      next: "Nguyen Huu Tho",     maneuver: NavigationModel.GoStraight, dist: 2300, eta: "14:59", total: "9.5 km"  },
-        { street: "Nguyen Huu Tho",    next: "Ton Duc Thang",      maneuver: NavigationModel.TurnRight,  dist: 600,  eta: "15:03", total: "7.2 km"  },
-        { street: "Ton Duc Thang",     next: "Hai Ba Trung",       maneuver: NavigationModel.TurnLeft,   dist: 450,  eta: "15:07", total: "5.0 km"  },
-        { street: "Hai Ba Trung",      next: "Dien Bien Phu",      maneuver: NavigationModel.UTurn,      dist: 180,  eta: "15:10", total: "3.1 km"  },
-        { street: "Dien Bien Phu",     next: "Destination",        maneuver: NavigationModel.GoStraight, dist: 3100, eta: "15:15", total: "1.5 km"  },
-        { street: "Dien Bien Phu",     next: "123 Pasteur, Q.1",   maneuver: NavigationModel.Arrive,     dist: 50,   eta: "15:18", total: "50 m"    }
+        { street: "Nguyen Van Linh", next: "Pham Hung",      maneuver: NavigationModel.TurnRight,  dist: 850  },
+        { street: "Pham Hung",       next: "Le Van Luong",   maneuver: NavigationModel.TurnLeft,   dist: 1200 },
+        { street: "Le Van Luong",    next: "Nguyen Huu Tho", maneuver: NavigationModel.GoStraight, dist: 2300 },
+        { street: "Nguyen Huu Tho",  next: "Ton Duc Thang",  maneuver: NavigationModel.TurnRight,  dist: 600  },
+        { street: "Ton Duc Thang",   next: "Hai Ba Trung",   maneuver: NavigationModel.TurnLeft,   dist: 450  },
+        { street: "Hai Ba Trung",    next: "Dien Bien Phu",  maneuver: NavigationModel.UTurn,      dist: 180  },
+        { street: "Dien Bien Phu",   next: "Pasteur",        maneuver: NavigationModel.GoStraight, dist: 3100 },
+        { street: "Dien Bien Phu",   next: "123 Pasteur",    maneuver: NavigationModel.Arrive,     dist: 50   }
     ]
 
-    /* === Distance countdown simulation === */
-    property real _countdownDist: 0
-    readonly property int _stepDurationMs: 6000   // time per route step
-    readonly property int _tickMs: 200
+    readonly property real totalRouteMeters: computeTotalRouteMeters()
 
-    /* Format distance: meters or km */
+    function toRad(degrees) {
+        return degrees * Math.PI / 180.0
+    }
+
+    function haversineMeters(lat1, lon1, lat2, lon2) {
+        var R = 6371000.0
+        var dLat = toRad(lat2 - lat1)
+        var dLon = toRad(lon2 - lon1)
+        var a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        return R * c
+    }
+
+    function computeTotalRouteMeters() {
+        var total = 0
+        for (var i = 0; i < route.length; ++i) {
+            total += route[i].dist
+        }
+        return total
+    }
+
     function formatDistance(meters) {
         if (meters >= 1000) {
             return (meters / 1000).toFixed(1) + " km"
         }
-        return Math.round(meters) + " m"
+        return Math.round(Math.max(0, meters)) + " m"
     }
 
-    function loadStep(idx) {
-        var step = route[idx % route.length]
-        currentStreet     = step.street
-        nextStreet        = step.next
-        maneuver          = step.maneuver
-        distanceToTurn    = step.dist
-        _countdownDist    = step.dist
-        distanceToTurnText = formatDistance(step.dist)
-        eta               = step.eta
-        totalDistance      = step.total
+    function computeEta(remainingDistanceMeters, currentSpeedKmh) {
+        if (remainingDistanceMeters <= 0) {
+            return "Arrived"
+        }
+
+        var effectiveSpeed = Math.max(20, currentSpeedKmh)
+        var minutes = remainingDistanceMeters / (effectiveSpeed * 1000.0 / 60.0)
+        var arrival = new Date(Date.now() + minutes * 60000.0)
+        return Qt.formatTime(arrival, "hh:mm")
     }
 
-    /* === Timers === */
-    property var _stepTimer: Timer {
-        interval: navigationModel._stepDurationMs
-        repeat: true
-        running: navigationModel.active
-        onTriggered: {
-            navigationModel.currentStep = (navigationModel.currentStep + 1) % navigationModel.route.length
-            navigationModel.loadStep(navigationModel.currentStep)
+    function resetRouteProgress() {
+        active = true
+        hasFix = false
+        traveledMeters = 0
+        remainingMeters = totalRouteMeters
+        updateFromDistance(0)
+    }
+
+    function updateFromDistance(distanceMeters) {
+        var clamped = Math.min(Math.max(distanceMeters, 0), totalRouteMeters)
+        traveledMeters = clamped
+        remainingMeters = Math.max(0, totalRouteMeters - clamped)
+        routeProgress = totalRouteMeters > 0 ? clamped / totalRouteMeters : 0
+
+        var cumulative = 0
+        var stepIndex = route.length - 1
+        for (var i = 0; i < route.length; ++i) {
+            var nextCumulative = cumulative + route[i].dist
+            if (clamped < nextCumulative) {
+                stepIndex = i
+                break
+            }
+            cumulative = nextCumulative
+        }
+
+        currentStep = stepIndex
+        var step = route[stepIndex]
+        var distanceWithinStep = clamped - cumulative
+        var remainingStep = Math.max(step.dist - distanceWithinStep, 0)
+
+        currentStreet = step.street
+        nextStreet = step.next
+        maneuver = remainingMeters <= 8 ? NavigationModel.Arrive : step.maneuver
+
+        distanceToTurn = remainingStep
+        distanceToTurnText = formatDistance(remainingStep)
+        totalDistance = formatDistance(remainingMeters)
+        eta = computeEta(remainingMeters, speedKmh)
+    }
+
+    function updateFromPosition(lat, lon, speed, heading, timestampMs) {
+        source = NavigationFeed.useMockGps ? "mock" : "hardware"
+
+        latitude = lat
+        longitude = lon
+        speedKmh = speed
+        headingDeg = heading
+
+        if (!active) {
+            return
+        }
+
+        if (!hasFix) {
+            hasFix = true
+            _lastLat = lat
+            _lastLon = lon
+            _lastTimestampMs = timestampMs
+            updateFromDistance(traveledMeters)
+            return
+        }
+
+        var deltaMeters = haversineMeters(_lastLat, _lastLon, lat, lon)
+        var dtSeconds = Math.max(0.05, (timestampMs - _lastTimestampMs) / 1000.0)
+        var maxReasonable = Math.max(10, Math.max(speed, speedKmh) * 1000.0 / 3600.0 * dtSeconds * 3.0)
+        deltaMeters = Math.min(deltaMeters, maxReasonable, 120)
+
+        if (deltaMeters > 0.35) {
+            traveledMeters += deltaMeters
+        }
+
+        if (traveledMeters >= totalRouteMeters) {
+            if (loopRouteDemo) {
+                resetRouteProgress()
+            } else {
+                traveledMeters = totalRouteMeters
+                active = false
+                updateFromDistance(traveledMeters)
+            }
+        } else {
+            updateFromDistance(traveledMeters)
+        }
+
+        _lastLat = lat
+        _lastLon = lon
+        _lastTimestampMs = timestampMs
+    }
+
+    property var _feedConnections: Connections {
+        target: NavigationFeed
+
+        function onPositionUpdated(latitude, longitude, speedKmh, headingDeg, timestampMs) {
+            navigationModel.updateFromPosition(latitude, longitude, speedKmh, headingDeg, timestampMs)
+        }
+
+        function onSourceChanged(source) {
+            navigationModel.source = source
+            navigationModel.resetRouteProgress()
+        }
+
+        function onRouteLooped() {
+            if (navigationModel.loopRouteDemo) {
+                navigationModel.resetRouteProgress()
+            }
         }
     }
 
-    property var _countdownTimer: Timer {
-        interval: navigationModel._tickMs
-        repeat: true
-        running: navigationModel.active
-        onTriggered: {
-            var decrement = navigationModel._countdownDist / (navigationModel._stepDurationMs / navigationModel._tickMs)
-            navigationModel.distanceToTurn = Math.max(0, navigationModel.distanceToTurn - decrement)
-            navigationModel.distanceToTurnText = navigationModel.formatDistance(navigationModel.distanceToTurn)
+    Component.onCompleted: {
+        source = NavigationFeed.useMockGps ? "mock" : "hardware"
+        resetRouteProgress()
+        if (NavigationFeed.useMockGps) {
+            NavigationFeed.start()
         }
     }
-
-    Component.onCompleted: loadStep(0)
 }

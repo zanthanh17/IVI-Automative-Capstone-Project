@@ -1,4 +1,4 @@
-QT += quick serialport
+QT += quick serialport multimedia
 
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
@@ -8,6 +8,7 @@ SOURCES += \
         main.cpp \
         src/DriveState.cpp \
         src/DriveTrain.cpp \
+        src/externalmediacontroller.cpp \
         src/mainmodel.cpp \
         src/serialreceiver.cpp \
         src/simulationcontroller.cpp
@@ -33,6 +34,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 HEADERS += \
     src/DriveState.h \
     src/DriveTrain.h \
+    src/externalmediacontroller.h \
     src/mainmodel.h \
     src/mathutils.h \
     src/serialreceiver.h \

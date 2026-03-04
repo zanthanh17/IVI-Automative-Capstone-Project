@@ -131,81 +131,10 @@ NormalModeContentItem {
         }
     }
 
-    /* === Progress Bar === */
-    Item {
-        id: progressContainer
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: 230
-        width: 240
-        height: 30
-
-        /* Track background */
-        Rectangle {
-            id: progressBg
-            anchors.verticalCenter: parent.verticalCenter
-            width: parent.width
-            height: 4
-            radius: 2
-            color: "#1a3366"
-        }
-
-        /* Filled progress */
-        Rectangle {
-            id: progressFill
-            anchors.verticalCenter: parent.verticalCenter
-            width: progressBg.width * MediaPlayerModel.progress
-            height: 4
-            radius: 2
-            color: Style.brightBlue
-
-            Behavior on width {
-                NumberAnimation { duration: 800; easing.type: Easing.OutQuad }
-            }
-        }
-
-        /* Progress knob */
-        Rectangle {
-            id: knob
-            x: progressFill.width - width / 2
-            anchors.verticalCenter: parent.verticalCenter
-            width: 10
-            height: 10
-            radius: 5
-            color: Style.brightBlue
-            border.color: Style.lightPeriwinkle
-            border.width: 1
-
-            Behavior on x {
-                NumberAnimation { duration: 800; easing.type: Easing.OutQuad }
-            }
-        }
-
-        /* Time labels */
-        Text {
-            anchors.left: parent.left
-            anchors.top: progressBg.bottom
-            anchors.topMargin: 6
-            text: MediaPlayerModel.timePassedText
-            font.pixelSize: 11
-            font.family: "Sarabun"
-            color: "#657080"
-        }
-
-        Text {
-            anchors.right: parent.right
-            anchors.top: progressBg.bottom
-            anchors.topMargin: 6
-            text: MediaPlayerModel.timeRemainingText
-            font.pixelSize: 11
-            font.family: "Sarabun"
-            color: "#657080"
-        }
-    }
-
     /* === Bluetooth status hint === */
     Row {
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 280
+        y: 238
         spacing: 5
         opacity: 0.4
 
@@ -215,7 +144,7 @@ NormalModeContentItem {
             color: Style.brightBlue
         }
         Text {
-            text: "Simulation"
+            text: MediaPlayerModel.modeLabel
             font.pixelSize: 10
             font.family: "Sarabun"
             color: "#657080"

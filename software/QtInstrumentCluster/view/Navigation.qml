@@ -18,6 +18,16 @@ NormalModeContentItem {
         opacity: 0.8
     }
 
+    Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: 78
+        text: NavigationModel.source === "mock" ? "MOCK GPS" : "HW GPS"
+        font.pixelSize: 10
+        font.family: "Sarabun"
+        color: Style.brightBlue
+        opacity: 0.7
+    }
+
     /* === Maneuver Arrow (center) === */
     Canvas {
         id: arrowCanvas
