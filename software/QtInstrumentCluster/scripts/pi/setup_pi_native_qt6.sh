@@ -33,7 +33,6 @@ sudo apt install -y \
     qml6-module-qtquick \
     qml6-module-qtquick-window \
     qml6-module-qtquick-controls \
-    qml6-module-qtquick-effects \
     libgl1-mesa-dri \
     libgles2 \
     libxkbcommon0 \

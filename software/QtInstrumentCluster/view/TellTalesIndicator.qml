@@ -1,5 +1,4 @@
 import QtQuick 2.12
-import QtQuick.Effects
 import Style 1.0
 import TellTalesModel 1.0
 
@@ -24,52 +23,75 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.verticalCenter: parent.verticalCenter
         visible: false
+        onStatusChanged: colorizedImage.requestPaint()
     }
 
-    MultiEffect {
+    Canvas {
         id: colorizedImage
         anchors.fill: image
-        source: image
-        colorization: 1.0
-        colorizationColor: indicator.active ? indicator.boostedColor(indicator.activeColor) : indicator.inactiveColor
-        brightness: indicator.active ? Style.iconActiveBrightness : Style.iconInactiveBrightness
-        saturation: indicator.active ? Style.iconActiveSaturation : Style.iconInactiveSaturation
-        contrast: indicator.active ? Style.iconActiveContrast : Style.iconInactiveContrast
-        opacity: (indicator.active ? Style.iconActiveOpacity : Style.iconInactiveOpacity) * indicator.indicatorOpacity
-        shadowEnabled: true
-        shadowColor: indicator.active ? indicator.boostedColor(indicator.activeColor) : indicator.inactiveColor
-        shadowOpacity: indicator.active ? Style.iconActiveShadowOpacity : Style.iconInactiveShadowOpacity
-        shadowBlur: Style.iconShadowBlur
-        shadowHorizontalOffset: 0
-        shadowVerticalOffset: 0
-        shadowScale: indicator.active ? Style.iconActiveShadowScale : Style.iconInactiveShadowScale
+        smooth: true
+        antialiasing: true
 
-        Behavior on opacity {
+        property color iconColor: indicator.active ? indicator.boostedColor(indicator.activeColor) : indicator.inactiveColor
+        property real iconOpacity: (indicator.active ? Style.iconActiveOpacity : Style.iconInactiveOpacity) * indicator.indicatorOpacity
+        property color glowColor: indicator.active ? indicator.boostedColor(indicator.activeColor) : indicator.inactiveColor
+        property real glowOpacity: indicator.active ? Style.iconActiveShadowOpacity : Style.iconInactiveShadowOpacity
+        property real glowBlur: indicator.active ? 8 : 4
+
+        onIconColorChanged: requestPaint()
+        onIconOpacityChanged: requestPaint()
+        onGlowColorChanged: requestPaint()
+        onGlowOpacityChanged: requestPaint()
+        onGlowBlurChanged: requestPaint()
+
+        Behavior on iconOpacity {
             NumberAnimation {
                 easing.type: Easing.InOutQuad
                 duration: TellTalesModel.opacityChangeDuration
             }
         }
 
-        Behavior on colorizationColor {
+        Behavior on iconColor {
             ColorAnimation {
                 easing.type: Easing.InOutQuad
                 duration: TellTalesModel.opacityChangeDuration
             }
         }
 
-        Behavior on brightness {
+        Behavior on glowOpacity {
             NumberAnimation {
                 easing.type: Easing.InOutQuad
                 duration: TellTalesModel.opacityChangeDuration
             }
         }
 
-        Behavior on shadowOpacity {
-            NumberAnimation {
-                easing.type: Easing.InOutQuad
-                duration: TellTalesModel.opacityChangeDuration
+        onPaint: {
+            var ctx = getContext("2d")
+            ctx.reset()
+
+            if (image.status !== Image.Ready) {
+                return
             }
+
+            var w = width
+            var h = height
+
+            ctx.save()
+            ctx.globalAlpha = glowOpacity
+            ctx.shadowColor = glowColor
+            ctx.shadowBlur = glowBlur
+            ctx.shadowOffsetX = 0
+            ctx.shadowOffsetY = 0
+            ctx.drawImage(image, 0, 0, w, h)
+            ctx.restore()
+
+            ctx.save()
+            ctx.globalAlpha = iconOpacity
+            ctx.drawImage(image, 0, 0, w, h)
+            ctx.globalCompositeOperation = "source-atop"
+            ctx.fillStyle = iconColor
+            ctx.fillRect(0, 0, w, h)
+            ctx.restore()
         }
     }
 

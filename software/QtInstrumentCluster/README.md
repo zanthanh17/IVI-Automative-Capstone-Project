@@ -33,6 +33,8 @@ The following events are handled using the key press
 ## Raspberry Pi (Native Qt6)
 
 Target: Raspberry Pi OS (Debian-based, e.g. Bookworm), build directly on Pi.
+Note: On many Pi OS repos, `qml6-module-qtquick-effects` does not exist.
+Current UI no longer depends on that package.
 
 From `software/QtInstrumentCluster`:
 
