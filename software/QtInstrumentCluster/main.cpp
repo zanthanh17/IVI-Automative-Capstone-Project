@@ -40,6 +40,7 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonType(QUrl("qrc:///models/Units.qml"), "Units", 1, 0, "Units");
     qmlRegisterSingletonType(QUrl("qrc:///models/NormalModeModel.qml"), "NormalModeModel", 1, 0, "NormalModeModel");
     qmlRegisterSingletonType(QUrl("qrc:///models/MediaPlayerModel.qml"), "MediaPlayerModel", 1, 0, "MediaPlayerModel");
+    qmlRegisterSingletonType(QUrl("qrc:///models/NavigationModel.qml"), "NavigationModel", 1, 0, "NavigationModel");
 
     /*
      * Khởi tạo SerialReceiver và auto-connect tới STM32

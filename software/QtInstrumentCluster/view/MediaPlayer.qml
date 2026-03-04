@@ -1,129 +1,224 @@
 import QtQuick 2.12
 import Style 1.0
 import MediaPlayerModel 1.0
+import NormalModeModel 1.0
 
 NormalModeContentItem {
-    Repeater {
-        model: ListModel {
-            // FIXME: https://bugreports.qt.io/browse/UL-597
-            // Durations are used in MediaPlayerModel.qml
-            ListElement {
-                artist: "Thomas Lammer";
-                song: "Setsuna";
-                cover: "qrc:/images/albums/juno.png";
-            }
-            ListElement {
-                artist: "Thievery Corporation";
-                song: "Le Monde";
-                cover: "qrc:/images/albums/thievery-corp.png";
-            }
-            ListElement {
-                artist: "Tycho";
-                song: "Aweke";
-                cover: "qrc:/images/albums/tycho.png";
-            }
-            ListElement {
-                artist: "De Phazz";
-                song: "Chocolate";
-                cover: "qrc:/images/albums/phazz.png";
-            }
-            ListElement {
-                artist: "AK";
-                song: "Discovery";
-                cover: "qrc:/images/albums/ak.png";
-            }
-        }
+    id: playerRoot
 
-        Item {
-            anchors.fill: parent
-            property int pos: -(-(10 + index - MediaPlayerModel.track%5 + 2) % 5) - 2
+    /* === Song Title === */
+    Text {
+        id: songTitle
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: 100
+        text: MediaPlayerModel.currentSong
+        font.pixelSize: 18
+        font.bold: true
+        font.family: "Sarabun"
+        color: Style.lightPeriwinkle
 
-            Text {
-                id: artistTxt
-                anchors.horizontalCenter: parent.horizontalCenter;
-                y: 77
-                text: model.artist
-                font.bold: true
-                font.pixelSize: 16
-                font.family: "Sarabun"
-                color: Style.lightPeriwinkle
-                opacity: pos === 0 ? 1 : 0;
-                Behavior on opacity { NumberAnimation{ duration: MediaPlayerModel.changeSongDuration } }
-            }
-            Text {
-                id: songTxt
-                anchors.horizontalCenter: parent.horizontalCenter;
-                y: 96
-                text: model.song;
-                font.pixelSize: 14
-                font.family: "Sarabun"
-                color: Style.lightPeriwinkle
-                opacity: artistTxt.opacity
-            }
-
-            Image {
-                id: img
-                x: (parent.width - width) / 2 + Math.max(Math.min(pos, 1), -1) * 49
-                Behavior on x {
-                    NumberAnimation{
-                        duration: MediaPlayerModel.changeSongDuration
-                        easing.type: pos === 1 ? Easing.OutQuad : Easing.OutCubic
-                    }
-                }
-                opacity: pos === 0 ? 1 : Math.abs(pos) == 1 ? 0.25 : 0
-                Behavior on opacity { NumberAnimation{ duration: MediaPlayerModel.changeSongDuration } }
-                y: 121
-                source: model.cover
-            }
-            z: img.opacity > 0.90 ? 1 : -Math.abs(pos);
-        }
+        Behavior on text { enabled: false }
+        Behavior on opacity { NumberAnimation { duration: MediaPlayerModel.changeSongDuration } }
     }
 
+    /* === Artist Name === */
+    Text {
+        id: artistName
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: 128
+        text: MediaPlayerModel.currentArtist
+        font.pixelSize: 13
+        font.family: "Sarabun"
+        color: "#657080"
+
+        Behavior on text { enabled: false }
+    }
+
+    /* === Transport Controls === */
     Row {
-        anchors.horizontalCenter: parent.horizontalCenter;
-        y: 262
-        id: durationLabel
-        visible: true
-        Text {
-            text: (MediaPlayerModel.timePassed / 60).toFixed(0)
-            font.pixelSize: 14
-            font.family: "Sarabun"
-            color: Style.lightPeriwinkle
+        id: controls
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: 165
+        spacing: 36
+
+        /* Previous button */
+        Canvas {
+            width: 28; height: 28
+            anchors.verticalCenter: parent.verticalCenter
+
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.reset()
+                ctx.fillStyle = Style.lightPeriwinkle
+                // Left-pointing double triangle
+                ctx.beginPath()
+                ctx.moveTo(14, 4); ctx.lineTo(2, 14); ctx.lineTo(14, 24)
+                ctx.fill()
+                ctx.beginPath()
+                ctx.moveTo(24, 4); ctx.lineTo(12, 14); ctx.lineTo(24, 24)
+                ctx.fill()
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: MediaPlayerModel.previousSong()
+            }
         }
-        Text {
-            text: (MediaPlayerModel.timePassed % 60) < 10 ? ":0" : ":"
-            font.pixelSize: 14
-            font.family: "Sarabun"
-            color: Style.lightPeriwinkle
+
+        /* Play / Pause button */
+        Canvas {
+            id: playPauseBtn
+            width: 40; height: 40
+            anchors.verticalCenter: parent.verticalCenter
+
+            property bool isPlaying: MediaPlayerModel.mediaPlayback
+            onIsPlayingChanged: requestPaint()
+
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.reset()
+
+                // Circle outline
+                ctx.strokeStyle = Style.brightBlue
+                ctx.lineWidth = 2
+                ctx.beginPath()
+                ctx.arc(20, 20, 18, 0, Math.PI * 2)
+                ctx.stroke()
+
+                ctx.fillStyle = Style.brightBlue
+                if (isPlaying) {
+                    // Pause icon (two bars)
+                    ctx.fillRect(13, 12, 4, 16)
+                    ctx.fillRect(23, 12, 4, 16)
+                } else {
+                    // Play icon (triangle)
+                    ctx.beginPath()
+                    ctx.moveTo(15, 10)
+                    ctx.lineTo(30, 20)
+                    ctx.lineTo(15, 30)
+                    ctx.fill()
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: MediaPlayerModel.togglePlayback()
+            }
         }
-        Text {
-            text: (MediaPlayerModel.timePassed % 60).toFixed(0)
-            font.pixelSize: 14
-            font.family: "Sarabun"
-            color: Style.lightPeriwinkle
+
+        /* Next button */
+        Canvas {
+            width: 28; height: 28
+            anchors.verticalCenter: parent.verticalCenter
+
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.reset()
+                ctx.fillStyle = Style.lightPeriwinkle
+                // Right-pointing double triangle
+                ctx.beginPath()
+                ctx.moveTo(4, 4); ctx.lineTo(16, 14); ctx.lineTo(4, 24)
+                ctx.fill()
+                ctx.beginPath()
+                ctx.moveTo(14, 4); ctx.lineTo(26, 14); ctx.lineTo(14, 24)
+                ctx.fill()
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: MediaPlayerModel.nextSong()
+            }
         }
     }
 
-    SequentialAnimation {
-        running: !MediaPlayerModel.mediaPlayback && MainModel.introSequenceCompleted
-        loops: Animation.Infinite
-        alwaysRunToEnd: true
-        PropertyAnimation {
-            target: durationLabel
-            property: "opacity"
-            duration: 400
-            from: 1.0
-            to: 0.0
+    /* === Progress Bar === */
+    Item {
+        id: progressContainer
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: 230
+        width: 240
+        height: 30
+
+        /* Track background */
+        Rectangle {
+            id: progressBg
+            anchors.verticalCenter: parent.verticalCenter
+            width: parent.width
+            height: 4
+            radius: 2
+            color: "#1a3366"
         }
-        PauseAnimation {
-            duration: 100
+
+        /* Filled progress */
+        Rectangle {
+            id: progressFill
+            anchors.verticalCenter: parent.verticalCenter
+            width: progressBg.width * MediaPlayerModel.progress
+            height: 4
+            radius: 2
+            color: Style.brightBlue
+
+            Behavior on width {
+                NumberAnimation { duration: 800; easing.type: Easing.OutQuad }
+            }
         }
-        PropertyAnimation {
-            target: durationLabel
-            property: "opacity"
-            duration: 400
-            from: 0.0
-            to: 1.0
+
+        /* Progress knob */
+        Rectangle {
+            id: knob
+            x: progressFill.width - width / 2
+            anchors.verticalCenter: parent.verticalCenter
+            width: 10
+            height: 10
+            radius: 5
+            color: Style.brightBlue
+            border.color: Style.lightPeriwinkle
+            border.width: 1
+
+            Behavior on x {
+                NumberAnimation { duration: 800; easing.type: Easing.OutQuad }
+            }
+        }
+
+        /* Time labels */
+        Text {
+            anchors.left: parent.left
+            anchors.top: progressBg.bottom
+            anchors.topMargin: 6
+            text: MediaPlayerModel.timePassedText
+            font.pixelSize: 11
+            font.family: "Sarabun"
+            color: "#657080"
+        }
+
+        Text {
+            anchors.right: parent.right
+            anchors.top: progressBg.bottom
+            anchors.topMargin: 6
+            text: MediaPlayerModel.timeRemainingText
+            font.pixelSize: 11
+            font.family: "Sarabun"
+            color: "#657080"
+        }
+    }
+
+    /* === Bluetooth status hint === */
+    Row {
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: 280
+        spacing: 5
+        opacity: 0.4
+
+        Text {
+            text: "♪"
+            font.pixelSize: 11
+            color: Style.brightBlue
+        }
+        Text {
+            text: "Simulation"
+            font.pixelSize: 10
+            font.family: "Sarabun"
+            color: "#657080"
         }
     }
 }

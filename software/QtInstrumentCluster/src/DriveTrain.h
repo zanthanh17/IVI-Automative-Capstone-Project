@@ -21,9 +21,8 @@
 #ifndef DRIVETRAIN_H
 #define DRIVETRAIN_H
 
-#include "qobject.h"
-#include "qtmetamacros.h"
-#include <stdint.h>
+#include <QObject>
+#include <cstdint>
 
 class Drivetrain : public QObject
 {

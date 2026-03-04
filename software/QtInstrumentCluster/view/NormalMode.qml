@@ -13,7 +13,8 @@ Item {
         id: topLine;
         source: "qrc:/images/top-line.png";
         anchors.horizontalCenter: parent.horizontalCenter;
-        y: 62;
+        anchors.top: parent.top;
+        anchors.topMargin: 77;
     }
 
     LaneAssist {
@@ -26,15 +27,20 @@ Item {
         anchors.fill: parent
         MediaPlayer {
             activeMode: active;
-            selected: true;//menu == NormalModeModel.MediaPlayerMenu;
+            selected: menu == NormalModeModel.MediaPlayerMenu;
+            anchors.fill: parent;
+        }
+        Navigation {
+            activeMode: active;
+            selected: menu == NormalModeModel.NavigationMenu;
             anchors.fill: parent;
         }
     }
 
     Gauge {
         id: leftGauge;
-        x: 20;
-        y: 44;
+        x: 25;
+        y: 55;
         leftOrientation: true;
         value: Units.kilometersToLongDistanceUnit(MainModel.speed)
         maxValue: Units.maximumSpeed
@@ -43,8 +49,8 @@ Item {
 
     Gauge {
         id: rightGauge;
-        x: root.width - rightGauge.width - 20;
-        y: 44;
+        x: root.width - rightGauge.width - 25;
+        y: 55;
         leftOrientation: false;
         value: MainModel.rpm / 1000;
         valueText: MainModel.gearShiftText
@@ -78,7 +84,7 @@ Item {
         id: normalMenu;
         opacity: topLine.opacity;
         anchors.horizontalCenter: parent.horizontalCenter;
-        y: 293;
+        y: 366;
         currentIndex: menu;
         onClicked: NormalModeModel.menu = index;
     }

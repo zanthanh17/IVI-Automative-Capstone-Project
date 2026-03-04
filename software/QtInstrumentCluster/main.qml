@@ -10,12 +10,12 @@ import "view" as View
 
 Window {
     id: window;
-    width: 800;
-    height: 480;
+    width: 1024;
+    height: 600;
     visible: true
     title: qsTr("Instrument Cluster Demo")
-    readonly property real designWidth: 800
-    readonly property real designHeight: 480
+    readonly property real designWidth: 1024
+    readonly property real designHeight: 600
     readonly property real sceneScale: Math.min(width / designWidth, height / designHeight)
 
     /*

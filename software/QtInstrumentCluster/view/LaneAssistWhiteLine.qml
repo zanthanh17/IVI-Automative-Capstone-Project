@@ -16,8 +16,8 @@ Image {
     source: location == LaneAssistWhiteLine.Left ? "qrc:/images/lanes/white-line-left.png"
                                                  : "qrc:/images/lanes/white-line-right.png"
 
-    x: location == LaneAssistWhiteLine.Left ? 326 : 454
-    y: 386
+    x: location == LaneAssistWhiteLine.Left ? 417 : 581
+    y: 483
 
     opacity: Math.min(1 - (1 - s) * (1 - s), 1)
 
@@ -32,8 +32,8 @@ Image {
         },
         // navi scale
         Scale {
-            origin.x: 400 - root.x
-            origin.y: 480 - root.y
+            origin.x: 512 - root.x
+            origin.y: 600 - root.y
 
             xScale: scale
             yScale: scale

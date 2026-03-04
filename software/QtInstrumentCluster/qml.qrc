@@ -36,6 +36,7 @@
         <file>images/albums/thievery-corp.png</file>
         <file>images/albums/tycho.png</file>
         <file>models/MediaPlayerModel.qml</file>
+        <file>models/NavigationModel.qml</file>
         <file>view/BaseGauge.qml</file>
         <file>view/Car.qml</file>
         <file>view/Gauge.qml</file>
@@ -43,6 +44,7 @@
         <file>view/LaneAssistWhiteLine.qml</file>
         <file>view/LinearGauge.qml</file>
         <file>view/MediaPlayer.qml</file>
+        <file>view/Navigation.qml</file>
         <file>view/Menu.qml</file>
         <file>view/NormalMode.qml</file>
         <file>view/NormalModeContentItem.qml</file>

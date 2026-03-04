@@ -1,5 +1,5 @@
 import QtQuick 2.12
-import QtQuick.Effects
+import QtGraphicalEffects 1.12
 import Style 1.0
 import TellTalesModel 1.0
 
@@ -22,46 +22,32 @@ Item {
         visible: false
     }
 
-    MultiEffect {
+    ColorOverlay {
         id: colorizedImage
         source: image
         anchors.fill: image
-        colorization: 1.0
-        colorizationColor: indicator.active ? indicator.activeColor : indicator.inactiveColor
-        brightness: indicator.active ? 0.6 : 0.0
-        contrast: indicator.active ? 0.3 : 0.0
-        saturation: indicator.active ? 0.5 : 0.0
-        opacity: (indicator.active ? 1.0 : 0.4) * indicator.indicatorOpacity
+        color: indicator.active ? indicator.activeColor : indicator.inactiveColor
+        opacity: (indicator.active ? 0.75 : 0.3) * indicator.indicatorOpacity
 
         Behavior on opacity { NumberAnimation {
             easing.type: Easing.InOutQuad;
             duration: TellTalesModel.opacityChangeDuration;
         }}
 
-        Behavior on colorizationColor { ColorAnimation {
-            easing.type: Easing.InOutQuad;
-            duration: TellTalesModel.opacityChangeDuration;
-        }}
-
-        Behavior on brightness { NumberAnimation {
+        Behavior on color { ColorAnimation {
             easing.type: Easing.InOutQuad;
             duration: TellTalesModel.opacityChangeDuration;
         }}
     }
 
-    MultiEffect {
+    Glow {
         id: activeBoost
-        source: image
-        anchors.centerIn: image
-        width: image.width
-        height: image.height
-        colorization: 1.0
-        colorizationColor: indicator.activeColor
-        brightness: 0.5
-        blurEnabled: true
-        blur: 0.3
-        blurMax: 8
-        opacity: indicator.active ? (1.0 * indicator.indicatorOpacity) : 0
+        anchors.fill: colorizedImage
+        source: colorizedImage
+        color: indicator.activeColor
+        radius: 3
+        samples: 7
+        opacity: indicator.active ? (0.35 * indicator.indicatorOpacity) : 0
         scale: 1.15
 
         Behavior on opacity { NumberAnimation {
