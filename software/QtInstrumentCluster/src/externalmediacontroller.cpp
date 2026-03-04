@@ -448,14 +448,66 @@ void ExternalMediaController::probeSystemSession()
         return;
     }
 
-    const QString status = playerProps.value(QStringLiteral("Status")).toString();
-    const bool isPlaying = status.compare(QStringLiteral("playing"), Qt::CaseInsensitive) == 0;
-
-    const QVariantMap track = playerProps.value(QStringLiteral("Track")).toMap();
-    const QString title = track.value(QStringLiteral("Title")).toString();
-    const QString artist = trackArtistFromVariant(track.value(QStringLiteral("Artist")));
-
     m_linuxPlayerPath = playerPath;
+
+    // GetManagedObjects returns Track as a raw QDBusArgument (a{sv}) which
+    // QVariant::toMap() cannot convert.  Fetch properties separately via
+    // org.freedesktop.DBus.Properties.GetAll for reliable deserialization.
+    QDBusInterface propsIface(QStringLiteral("org.bluez"),
+                              playerPath,
+                              QStringLiteral("org.freedesktop.DBus.Properties"),
+                              QDBusConnection::systemBus());
+
+    QString status;
+    QString title;
+    QString artist;
+
+    if (propsIface.isValid()) {
+        const QDBusMessage allReply = propsIface.call(
+            QStringLiteral("GetAll"),
+            QStringLiteral("org.bluez.MediaPlayer1"));
+
+        QVariantMap allProps;
+        if (allReply.type() == QDBusMessage::ReplyMessage && !allReply.arguments().isEmpty()) {
+            const QVariant arg = allReply.arguments().constFirst();
+            if (arg.canConvert<QDBusArgument>()) {
+                const QDBusArgument dbusArg = arg.value<QDBusArgument>();
+                dbusArg >> allProps;
+            } else {
+                allProps = arg.toMap();
+            }
+        }
+
+        status = allProps.value(QStringLiteral("Status")).toString();
+
+        // Track is itself a dict (a{sv}) — may arrive as QDBusArgument
+        QVariantMap track;
+        const QVariant trackVariant = allProps.value(QStringLiteral("Track"));
+        if (trackVariant.canConvert<QDBusArgument>()) {
+            const QDBusArgument trackArg = trackVariant.value<QDBusArgument>();
+            trackArg >> track;
+        } else {
+            track = trackVariant.toMap();
+        }
+
+        title = track.value(QStringLiteral("Title")).toString();
+        artist = trackArtistFromVariant(track.value(QStringLiteral("Artist")));
+    } else {
+        // Fallback: try values from GetManagedObjects (may be incomplete)
+        status = playerProps.value(QStringLiteral("Status")).toString();
+        const QVariant trackVariant = playerProps.value(QStringLiteral("Track"));
+        QVariantMap track;
+        if (trackVariant.canConvert<QDBusArgument>()) {
+            const QDBusArgument trackArg = trackVariant.value<QDBusArgument>();
+            trackArg >> track;
+        } else {
+            track = trackVariant.toMap();
+        }
+        title = track.value(QStringLiteral("Title")).toString();
+        artist = trackArtistFromVariant(track.value(QStringLiteral("Artist")));
+    }
+
+    const bool isPlaying = status.compare(QStringLiteral("playing"), Qt::CaseInsensitive) == 0;
     setSystemSessionState(true, isPlaying, title, artist);
 #else
     setSystemSessionState(false, false, QString(), QString());
@@ -516,7 +568,11 @@ bool ExternalMediaController::sendSystemCommand(const QString &command)
     else if (command == QStringLiteral("pause")) method = QStringLiteral("Pause");
     else if (command == QStringLiteral("next")) method = QStringLiteral("Next");
     else if (command == QStringLiteral("previous")) method = QStringLiteral("Previous");
-    else method = QStringLiteral("PlayPause");
+    else if (command == QStringLiteral("stop")) method = QStringLiteral("Stop");
+    else {
+        qWarning() << "[ExternalMedia] Unknown command:" << command;
+        return false;
+    }
 
     QDBusInterface player(QStringLiteral("org.bluez"),
                           m_linuxPlayerPath,
@@ -569,10 +625,15 @@ void ExternalMediaController::pause()
 
 void ExternalMediaController::togglePlayback()
 {
-    if (m_hostModeEnabled) {
-        if (sendSystemCommand(QStringLiteral("toggle")) || m_systemSessionAvailable) {
-            return;
+    if (m_hostModeEnabled && m_systemSessionAvailable) {
+        // BlueZ MediaPlayer1 does NOT have a PlayPause method.
+        // Determine current state and send the correct command.
+        if (m_systemPlaying) {
+            sendSystemCommand(QStringLiteral("pause"));
+        } else {
+            sendSystemCommand(QStringLiteral("play"));
         }
+        return;
     }
     if (!m_tracks.isEmpty()) {
         if (playing()) pause();

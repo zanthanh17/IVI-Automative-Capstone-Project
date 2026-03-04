@@ -75,51 +75,69 @@ echo "[4/7] Configuring audio backend for Bluetooth..."
 
 if [[ "${AUDIO_BACKEND}" == "pipewire" ]]; then
     # ---- PipeWire: cấu hình WirePlumber bluetooth policy ----
-    WP_BT_DIR="${HOME}/.config/wireplumber/bluetooth.lua.d"
-    mkdir -p "${WP_BT_DIR}"
 
-    # Enable A2DP Sink role + auto-connect + AVRCP
-    cat > "${WP_BT_DIR}/51-ivi-bluetooth.lua" << 'WP_EOF'
--- IVI Dashboard: enable bluetooth audio sink role
--- Allow phone to stream A2DP audio to this device
+    # WirePlumber 0.4.x (Pi OS Bookworm) uses wireplumber.conf.d/ for overrides
+    WP_CONF_DIR="${HOME}/.config/wireplumber/wireplumber.conf.d"
+    mkdir -p "${WP_CONF_DIR}"
 
-bluetooth_policy = {}
-bluetooth_policy.roles = { "a2dp_sink" }
-
-rule = {
-  matches = {
-    {
-      { "device.name", "matches", "bluez_card.*" },
-    },
-  },
-  apply_properties = {
-    -- Prefer A2DP Sink profile so phone audio plays on Pi
-    ["bluez5.auto-connect"]  = "[ a2dp_sink hfp_hf ]",
-    ["bluez5.hw-volume"]     = "[ a2dp_sink ]",
-  },
+    # Enable bluetooth + auto-connect policy
+    cat > "${WP_CONF_DIR}/51-ivi-bluetooth.conf" << 'WP_EOF'
+# IVI Dashboard: enable bluetooth audio sink
+monitor.bluez.properties = {
+    bluez5.roles = [ a2dp_sink a2dp_source hfp_hf hfp_ag ]
+    bluez5.codecs = [ sbc aac ]
+    bluez5.enable-sbc-xq = true
+    bluez5.hfphsp-backend = native
+    bluez5.auto-connect = [ a2dp_sink hfp_hf ]
 }
-table.insert(alsa_monitor.rules, rule)
-WP_EOF
 
-    # PipeWire bluetooth SPA config — ensure module is loaded
-    PW_BT_DIR="${HOME}/.config/pipewire/pipewire.conf.d"
-    mkdir -p "${PW_BT_DIR}"
-
-    cat > "${PW_BT_DIR}/51-ivi-bluetooth.conf" << 'PW_EOF'
-# IVI Dashboard: Ensure Bluetooth SPA plugin is loaded
-context.modules = [
-    {   name = libpipewire-module-protocol-pulse
-        args = { }
+monitor.bluez.rules = [
+    {
+        matches = [
+            { device.name = "~bluez_card.*" }
+        ]
+        actions = {
+            update-props = {
+                bluez5.auto-connect = [ a2dp_sink hfp_hf ]
+                bluez5.hw-volume = [ a2dp_sink ]
+            }
+        }
     }
 ]
+WP_EOF
 
-context.spa-libs = {
-    api.bluez5.* = support/libspa-bluez5
+    # Also write legacy Lua config (for WirePlumber < 0.5 if conf.d is not supported)
+    WP_BT_LUA_DIR="${HOME}/.config/wireplumber/bluetooth.lua.d"
+    mkdir -p "${WP_BT_LUA_DIR}"
+
+    cat > "${WP_BT_LUA_DIR}/51-ivi-bluetooth.lua" << 'WP_LUA_EOF'
+-- IVI Dashboard: enable bluetooth audio sink role (WirePlumber 0.4 Lua config)
+bluez_monitor.properties = {
+    ["bluez5.roles"] = "[ a2dp_sink a2dp_source hfp_hf hfp_ag ]",
+    ["bluez5.codecs"] = "[ sbc aac ]",
+    ["bluez5.enable-sbc-xq"] = true,
+    ["bluez5.hfphsp-backend"] = "native",
+    ["bluez5.auto-connect"] = "[ a2dp_sink hfp_hf ]",
 }
-PW_EOF
 
-    # Restart PipeWire + WirePlumber
-    echo "     Restarting PipeWire + WirePlumber..."
+bluez_monitor.rules = {
+    {
+        matches = {
+            {
+                { "device.name", "matches", "bluez_card.*" },
+            },
+        },
+        apply_properties = {
+            ["bluez5.auto-connect"]  = "[ a2dp_sink hfp_hf ]",
+            ["bluez5.hw-volume"]     = "[ a2dp_sink ]",
+        },
+    },
+}
+WP_LUA_EOF
+
+    # Enable & restart PipeWire + WirePlumber
+    echo "     Enabling and restarting PipeWire + WirePlumber..."
+    systemctl --user enable pipewire pipewire-pulse wireplumber 2>/dev/null || true
     systemctl --user restart wireplumber 2>/dev/null || true
     systemctl --user restart pipewire pipewire-pulse 2>/dev/null || true
 
@@ -173,7 +191,7 @@ echo "[6/7] Creating Bluetooth auto-accept agent..."
 AGENT_SCRIPT="/usr/local/bin/bt-agent-auto.sh"
 sudo tee "${AGENT_SCRIPT}" > /dev/null << 'AGENT_EOF'
 #!/usr/bin/env bash
-# Bluetooth agent tự động accept connections
+# Bluetooth agent tự động accept connections + trust devices
 # Chạy background khi boot
 
 # Đợi bluetooth service ready
@@ -187,11 +205,20 @@ agent NoInputNoOutput
 default-agent
 BTEOF
 
+# Trust tất cả paired devices
+for DEV in $(bluetoothctl devices Paired 2>/dev/null | awk '{print $2}'); do
+    bluetoothctl trust "${DEV}" 2>/dev/null || true
+done
+
 # Giữ agent chạy
 while true; do
     sleep 60
     # Re-enable discoverable nếu bị tắt
     bluetoothctl discoverable on 2>/dev/null || true
+    # Trust any newly paired devices
+    for DEV in $(bluetoothctl devices Paired 2>/dev/null | awk '{print $2}'); do
+        bluetoothctl trust "${DEV}" 2>/dev/null || true
+    done
 done
 AGENT_EOF
 
