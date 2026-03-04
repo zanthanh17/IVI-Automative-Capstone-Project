@@ -7,12 +7,9 @@ linux: QT += dbus
 
 SOURCES += \
         main.cpp \
-        src/DriveState.cpp \
-        src/DriveTrain.cpp \
         src/externalmediacontroller.cpp \
         src/mainmodel.cpp \
-        src/serialreceiver.cpp \
-        src/simulationcontroller.cpp
+        src/serialreceiver.cpp
 
 RESOURCES += qml.qrc
 
@@ -33,10 +30,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 HEADERS += \
-    src/DriveState.h \
-    src/DriveTrain.h \
     src/externalmediacontroller.h \
     src/mainmodel.h \
     src/mathutils.h \
-    src/serialreceiver.h \
-    src/simulationcontroller.h
+    src/serialreceiver.h

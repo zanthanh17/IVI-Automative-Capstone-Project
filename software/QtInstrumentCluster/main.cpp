@@ -5,11 +5,9 @@
 #include <QLocale>
 #include <QTranslator>
 
-#include "src/simulationcontroller.h"
-#include "src/DriveTrain.h"
+#include "src/externalmediacontroller.h"
 #include "src/mainmodel.h"
 #include "src/serialreceiver.h"
-#include "src/externalmediacontroller.h"
 
 int main(int argc, char *argv[])
 {
@@ -28,9 +26,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    qmlRegisterType<SimulationController>("SimulationController", 1, 0, "SimulationController");
-    qmlRegisterType<Drivetrain>("Drivetrain", 1, 0, "DriveTrain");
-
     qmlRegisterSingletonType<MainModel>("MainModelData", 1, 0, "MainModelData", [](QQmlEngine*, QJSEngine*) -> QObject* {
             return MainModel::instance();
         });
@@ -41,8 +36,9 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonType(QUrl("qrc:///models/Units.qml"), "Units", 1, 0, "Units");
     qmlRegisterSingletonType(QUrl("qrc:///models/NormalModeModel.qml"), "NormalModeModel", 1, 0, "NormalModeModel");
     qmlRegisterSingletonType(QUrl("qrc:///models/MediaPlayerModel.qml"), "MediaPlayerModel", 1, 0, "MediaPlayerModel");
+    qmlRegisterSingletonType(QUrl("qrc:///models/NavigationFeed.qml"), "NavigationFeed", 1, 0, "NavigationFeed");
+    qmlRegisterSingletonType(QUrl("qrc:///models/NavigationModel.qml"), "NavigationModel", 1, 0, "NavigationModel");
 
-    /* Register ExternalMediaController singleton cho QML */
     qmlRegisterSingletonType<ExternalMediaController>("ExternalMedia", 1, 0, "ExternalMedia",
         [](QQmlEngine*, QJSEngine*) -> QObject* {
             return ExternalMediaController::instance();
