@@ -61,11 +61,16 @@ private:
 #if defined(Q_OS_LINUX)
     void connectPlayerSignals();
     void disconnectPlayerSignals();
+#endif
+
+private slots:
+#if defined(Q_OS_LINUX)
     void onPlayerPropertiesChanged(const QString &interface,
                                    const QVariantMap &changedProps,
                                    const QStringList &invalidated);
 #endif
 
+private:
     QMediaPlayer *m_player;
     QAudioOutput *m_audioOutput;
     QProcess *m_probeProcess;

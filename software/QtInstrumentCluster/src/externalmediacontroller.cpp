@@ -744,6 +744,16 @@ void ExternalMediaController::connectPlayerSignals()
     }
 }
 
+// Helper: unwrap a QVariant that may be wrapped in one or more QDBusVariant layers
+static QVariant unwrapDBusVariant(const QVariant &v)
+{
+    QVariant result = v;
+    while (result.canConvert<QDBusVariant>()) {
+        result = result.value<QDBusVariant>().variant();
+    }
+    return result;
+}
+
 void ExternalMediaController::onPlayerPropertiesChanged(
     const QString &interface,
     const QVariantMap &changedProps,
@@ -759,9 +769,10 @@ void ExternalMediaController::onPlayerPropertiesChanged(
 
     bool changed = false;
 
-    // Status changed?
+    // ---------- Status ----------
     if (changedProps.contains(QStringLiteral("Status"))) {
-        const QString status = changedProps.value(QStringLiteral("Status")).toString();
+        // D-Bus signal wraps each value as variant — unwrap first
+        const QString status = unwrapDBusVariant(changedProps.value(QStringLiteral("Status"))).toString();
         const bool isPlaying = status.compare(QStringLiteral("playing"), Qt::CaseInsensitive) == 0;
         if (m_systemPlaying != isPlaying) {
             m_systemPlaying = isPlaying;
@@ -771,23 +782,31 @@ void ExternalMediaController::onPlayerPropertiesChanged(
         qDebug() << "[ExternalMedia] Status changed:" << status;
     }
 
-    // Track changed?
+    // ---------- Track ----------
     if (changedProps.contains(QStringLiteral("Track"))) {
+        // Unwrap the outer variant(s) — result should be a{sv} (QDBusArgument)
+        const QVariant trackUnwrapped = unwrapDBusVariant(changedProps.value(QStringLiteral("Track")));
         QVariantMap track;
-        const QVariant trackVariant = changedProps.value(QStringLiteral("Track"));
 
-        if (trackVariant.canConvert<QDBusArgument>()) {
-            const QDBusArgument trackArg = trackVariant.value<QDBusArgument>();
-            trackArg >> track;
+        if (trackUnwrapped.canConvert<QDBusArgument>()) {
+            const QDBusArgument trackArg = trackUnwrapped.value<QDBusArgument>();
+            trackArg >> track;   // deserializes a{sv} → QVariantMap
         } else {
-            track = trackVariant.toMap();
+            track = trackUnwrapped.toMap();
         }
 
-        qDebug() << "[ExternalMedia] Track signal keys:" << track.keys();
-        qDebug() << "[ExternalMedia] Track signal values:" << track;
+        // Values inside the a{sv} dict may themselves be QDBusVariant
+        // Unwrap them so .toString() / .toUInt() actually works
+        QVariantMap unwrappedTrack;
+        for (auto it = track.cbegin(); it != track.cend(); ++it) {
+            unwrappedTrack.insert(it.key(), unwrapDBusVariant(it.value()));
+        }
 
-        const QString title = track.value(QStringLiteral("Title")).toString();
-        const QString artist = trackArtistFromVariant(track.value(QStringLiteral("Artist")));
+        qDebug() << "[ExternalMedia] Track signal keys:" << unwrappedTrack.keys();
+        qDebug() << "[ExternalMedia] Track signal values:" << unwrappedTrack;
+
+        const QString title = unwrappedTrack.value(QStringLiteral("Title")).toString();
+        const QString artist = unwrappedTrack.value(QStringLiteral("Artist")).toString();
 
         qDebug() << "[ExternalMedia] Signal Title:" << title << "Artist:" << artist;
 
@@ -801,6 +820,12 @@ void ExternalMediaController::onPlayerPropertiesChanged(
             emit currentArtistChanged();
             changed = true;
         }
+    }
+
+    // ---------- Position (optional — useful for future seek bar) ----------
+    if (changedProps.contains(QStringLiteral("Position"))) {
+        const uint pos = unwrapDBusVariant(changedProps.value(QStringLiteral("Position"))).toUInt();
+        qDebug() << "[ExternalMedia] Position:" << pos << "ms";
     }
 
     if (changed) {

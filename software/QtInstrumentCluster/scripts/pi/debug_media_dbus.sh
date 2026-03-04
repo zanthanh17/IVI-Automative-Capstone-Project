@@ -56,12 +56,13 @@ dbus-send --system --dest=org.bluez --print-reply \
     string:"Status" 2>&1
 echo "---"
 
-# 5. Monitor PropertiesChanged in real-time (5 seconds)
+# 5. Monitor PropertiesChanged in real-time (30 seconds)
 echo ""
-echo "[5] Monitoring PropertiesChanged cho 10 giây..."
-echo "    (Chuyển bài hát trên phone trong lúc chờ)"
+echo "[5] Monitoring PropertiesChanged cho 30 giây..."
+echo "    *** QUAN TRỌNG: Chuyển sang bài HÁT KHÁC trên phone (không chỉ play/pause) ***"
+echo "    Track metadata chỉ được gửi khi bài hát THAY ĐỔI."
 echo "---"
-timeout 10 dbus-monitor --system \
+timeout 30 dbus-monitor --system \
     "type='signal',sender='org.bluez',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path='${PLAYER_PATH}'" 2>&1 || true
 echo "---"
 
