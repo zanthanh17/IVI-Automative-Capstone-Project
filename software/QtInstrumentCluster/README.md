@@ -117,3 +117,19 @@ sudo apt update
 sudo apt install -y qml6-module-qtqml qml6-module-qtqml-models qml6-module-qtqml-workerscript
 ```
 
+If Pi build shows `Project ERROR: Unknown module(s) in QT: location`:
+
+```bash
+qmake6 -query QT_VERSION
+dpkg -l | grep -E 'qt6-location-dev|qt6-positioning-dev|qml6-module-qtlocation|qml6-module-qtpositioning'
+```
+
+- If packages are unavailable in your repo, project now auto-builds without `QT += location positioning` and uses Navigation HUD fallback.
+- If packages are available, install them then rebuild:
+
+```bash
+sudo apt update
+sudo apt install -y qt6-location-dev qt6-positioning-dev qml6-module-qtlocation qml6-module-qtpositioning
+./scripts/pi/build_pi.sh
+```
+

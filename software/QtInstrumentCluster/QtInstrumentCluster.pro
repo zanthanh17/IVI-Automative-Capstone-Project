@@ -1,4 +1,12 @@
-QT += quick serialport multimedia location positioning network
+QT += quick serialport multimedia network
+
+qtHaveModule(location):qtHaveModule(positioning) {
+    QT += location positioning
+    message("QtLocation/QtPositioning detected: map support enabled")
+} else {
+    message("QtLocation/QtPositioning not found: build uses Navigation HUD fallback")
+}
+
 linux: QT += dbus
 
 # You can make your code fail to compile if it uses deprecated APIs.
