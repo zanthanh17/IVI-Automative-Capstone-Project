@@ -150,7 +150,7 @@ private:
     void reject(const QString &message)
     {
         if (calledFromDBus()) {
-            sendErrorReply(QDBusError::Rejected, message);
+            sendErrorReply(QStringLiteral("org.bluez.Error.Rejected"), message);
         }
     }
 
