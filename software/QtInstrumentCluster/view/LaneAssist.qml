@@ -12,8 +12,8 @@ Item {
 
         source: "qrc:/images/lanes/red-border-left.png"
         opacity: redBorderOpacity
-        x: 392
-        y: 350
+        x: 432
+        y: 380
         width: 70
         height: 200
 
@@ -31,8 +31,8 @@ Item {
 
         source: "qrc:/images/lanes/red-border-right.png"
         opacity: redBorderOpacity
-        x: 543
-        y: 350
+        x: 522
+        y: 380
         width: 70
         height: 200
 

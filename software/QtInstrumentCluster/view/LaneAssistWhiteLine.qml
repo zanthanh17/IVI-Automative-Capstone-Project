@@ -16,8 +16,8 @@ Image {
     source: location == LaneAssistWhiteLine.Left ? "qrc:/images/lanes/white-line-left.png"
                                                  : "qrc:/images/lanes/white-line-right.png"
 
-    x: location == LaneAssistWhiteLine.Left ? 417 : 581
-    y: 483
+    x: location == LaneAssistWhiteLine.Left ? 453 : 551
+    y: 500
 
     opacity: Math.min(1 - (1 - s) * (1 - s), 1)
 

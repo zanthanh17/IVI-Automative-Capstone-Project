@@ -14,7 +14,7 @@ Item {
         source: "qrc:/images/top-line.png";
         anchors.horizontalCenter: parent.horizontalCenter;
         anchors.top: parent.top;
-        anchors.topMargin: 77;
+        anchors.topMargin: 96;
     }
 
     LaneAssist {
@@ -39,8 +39,8 @@ Item {
 
     Gauge {
         id: leftGauge;
-        x: 25;
-        y: 55;
+        x: 32;
+        y: 69;
         leftOrientation: true;
         value: Units.kilometersToLongDistanceUnit(MainModel.speed)
         maxValue: Units.maximumSpeed
@@ -49,8 +49,8 @@ Item {
 
     Gauge {
         id: rightGauge;
-        x: root.width - rightGauge.width - 25;
-        y: 55;
+        x: root.width - rightGauge.width - 32;
+        y: 69;
         leftOrientation: false;
         value: MainModel.rpm / 1000;
         valueText: MainModel.gearShiftText
@@ -61,8 +61,8 @@ Item {
         Text {
             id: rpmLabel
             anchors.centerIn: parent
-            anchors.horizontalCenterOffset: -35
-            anchors.verticalCenterOffset: 100
+            anchors.horizontalCenterOffset: -45
+            anchors.verticalCenterOffset: 125
 
             opacity: 0.2
             horizontalAlignment: Text.AlignRight
@@ -84,7 +84,7 @@ Item {
         id: normalMenu;
         opacity: topLine.opacity;
         anchors.horizontalCenter: parent.horizontalCenter;
-        y: 366;
+        y: 375;
         currentIndex: menu;
         onClicked: NormalModeModel.menu = index;
     }

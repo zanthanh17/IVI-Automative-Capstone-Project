@@ -10,7 +10,7 @@ NormalModeContentItem {
     Text {
         id: songTitle
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 100
+        y: 125
         text: MediaPlayerModel.currentSong
         font.pixelSize: 18
         font.bold: true
@@ -25,7 +25,7 @@ NormalModeContentItem {
     Text {
         id: artistName
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 128
+        y: 160
         text: MediaPlayerModel.currentArtist
         font.pixelSize: 13
         font.family: "Sarabun"
@@ -38,7 +38,7 @@ NormalModeContentItem {
     Row {
         id: controls
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 165
+        y: 206
         spacing: 36
 
         /* Previous button */
@@ -134,7 +134,7 @@ NormalModeContentItem {
     /* === Bluetooth status hint === */
     Row {
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 238
+        y: 298
         spacing: 5
         opacity: 0.4
 

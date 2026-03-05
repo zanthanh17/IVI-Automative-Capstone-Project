@@ -128,12 +128,23 @@ ExternalMediaController::ExternalMediaController(QObject *parent)
         applySystemSessionPayload(payload);
     });
 
-    m_probeTimer->setInterval(1200);
+#if defined(Q_OS_WIN)
+    /* Windows: poll via PowerShell (no signal-based alternative) */
+    m_probeTimer->setInterval(5000);
     connect(m_probeTimer, &QTimer::timeout, this, &ExternalMediaController::probeSystemSession);
     m_probeTimer->start();
+#endif
 
     rescan();
-    probeSystemSession();
+
+#if defined(Q_OS_LINUX)
+    /* Linux: subscribe to BlueZ D-Bus signals for reactive detection */
+    subscribeBluezSignals();
+    /* Defer initial probe to avoid blocking UI at startup */
+    QTimer::singleShot(2000, this, &ExternalMediaController::probeSystemSession);
+#elif defined(Q_OS_WIN)
+    QTimer::singleShot(2000, this, &ExternalMediaController::probeSystemSession);
+#endif
 }
 
 ExternalMediaController::~ExternalMediaController() = default;
@@ -388,12 +399,14 @@ void ExternalMediaController::probeSystemSession()
                                  QStringLiteral("/"),
                                  QStringLiteral("org.freedesktop.DBus.ObjectManager"),
                                  QDBusConnection::systemBus());
+    objectManager.setTimeout(1500);  /* Prevent indefinite blocking */
     if (!objectManager.isValid()) {
         setSystemSessionState(false, false, QString(), QString());
         return;
     }
 
-    const QDBusMessage reply = objectManager.call(QStringLiteral("GetManagedObjects"));
+    const QDBusMessage reply = objectManager.callWithArgumentList(
+        QDBus::Block, QStringLiteral("GetManagedObjects"), QList<QVariant>());
     if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty()) {
         setSystemSessionState(false, false, QString(), QString());
         return;
@@ -460,6 +473,7 @@ void ExternalMediaController::probeSystemSession()
                               playerPath,
                               QStringLiteral("org.freedesktop.DBus.Properties"),
                               QDBusConnection::systemBus());
+    propsIface.setTimeout(1500);  /* Prevent indefinite blocking */
 
     QString status;
     QString title;
@@ -741,6 +755,57 @@ void ExternalMediaController::connectPlayerSignals()
         qDebug() << "[ExternalMedia] Subscribed to PropertiesChanged on" << m_linuxPlayerPath;
     } else {
         qWarning() << "[ExternalMedia] Failed to subscribe PropertiesChanged on" << m_linuxPlayerPath;
+    }
+}
+
+void ExternalMediaController::subscribeBluezSignals()
+{
+    /* Subscribe to BlueZ ObjectManager signals for reactive Bluetooth detection.
+     * InterfacesAdded fires when a new Bluetooth media player connects.
+     * InterfacesRemoved fires when a Bluetooth device disconnects. */
+    QDBusConnection::systemBus().connect(
+        QStringLiteral("org.bluez"),
+        QStringLiteral("/"),
+        QStringLiteral("org.freedesktop.DBus.ObjectManager"),
+        QStringLiteral("InterfacesAdded"),
+        this,
+        SLOT(onBluezInterfacesAdded(QDBusObjectPath,QVariantMap)));
+
+    QDBusConnection::systemBus().connect(
+        QStringLiteral("org.bluez"),
+        QStringLiteral("/"),
+        QStringLiteral("org.freedesktop.DBus.ObjectManager"),
+        QStringLiteral("InterfacesRemoved"),
+        this,
+        SLOT(onBluezInterfacesRemoved(QDBusObjectPath,QStringList)));
+
+    qDebug() << "[ExternalMedia] Subscribed to BlueZ InterfacesAdded/Removed signals";
+}
+
+void ExternalMediaController::onBluezInterfacesAdded(
+    const QDBusObjectPath &objectPath,
+    const QVariantMap &interfaces)
+{
+    Q_UNUSED(interfaces)
+    const QString path = objectPath.path();
+    /* Only react when a MediaPlayer1 or MediaControl1 interface appears */
+    if (path.contains(QStringLiteral("player")) ||
+        path.contains(QStringLiteral("Player"))) {
+        qDebug() << "[ExternalMedia] BlueZ interface added:" << path;
+        probeSystemSession();
+    }
+}
+
+void ExternalMediaController::onBluezInterfacesRemoved(
+    const QDBusObjectPath &objectPath,
+    const QStringList &interfaces)
+{
+    Q_UNUSED(interfaces)
+    const QString path = objectPath.path();
+    if (path.contains(QStringLiteral("player")) ||
+        path.contains(QStringLiteral("Player"))) {
+        qDebug() << "[ExternalMedia] BlueZ interface removed:" << path;
+        setSystemSessionState(false, false, QString(), QString());
     }
 }
 

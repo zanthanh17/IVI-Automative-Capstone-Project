@@ -131,6 +131,8 @@ void MainModel::initSerialReceiver()
         }
     });
 
-    qDebug() << "[MainModel] SerialReceiver initialized, attempting auto-connect...";
-    m_serialReceiver->setHardwareMode(true);
+    qDebug() << "[MainModel] SerialReceiver initialized";
+    /* Try once silently — if no hardware, dashboard runs normally.
+     * QFileSystemWatcher in SerialReceiver will detect future USB insertions. */
+    m_serialReceiver->autoConnect();
 }

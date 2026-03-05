@@ -4,6 +4,10 @@
 #include <QObject>
 #include <QStringList>
 
+#if defined(Q_OS_LINUX)
+#include <QDBusObjectPath>
+#endif
+
 class QMediaPlayer;
 class QAudioOutput;
 class QProcess;
@@ -61,6 +65,7 @@ private:
 #if defined(Q_OS_LINUX)
     void connectPlayerSignals();
     void disconnectPlayerSignals();
+    void subscribeBluezSignals();
 #endif
 
 private slots:
@@ -68,6 +73,10 @@ private slots:
     void onPlayerPropertiesChanged(const QString &interface,
                                    const QVariantMap &changedProps,
                                    const QStringList &invalidated);
+    void onBluezInterfacesAdded(const QDBusObjectPath &objectPath,
+                                const QVariantMap &interfaces);
+    void onBluezInterfacesRemoved(const QDBusObjectPath &objectPath,
+                                  const QStringList &interfaces);
 #endif
 
 private:

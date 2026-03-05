@@ -1,5 +1,7 @@
 #include "serialreceiver.h"
 #include <QDebug>
+#include <QDir>
+#include <QFileSystemWatcher>
 
 SerialReceiver::SerialReceiver(QObject *parent)
     : QObject(parent)
@@ -20,10 +22,13 @@ SerialReceiver::SerialReceiver(QObject *parent)
     connect(m_serial, &QSerialPort::errorOccurred,
             this, &SerialReceiver::onSerialError);
 
-    /* Timer tự động reconnect mỗi 3 giây nếu mất kết nối */
-    m_reconnectTimer->setInterval(3000);
-    connect(m_reconnectTimer, &QTimer::timeout,
-            this, &SerialReceiver::onReconnectTimer);
+    /* Watch /dev for new USB serial devices (ttyUSB*, ttyACM*, ttyAMA*) */
+    auto *devWatcher = new QFileSystemWatcher({QStringLiteral("/dev")}, this);
+    connect(devWatcher, &QFileSystemWatcher::directoryChanged, this, [this]() {
+        if (m_connected) return;
+        /* Small delay to let the device node fully appear */
+        QTimer::singleShot(500, this, [this]() { autoConnect(); });
+    });
 }
 
 SerialReceiver::~SerialReceiver()
@@ -97,14 +102,14 @@ bool SerialReceiver::autoConnect()
 
     /*
      * Chiến lược tìm port:
-     * 1. Trên Raspberry Pi: ưu tiên /dev/ttyAMA0 hoặc /dev/ttyS0 (UART hardware)
-     * 2. Trên PC: tìm USB-TTL phổ biến (CP2102, CH340, FTDI)
-     * 3. Fallback: thử port đầu tiên có sẵn
+     * 1. Trên Raspberry Pi: ưu tiên /dev/ttyAMA0 (UART hardware)
+     * 2. Trên PC: tìm USB-TTL phổ biến (CP2102, CH340, FTDI) → ttyUSB* hoặc ttyACM*
+     * 3. Bỏ qua ttyS* (serial ảo trên PC, gây Permission denied và block UI)
      */
 
     /* Ưu tiên 1: Raspberry Pi native UART */
     for (const QSerialPortInfo &info : ports) {
-        if (info.portName().contains("ttyAMA") || info.portName().contains("ttyS0")) {
+        if (info.portName().startsWith("ttyAMA")) {
             if (tryOpenPort(info.portName())) {
                 qDebug() << "[SerialReceiver] Connected to Pi UART:" << info.portName();
                 return true;
@@ -112,40 +117,26 @@ bool SerialReceiver::autoConnect()
         }
     }
 
-    /* Ưu tiên 2: USB-TTL adapters (CP2102, CH340, FTDI) */
-    const QStringList usbKeywords = {
-        "CP210", "CH340", "CH341", "FTDI", "FT232",
-        "USB-SERIAL", "USB Serial", "Silicon Labs",
-        "USB2.0-Ser", "ttyUSB"
-    };
-
+    /* Ưu tiên 2: USB-TTL adapters (CP2102, CH340, FTDI) → thường là ttyUSB* hoặc ttyACM* */
     for (const QSerialPortInfo &info : ports) {
-        QString desc = info.description().toUpper();
-        QString mfr  = info.manufacturer().toUpper();
-        for (const QString &kw : usbKeywords) {
-            if (desc.contains(kw.toUpper()) || mfr.contains(kw.toUpper())
-                || info.portName().contains(kw, Qt::CaseInsensitive)) {
-                if (tryOpenPort(info.portName())) {
-                    qDebug() << "[SerialReceiver] Connected to USB-TTL:" << info.portName()
-                             << "-" << info.description();
-                    return true;
-                }
+        if (info.portName().startsWith("ttyUSB") || info.portName().startsWith("ttyACM")) {
+            if (tryOpenPort(info.portName())) {
+                qDebug() << "[SerialReceiver] Connected to USB-TTL:" << info.portName()
+                         << "-" << info.description();
+                return true;
             }
         }
     }
 
     /* Ưu tiên 3: Nếu có chỉ định portName cụ thể */
-    if (!m_portName.isEmpty()) {
+    if (!m_portName.isEmpty() && !m_portName.startsWith("ttyS")) {
         if (tryOpenPort(m_portName)) {
             qDebug() << "[SerialReceiver] Connected to specified port:" << m_portName;
             return true;
         }
     }
 
-    /* Không tìm thấy → bật reconnect timer */
-    qWarning() << "[SerialReceiver] No STM32 port found. Retrying in 3s...";
-    qWarning() << "[SerialReceiver] Available ports:" << availablePorts();
-    m_reconnectTimer->start();
+    /* Không tìm thấy — im lặng, chờ user cắm thiết bị (QFileSystemWatcher sẽ detect) */
     return false;
 }
 
@@ -283,26 +274,18 @@ void SerialReceiver::onSerialError(QSerialPort::SerialPortError error)
     qWarning() << "[SerialReceiver] Error:" << errMsg;
     emit serialError(errMsg);
 
-    /* Nếu bị ngắt kết nối, cập nhật state và bật reconnect */
+    /* Nếu bị ngắt kết nối, cập nhật state (không retry — chờ device mới) */
     if (m_connected && !m_serial->isOpen()) {
         m_connected = false;
         emit connectedChanged();
-        if (m_hardwareMode) {
-            m_reconnectTimer->start();
-        }
+        qDebug() << "[SerialReceiver] Device disconnected, waiting for new device...";
     }
 }
 
 void SerialReceiver::onReconnectTimer()
 {
-    if (m_connected) {
-        m_reconnectTimer->stop();
-        return;
-    }
-    qDebug() << "[SerialReceiver] Attempting reconnect...";
-    if (autoConnect()) {
-        m_reconnectTimer->stop();
-    }
+    /* No longer used — kept for ABI compatibility */
+    Q_UNUSED(this)
 }
 
 /* ============ Internal ============ */

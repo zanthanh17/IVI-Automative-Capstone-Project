@@ -10,7 +10,7 @@ NormalModeContentItem {
     Text {
         id: currentStreetLabel
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 95
+        y: 119
         text: NavigationModel.currentStreet
         font.pixelSize: 13
         font.family: "Sarabun"
@@ -20,7 +20,7 @@ NormalModeContentItem {
 
     Text {
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 78
+        y: 98
         text: NavigationModel.source === "mock" ? "MOCK GPS" : "HW GPS"
         font.pixelSize: 10
         font.family: "Sarabun"
@@ -32,7 +32,7 @@ NormalModeContentItem {
     Canvas {
         id: arrowCanvas
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 125
+        y: 156
         width: 80
         height: 80
 
@@ -138,7 +138,7 @@ NormalModeContentItem {
     Text {
         id: distanceText
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 213
+        y: 266
         text: NavigationModel.distanceToTurnText
         font.pixelSize: 26
         font.bold: true
@@ -153,7 +153,7 @@ NormalModeContentItem {
     /* === Next street name === */
     Row {
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 248
+        y: 310
         spacing: 6
 
         Text {
@@ -173,7 +173,7 @@ NormalModeContentItem {
     /* === ETA & Total Distance (bottom) === */
     Row {
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 278
+        y: 348
         spacing: 20
 
         Row {
