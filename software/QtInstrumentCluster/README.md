@@ -47,6 +47,12 @@ chmod +x scripts/pi/*.sh
 ./scripts/pi/setup_pi_native_qt6.sh
 ```
 
+The setup script now attempts to install Qt map modules (`QtLocation` / `QtPositioning`) when available in your apt repository:
+- `qt6-location-dev`, `qt6-positioning-dev`, `qt6-location-dev-tools`
+- `qml6-module-qtlocation`, `qml6-module-qtpositioning`
+
+If your distro repo does not provide them, Navigation map cannot use QtLocation and will fall back to turn-by-turn HUD.
+
 After setup, re-login (or run `newgrp dialout`), then:
 
 ```bash
@@ -66,6 +72,11 @@ If no desktop/X11 session is available, run:
 ```bash
 QT_QPA_PLATFORM=eglfs ./scripts/pi/run_pi.sh
 ```
+
+### Navigation map behavior
+
+- Navigation page uses QtLocation map implementation.
+- If QtLocation cannot be loaded at runtime, app falls back to turn-by-turn HUD.
 
 ### Bluetooth Audio + Dashboard Controls (Phone -> Pi)
 

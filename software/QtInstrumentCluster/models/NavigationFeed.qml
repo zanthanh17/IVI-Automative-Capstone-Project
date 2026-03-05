@@ -13,15 +13,19 @@ QtObject {
     property real mockSpeedKmh: 44.0
 
     readonly property var mockRoute: [
-        { lat: 10.76350, lon: 106.70000 },
-        { lat: 10.76350, lon: 106.70776 },
-        { lat: 10.77431, lon: 106.70776 },
-        { lat: 10.79500, lon: 106.70776 },
-        { lat: 10.79500, lon: 106.71324 },
-        { lat: 10.79905, lon: 106.71324 },
-        { lat: 10.79743, lon: 106.71324 },
-        { lat: 10.79743, lon: 106.74154 },
-        { lat: 10.79743, lon: 106.74200 }
+        { lat: 16.06320, lon: 108.21960 },
+        { lat: 16.06290, lon: 108.22140 },
+        { lat: 16.06230, lon: 108.22310 },
+        { lat: 16.06140, lon: 108.22460 },
+        { lat: 16.06020, lon: 108.22570 },
+        { lat: 16.05880, lon: 108.22630 },
+        { lat: 16.05730, lon: 108.22620 },
+        { lat: 16.05590, lon: 108.22550 },
+        { lat: 16.05460, lon: 108.22420 },
+        { lat: 16.05380, lon: 108.22270 },
+        { lat: 16.05340, lon: 108.22120 },
+        { lat: 16.05290, lon: 108.21980 },
+        { lat: 16.05200, lon: 108.21870 }
     ]
 
     readonly property real mockRouteLengthMeters: routeLengthMeters()

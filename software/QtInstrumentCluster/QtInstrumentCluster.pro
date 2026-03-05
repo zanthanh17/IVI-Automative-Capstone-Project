@@ -1,4 +1,4 @@
-QT += quick serialport multimedia
+QT += quick serialport multimedia location positioning network
 linux: QT += dbus
 
 # You can make your code fail to compile if it uses deprecated APIs.
@@ -6,10 +6,12 @@ linux: QT += dbus
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+        src/bluetoothcontroller.cpp \
         main.cpp \
         src/externalmediacontroller.cpp \
         src/mainmodel.cpp \
-        src/serialreceiver.cpp
+        src/serialreceiver.cpp \
+        src/weatherprovider.cpp
 
 RESOURCES += qml.qrc
 
@@ -30,7 +32,9 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 HEADERS += \
+    src/bluetoothcontroller.h \
     src/externalmediacontroller.h \
     src/mainmodel.h \
     src/mathutils.h \
-    src/serialreceiver.h
+    src/serialreceiver.h \
+    src/weatherprovider.h

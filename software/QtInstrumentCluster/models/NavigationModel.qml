@@ -35,14 +35,13 @@ QtObject {
     property real _lastTimestampMs: 0
 
     readonly property var route: [
-        { street: "Nguyen Van Linh", next: "Pham Hung",      maneuver: NavigationModel.TurnRight,  dist: 850  },
-        { street: "Pham Hung",       next: "Le Van Luong",   maneuver: NavigationModel.TurnLeft,   dist: 1200 },
-        { street: "Le Van Luong",    next: "Nguyen Huu Tho", maneuver: NavigationModel.GoStraight, dist: 2300 },
-        { street: "Nguyen Huu Tho",  next: "Ton Duc Thang",  maneuver: NavigationModel.TurnRight,  dist: 600  },
-        { street: "Ton Duc Thang",   next: "Hai Ba Trung",   maneuver: NavigationModel.TurnLeft,   dist: 450  },
-        { street: "Hai Ba Trung",    next: "Dien Bien Phu",  maneuver: NavigationModel.UTurn,      dist: 180  },
-        { street: "Dien Bien Phu",   next: "Pasteur",        maneuver: NavigationModel.GoStraight, dist: 3100 },
-        { street: "Dien Bien Phu",   next: "123 Pasteur",    maneuver: NavigationModel.Arrive,     dist: 50   }
+        { street: "Nguyen Van Linh", next: "2 Thang 9",      maneuver: NavigationModel.TurnRight,  dist: 420 },
+        { street: "2 Thang 9",       next: "Tran Hung Dao",  maneuver: NavigationModel.GoStraight, dist: 560 },
+        { street: "Tran Hung Dao",   next: "Pham Van Dong",  maneuver: NavigationModel.TurnLeft,   dist: 390 },
+        { street: "Pham Van Dong",   next: "Vo Nguyen Giap", maneuver: NavigationModel.TurnRight,  dist: 340 },
+        { street: "Vo Nguyen Giap",  next: "Nguyen Van Thoai", maneuver: NavigationModel.GoStraight, dist: 610 },
+        { street: "Nguyen Van Thoai", next: "Le Quang Dao",  maneuver: NavigationModel.TurnLeft,   dist: 300 },
+        { street: "Le Quang Dao",    next: "Destination",    maneuver: NavigationModel.Arrive,     dist: 70  }
     ]
 
     readonly property real totalRouteMeters: computeTotalRouteMeters()

@@ -1,4 +1,4 @@
-﻿#include <QGuiApplication>
+#include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 
@@ -6,8 +6,10 @@
 #include <QTranslator>
 
 #include "src/externalmediacontroller.h"
+#include "src/bluetoothcontroller.h"
 #include "src/mainmodel.h"
 #include "src/serialreceiver.h"
+#include "src/weatherprovider.h"
 
 int main(int argc, char *argv[])
 {
@@ -36,6 +38,10 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonType(QUrl("qrc:///models/Units.qml"), "Units", 1, 0, "Units");
     qmlRegisterSingletonType(QUrl("qrc:///models/NormalModeModel.qml"), "NormalModeModel", 1, 0, "NormalModeModel");
     qmlRegisterSingletonType(QUrl("qrc:///models/MediaPlayerModel.qml"), "MediaPlayerModel", 1, 0, "MediaPlayerModel");
+    qmlRegisterSingletonType<BluetoothController>("BluetoothManager", 1, 0, "BluetoothManager",
+        [](QQmlEngine*, QJSEngine*) -> QObject* {
+            return BluetoothController::instance();
+        });
     qmlRegisterSingletonType(QUrl("qrc:///models/NavigationFeed.qml"), "NavigationFeed", 1, 0, "NavigationFeed");
     qmlRegisterSingletonType(QUrl("qrc:///models/NavigationModel.qml"), "NavigationModel", 1, 0, "NavigationModel");
 
@@ -44,20 +50,21 @@ int main(int argc, char *argv[])
             return ExternalMediaController::instance();
         });
 
-    /*
-     * Khởi tạo SerialReceiver và auto-connect tới STM32
-     * - Trên PC host: tìm USB-TTL (CP2102/CH340) → COMx
-     * - Trên Raspberry Pi: tìm /dev/ttyAMA0
-     * Code GIỐNG HỆT, chỉ khác port name tự động detect
-     */
+    QObject::connect(BluetoothController::instance(), &BluetoothController::deviceConnectionChanged,
+                     ExternalMediaController::instance(),
+                     [](const QString &, bool) {
+        ExternalMediaController::instance()->rescan();
+    });
+
+    qmlRegisterSingletonType<WeatherProvider>("Weather", 1, 0, "Weather",
+        [](QQmlEngine*, QJSEngine*) -> QObject* {
+            return WeatherProvider::instance();
+        });
+
     MainModel::instance()->initSerialReceiver();
 
     QQmlApplicationEngine engine;
 
-    /*
-     * Expose SerialReceiver cho QML để kết nối signal trực tiếp
-     * với TellTalesModel và MediaPlayerModel
-     */
     engine.rootContext()->setContextProperty(
         "serialReceiver", MainModel::instance()->serialReceiver());
 

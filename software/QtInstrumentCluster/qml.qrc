@@ -27,8 +27,17 @@
         <file>images/lanes/red-border-right.png</file>
         <file>images/menu/navi.png</file>
         <file>images/menu/phone.png</file>
+        <file>images/menu/bluetooth.png</file>
         <file>images/menu/play.png</file>
+        <file>images/menu/music.png</file>
         <file>images/menu/setup.png</file>
+        <file>images/menu/weather.png</file>
+        <file>images/weather/location.svg</file>
+        <file>images/weather/sun.svg</file>
+        <file>images/weather/partly.svg</file>
+        <file>images/weather/cloud.svg</file>
+        <file>images/weather/rain.svg</file>
+        <file>images/weather/storm.svg</file>
         <file>models/NormalModeModel.qml</file>
         <file>images/albums/ak.png</file>
         <file>images/albums/juno.png</file>
@@ -45,12 +54,16 @@
         <file>view/LaneAssistWhiteLine.qml</file>
         <file>view/LinearGauge.qml</file>
         <file>view/MediaPlayer.qml</file>
+        <file>view/Bluetooth.qml</file>
         <file>view/Navigation.qml</file>
+        <file>view/NavigationMapLocation.qml</file>
+        <file>view/NavigationHudFallback.qml</file>
         <file>view/Menu.qml</file>
         <file>view/NormalMode.qml</file>
         <file>view/NormalModeContentItem.qml</file>
         <file>view/StatusBar.qml</file>
         <file>view/TellTales.qml</file>
         <file>view/TellTalesIndicator.qml</file>
+        <file>view/Weather.qml</file>
     </qresource>
 </RCC>

@@ -1,0 +1,12 @@
+Weather and location icons source:
+- Project: Material Design Icons (Pictogrammers)
+- Repository: https://github.com/Templarian/MaterialDesign-SVG
+- License: Apache-2.0
+
+Downloaded icons:
+- map-marker.svg -> location.svg
+- weather-sunny.svg -> sun.svg
+- weather-partly-cloudy.svg -> partly.svg
+- weather-cloudy.svg -> cloud.svg
+- weather-rainy.svg -> rain.svg
+- weather-lightning-rainy.svg -> storm.svg

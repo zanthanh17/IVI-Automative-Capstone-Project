@@ -15,8 +15,7 @@ fi
 echo "[INFO] Updating apt index..."
 sudo apt update
 
-echo "[INFO] Installing build tools and runtime dependencies..."
-sudo apt install -y \
+BASE_PACKAGES=(
     build-essential \
     pkg-config \
     git \
@@ -45,6 +44,41 @@ sudo apt install -y \
     bluez \
     bluez-tools \
     libspa-0.2-bluetooth
+)
+
+# Qt Location / Positioning packages are distro-dependent.
+# On some Raspberry Pi OS (Debian bookworm), these Qt6 packages may be unavailable.
+MAP_OPTIONAL_PACKAGES=(
+    qt6-location-dev
+    qt6-positioning-dev
+    qt6-location-dev-tools
+    qml6-module-qtlocation
+    qml6-module-qtpositioning
+)
+
+AVAILABLE_MAP_PACKAGES=()
+MISSING_MAP_PACKAGES=()
+for pkg in "${MAP_OPTIONAL_PACKAGES[@]}"; do
+    if apt-cache show "${pkg}" >/dev/null 2>&1; then
+        AVAILABLE_MAP_PACKAGES+=("${pkg}")
+    else
+        MISSING_MAP_PACKAGES+=("${pkg}")
+    fi
+done
+
+echo "[INFO] Installing build tools and runtime dependencies..."
+sudo apt install -y "${BASE_PACKAGES[@]}" "${AVAILABLE_MAP_PACKAGES[@]}"
+
+if ((${#AVAILABLE_MAP_PACKAGES[@]} > 0)); then
+    echo "[INFO] Installed Qt map packages: ${AVAILABLE_MAP_PACKAGES[*]}"
+fi
+
+if ((${#MISSING_MAP_PACKAGES[@]} > 0)); then
+    echo "[WARN] Some Qt6 map packages are not available in this apt repo:"
+    echo "       ${MISSING_MAP_PACKAGES[*]}"
+    echo "       Navigation map will fall back to turn-by-turn HUD."
+    echo "       For full QtLocation map, use a repo/Qt SDK that provides these packages."
+fi
 
 echo "[INFO] Adding user '${USER}' to dialout group for serial access..."
 sudo usermod -aG dialout "${USER}"

@@ -12,9 +12,11 @@ $exePath = Join-Path $buildDir 'release\QtInstrumentCluster.exe'
 
 $qmake = 'C:\Qt\6.9.1\mingw_64\bin\qmake.exe'
 $make = 'C:\Qt\Tools\mingw1310_64\bin\mingw32-make.exe'
+$windeployqt = 'C:\Qt\6.9.1\mingw_64\bin\windeployqt.exe'
 
 if (-not (Test-Path $qmake)) { throw "qmake not found: $qmake" }
 if (-not (Test-Path $make)) { throw "mingw32-make not found: $make" }
+if (-not (Test-Path $windeployqt)) { throw "windeployqt not found: $windeployqt" }
 
 $env:PATH = "C:\Qt\6.9.1\mingw_64\bin;C:\Qt\Tools\mingw1310_64\bin;$env:PATH"
 
@@ -46,6 +48,16 @@ finally {
 
 if (-not (Test-Path $exePath)) {
     throw "Executable not found: $exePath"
+}
+
+# Ensure runtime plugins/QML modules (including QtLocation geoservices) are deployed.
+Push-Location (Split-Path -Parent $exePath)
+try {
+    & $windeployqt --qmldir $projectDir --release $exePath
+    if ($LASTEXITCODE -ne 0) { throw "windeployqt failed with exit code $LASTEXITCODE" }
+}
+finally {
+    Pop-Location
 }
 
 $proc = Start-Process -FilePath $exePath -WorkingDirectory $projectDir -PassThru

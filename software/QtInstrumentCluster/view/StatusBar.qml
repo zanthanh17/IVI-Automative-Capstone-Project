@@ -4,6 +4,42 @@ import MainModel 1.0
 import Style 1.0
 
 Item {
+    id: root
+
+    property date currentDateTime: new Date()
+
+    Timer {
+        interval: 1000
+        repeat: true
+        running: true
+        triggeredOnStart: true
+        onTriggered: root.currentDateTime = new Date()
+    }
+
+    Column {
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: 20
+        anchors.rightMargin: 42
+        spacing: 0
+
+        Text {
+            text: Qt.formatDateTime(root.currentDateTime, "hh:mm")
+            horizontalAlignment: Text.AlignRight
+            color: Style.lightPeriwinkle
+            font.pixelSize: 24
+            font.bold: true
+            font.family: "Sarabun"
+        }
+
+        Text {
+            text: Qt.formatDateTime(root.currentDateTime, "ddd, dd MMM yyyy")
+            horizontalAlignment: Text.AlignRight
+            color: "#657080"
+            font.pixelSize: 11
+            font.family: "Sarabun"
+        }
+    }
 
     Text {
         id: odo

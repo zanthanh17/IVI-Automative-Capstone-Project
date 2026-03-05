@@ -6,17 +6,19 @@ Row {
     signal clicked(int index)
     property int currentIndex
     id: menu
+    spacing: 6
 
     Repeater {
         model: ListModel {
             ListElement { text: "Play"; image: "qrc:/images/menu/play.png" }
             ListElement { text: "Navi"; image: "qrc:/images/menu/navi.png" }
-            ListElement { text: "Phone"; image: "qrc:/images/menu/phone.png" }
+            ListElement { text: "Weather"; image: "qrc:/images/menu/weather.png" }
+            ListElement { text: "Bluetooth"; image: "qrc:/images/menu/bluetooth.png" }
             ListElement { text: "Setup"; image: "qrc:/images/menu/setup.png" }
         }
 
         delegate: Item {
-            width: 52
+            width: 64
             height: 42
             property bool active: index == currentIndex
 
@@ -103,6 +105,11 @@ Row {
                 font.pixelSize: 11
                 font.family: "Sarabun"
                 color: parent.active ? Style.brightBlue : Style.lightPeriwinkle
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: menu.clicked(index)
             }
         }
     }

@@ -25,14 +25,28 @@ Item {
     Item {
         id: mainElement;
         anchors.fill: parent
+
         MediaPlayer {
             activeMode: active;
             selected: menu == NormalModeModel.MediaPlayerMenu;
             anchors.fill: parent;
         }
+
         Navigation {
             activeMode: active;
             selected: menu == NormalModeModel.NavigationMenu;
+            anchors.fill: parent;
+        }
+
+        Weather {
+            activeMode: active;
+            selected: menu == NormalModeModel.WeatherMenu;
+            anchors.fill: parent;
+        }
+
+        Bluetooth {
+            activeMode: active;
+            selected: menu == NormalModeModel.BluetoothMenu;
             anchors.fill: parent;
         }
     }
