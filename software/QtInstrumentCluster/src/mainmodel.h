@@ -10,8 +10,8 @@ class MainModel : public QObject
     Q_OBJECT
     Q_PROPERTY(float speed READ speed NOTIFY speedChanged)
     Q_PROPERTY(float rpm READ rpm NOTIFY rpmChanged)
-    Q_PROPERTY(float odo READ odo NOTIFY odoChanged)
-    Q_PROPERTY(float range READ range NOTIFY rangeChanged)
+    Q_PROPERTY(float odo READ odo WRITE setOdo NOTIFY odoChanged)
+    Q_PROPERTY(float range READ range WRITE setRange NOTIFY rangeChanged)
     Q_PROPERTY(float fuelLevel READ fuelLevel NOTIFY fuelLevelChanged)
     Q_PROPERTY(float batteryLevel READ batteryLevel NOTIFY batteryLevelChanged)
     Q_PROPERTY(QString gearText READ gearText NOTIFY gearTextChanged)
@@ -30,8 +30,8 @@ public:
 
     void setSpeed(float newValue);
     void setRPM(float newValue);
-    void setOdo(float newValue);
-    void setRange(float newValue);
+    Q_INVOKABLE void setOdo(float newValue);
+    Q_INVOKABLE void setRange(float newValue);
     void setFuelLevel(float newValue);
     void setBatteryLevel(float newValue);
     void setGearText(const QString &text);

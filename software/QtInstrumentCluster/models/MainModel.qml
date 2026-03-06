@@ -48,6 +48,15 @@ QtObject {
 
     Component.onCompleted: {
         MainModelData.modelUpdated.connect(modelUpdated);
+
+        // Restore persisted telemetry from C++ singleton on app start.
+        if (isFinite(MainModelData.odo) && MainModelData.odo >= 0)
+            MainModel.odo = MainModelData.odo
+        if (isFinite(MainModelData.range) && MainModelData.range >= 0)
+            MainModel.range = MainModelData.range
+
+        MainModelData.setOdo(MainModel.odo)
+        MainModelData.setRange(MainModel.range)
     }
 
     property Timer odometerTimer: Timer {
@@ -62,6 +71,8 @@ QtObject {
             var deltaKm = MainModel.speed / 3600.0
             MainModel.odo = MainModel.odo + deltaKm
             MainModel.range = Math.max(0, MainModel.range - deltaKm)
+            MainModelData.setOdo(MainModel.odo)
+            MainModelData.setRange(MainModel.range)
 
             // Keep fuel gauge coherent in simulation mode.
             if (!MainModelData.hardwareConnected) {
