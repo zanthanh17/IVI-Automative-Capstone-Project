@@ -64,5 +64,8 @@
         <file>view/TellTales.qml</file>
         <file>view/TellTalesIndicator.qml</file>
         <file>view/Weather.qml</file>
+        <file>fonts/Inter-Regular.ttf</file>
+        <file>fonts/Inter-SemiBold.ttf</file>
+        <file>fonts/Inter-Bold.ttf</file>
     </qresource>
 </RCC>

@@ -1,5 +1,6 @@
 import QtQuick 2.12
 import Weather 1.0
+import Style 1.0
 
 NormalModeContentItem {
     id: weatherRoot
@@ -32,144 +33,78 @@ NormalModeContentItem {
         Weather.refresh()
     }
 
-    Rectangle {
-        id: weatherCard
-        width: 318
-        height: 156
-        radius: 14
+    /* === City & Location === */
+    Row {
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 138
-        color: "#0b1523"
-        border.width: 1
-        border.color: "#224a73"
-        clip: true
+        y: 110
+        spacing: 6
 
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#163755" }
-            GradientStop { position: 0.46; color: "#0f263d" }
-            GradientStop { position: 1.0; color: "#09131f" }
-        }
-
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: 1
-            radius: weatherCard.radius - 1
-            color: "#18060d17"
-        }
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            height: 44
-            color: "transparent"
-
-            gradient: Gradient {
-                GradientStop { position: 0.0; color: "#1f4c75" }
-                GradientStop { position: 1.0; color: "#001f3d00" }
-            }
-        }
-
-        Row {
-            anchors.left: parent.left
-            anchors.leftMargin: 12
-            anchors.top: parent.top
-            anchors.topMargin: 11
-            spacing: 6
-
-            Image {
-                source: "qrc:/images/weather/location.svg"
-                width: 14
-                height: 14
-                fillMode: Image.PreserveAspectFit
-                anchors.verticalCenter: parent.verticalCenter
-            }
-
-            Text {
-                text: weatherRoot.cityName
-                color: "#d6ebff"
-                font.pixelSize: 14
-                font.family: "Sarabun"
-            }
+        Image {
+            source: "qrc:/images/weather/location.svg"
+            width: 14
+            height: 14
+            fillMode: Image.PreserveAspectFit
+            anchors.verticalCenter: parent.verticalCenter
         }
 
         Text {
-            anchors.left: parent.left
-            anchors.leftMargin: 12
-            anchors.top: parent.top
-            anchors.topMargin: 30
-            text: weatherRoot.lastUpdated.length > 0 ? ("Updated " + weatherRoot.lastUpdated) : ""
-            color: "#8198af"
-            font.pixelSize: 9
-            font.family: "Sarabun"
+            text: weatherRoot.cityName
+            color: "#d6ebff"
+            font.pixelSize: 16
+            font.bold: true
         }
+    }
+
+    /* === Last Updated === */
+    Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: 134
+        text: weatherRoot.lastUpdated.length > 0 ? ("Updated " + weatherRoot.lastUpdated) : ""
+        color: "#8198af"
+        font.pixelSize: 10
+    }
+
+    /* === Temperature and Weather Icon === */
+    Row {
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: 155
+        spacing: 30
 
         Row {
-            anchors.left: parent.left
-            anchors.leftMargin: 12
-            anchors.top: parent.top
-            anchors.topMargin: 42
             spacing: 2
+            anchors.verticalCenter: parent.verticalCenter
 
             Text {
                 text: weatherRoot.loading ? "--" : weatherRoot.currentTemp
-                color: "#f5fbff"
-                font.pixelSize: 50
+                color: Style.lightPeriwinkle
+                font.pixelSize: 56
                 font.bold: true
-                font.family: "Sarabun"
             }
 
             Text {
                 text: "\u00B0C"
-                color: "#f5fbff"
-                font.pixelSize: 28
+                color: Style.lightPeriwinkle
+                font.pixelSize: 30
                 font.bold: true
-                font.family: "Sarabun"
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.verticalCenterOffset: 8
                 opacity: weatherRoot.loading ? 0.35 : 1.0
             }
         }
 
-        Text {
-            anchors.left: parent.left
-            anchors.leftMargin: 12
-            anchors.top: parent.top
-            anchors.topMargin: 116
-            text: weatherRoot.conditionText
-            color: "#9eb7cf"
-            font.pixelSize: 14
-            font.family: "Sarabun"
-        }
-
-        Text {
-            anchors.right: parent.right
-            anchors.rightMargin: 12
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: 8
-            visible: weatherRoot.weatherError.length > 0
-            text: "Weather offline"
-            color: "#ef9a9a"
-            font.pixelSize: 9
-            font.family: "Sarabun"
-        }
-
         Item {
             id: weatherIcon
-            width: 108
-            height: 108
-            anchors.right: parent.right
-            anchors.rightMargin: 6
-            anchors.top: parent.top
-            anchors.topMargin: 8
+            width: 80
+            height: 80
+            anchors.verticalCenter: parent.verticalCenter
 
             Image {
                 visible: weatherRoot.iconType === "partly"
                 source: "qrc:/images/weather/sun.svg"
-                width: 52
-                height: 52
-                x: 42
-                y: 8
+                width: 40
+                height: 40
+                x: 30
+                y: 4
                 fillMode: Image.PreserveAspectFit
             }
 
@@ -177,12 +112,32 @@ NormalModeContentItem {
                 source: weatherRoot.iconType === "partly"
                         ? "qrc:/images/weather/cloud.svg"
                         : weatherRoot.iconSourceForType(weatherRoot.iconType)
-                width: weatherRoot.iconType === "sun" ? 76 : 86
-                height: weatherRoot.iconType === "sun" ? 76 : 86
-                x: weatherRoot.iconType === "partly" ? 12 : 10
-                y: weatherRoot.iconType === "partly" ? 24 : 14
+                width: weatherRoot.iconType === "sun" ? 60 : 70
+                height: weatherRoot.iconType === "sun" ? 60 : 70
+                x: weatherRoot.iconType === "partly" ? 0 : 5
+                y: weatherRoot.iconType === "partly" ? 16 : 6
                 fillMode: Image.PreserveAspectFit
             }
         }
+    }
+
+    /* === Condition Text === */
+    Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: 233
+        text: weatherRoot.conditionText
+        color: "#9eb7cf"
+        font.pixelSize: 14
+    }
+
+    /* === Error hint === */
+    Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: 260
+        visible: weatherRoot.weatherError.length > 0
+        text: "Weather offline"
+        color: "#ef9a9a"
+        font.pixelSize: 10
+        opacity: 0.6
     }
 }

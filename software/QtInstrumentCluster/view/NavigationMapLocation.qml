@@ -351,13 +351,11 @@ Item {
                         color: "#f0f8ff"
                         font.pixelSize: 16
                         font.bold: true
-                        font.family: "Sarabun"
                     }
                     Text {
                         text: navMapRoot.maneuverVerb(NavigationModel.maneuver)
                         color: "#99b4cf"
                         font.pixelSize: 10
-                        font.family: "Sarabun"
                     }
                 }
             }
@@ -400,7 +398,6 @@ Item {
                         color: "#f0f8ff"
                         font.pixelSize: 16
                         font.bold: true
-                        font.family: "Sarabun"
                     }
 
                     Item { width: 1; height: 1 }
@@ -409,7 +406,6 @@ Item {
                         text: navMapRoot.maneuverVerb(NavigationModel.maneuver)
                         color: "#a7c0d8"
                         font.pixelSize: 12
-                        font.family: "Sarabun"
                     }
                 }
 
@@ -421,7 +417,6 @@ Item {
                         color: "#6f8499"
                         font.pixelSize: 10
                         font.bold: true
-                        font.family: "Sarabun"
                     }
 
                     Canvas {
@@ -440,7 +435,6 @@ Item {
                         text: nextStreet
                         color: "#8ea4bb"
                         font.pixelSize: 13
-                        font.family: "Sarabun"
                     }
 
                     Text {
@@ -450,7 +444,6 @@ Item {
                         text: nextDistance > 0 ? ("in " + navMapRoot.formatMeters(nextDistance)) : ""
                         color: "#8ea4bb"
                         font.pixelSize: 12
-                        font.family: "Sarabun"
                     }
                 }
             }
@@ -462,7 +455,6 @@ Item {
         y: 372
         text: NavigationFeed.useMockGps ? "GPS source: MOCK" : "GPS source: HARDWARE"
         font.pixelSize: 10
-        font.family: "Sarabun"
         color: "#5d9ae2"
         opacity: 0.82
     }

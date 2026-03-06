@@ -48,39 +48,43 @@ Item {
     Rectangle {
         id: centerClock
         anchors.centerIn: parent
-        width: 190
-        height: 42
-        radius: 12
-        color: "#0b1d33d8"
+        width: 220
+        height: 52
+        radius: 26  // Pill shape
+        
+        // Glassmorphism effect: deep gradient with a subtle, thin glowing border
+        color: "#200a1526"
         border.width: 1
-        border.color: "#3a79c580"
+        border.color: "#406a9bc5"
 
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "#1b3f66cc" }
-            GradientStop { position: 1.0; color: "#0a1526cc" }
+            GradientStop { position: 0.0; color: "#301b3f66" }
+            GradientStop { position: 1.0; color: "#500a1526" }
         }
 
-        Text {
-            id: clockTime
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
-            anchors.topMargin: 3
-            text: Qt.formatDateTime(telltales.currentDateTime, "hh:mm")
-            color: Style.lightPeriwinkle
-            font.pixelSize: 16
-            font.bold: true
-            font.family: "Sarabun"
-        }
+        Column {
+            anchors.centerIn: parent
+            spacing: 2
+            
+            Text {
+                id: clockTime
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: Qt.formatDateTime(telltales.currentDateTime, "hh:mm")
+                color: "#ffffff"
+                font.pixelSize: 22
+                font.bold: true
+                font.letterSpacing: 1
+            }
 
-        Text {
-            id: clockDate
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: clockTime.bottom
-            anchors.topMargin: -1
-            text: Qt.formatDateTime(telltales.currentDateTime, "ddd, dd MMM yyyy")
-            color: "#9bb5cf"
-            font.pixelSize: 9
-            font.family: "Sarabun"
+            Text {
+                id: clockDate
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: Qt.formatDateTime(telltales.currentDateTime, "ddd, dd MMM yyyy").toUpperCase()
+                color: "#8aa6c1"
+                font.pixelSize: 10
+                font.bold: true
+                font.letterSpacing: 1.5
+            }
         }
     }
 

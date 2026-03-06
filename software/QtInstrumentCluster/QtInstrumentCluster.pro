@@ -1,4 +1,4 @@
-QT += quick serialport multimedia network
+QT += quick serialport multimedia network svg
 
 qtHaveModule(location):qtHaveModule(positioning) {
     QT += location positioning

@@ -208,7 +208,6 @@ Item {
                         color: "#edf6ff"
                         font.pixelSize: 32
                         font.bold: true
-                        font.family: "Sarabun"
                     }
 
                     Text {
@@ -216,7 +215,6 @@ Item {
                         text: "In " + NavigationModel.distanceToTurnText + " " + navRoot.maneuverHint(NavigationModel.maneuver).toLowerCase()
                         color: "#9eb3c8"
                         font.pixelSize: 12
-                        font.family: "Sarabun"
                         elide: Text.ElideRight
                     }
                 }
@@ -253,7 +251,6 @@ Item {
                         color: "#e6f1ff"
                         font.pixelSize: 13
                         font.bold: true
-                        font.family: "Sarabun"
                         elide: Text.ElideRight
                     }
 
@@ -264,14 +261,12 @@ Item {
                             text: NavigationModel.totalDistance
                             color: "#99b4cf"
                             font.pixelSize: 10
-                            font.family: "Sarabun"
                         }
 
                         Text {
                             text: "ETA " + NavigationModel.eta
                             color: "#99b4cf"
                             font.pixelSize: 10
-                            font.family: "Sarabun"
                         }
                     }
                 }
@@ -291,7 +286,6 @@ Item {
                         color: NavigationModel.active ? "#bdeee5" : "#07211f"
                         font.pixelSize: 11
                         font.bold: true
-                        font.family: "Sarabun"
                     }
 
                     MouseArea {
@@ -313,7 +307,6 @@ Item {
         y: 372
         text: "QtLocation unavailable - using navigation HUD fallback"
         font.pixelSize: 10
-        font.family: "Sarabun"
         color: Style.brightBlue
         opacity: 0.78
     }

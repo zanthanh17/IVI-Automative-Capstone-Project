@@ -103,7 +103,6 @@ Row {
                 opacity: parent.active ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.InCubic } }
                 font.pixelSize: 11
-                font.family: "Sarabun"
                 color: parent.active ? Style.brightBlue : Style.lightPeriwinkle
             }
 

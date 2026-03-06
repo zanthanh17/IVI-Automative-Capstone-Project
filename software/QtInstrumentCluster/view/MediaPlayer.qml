@@ -14,7 +14,6 @@ NormalModeContentItem {
         text: MediaPlayerModel.currentSong
         font.pixelSize: 18
         font.bold: true
-        font.family: "Sarabun"
         color: Style.lightPeriwinkle
 
         Behavior on text { enabled: false }
@@ -28,7 +27,6 @@ NormalModeContentItem {
         y: 160
         text: MediaPlayerModel.currentArtist
         font.pixelSize: 13
-        font.family: "Sarabun"
         color: "#657080"
 
         Behavior on text { enabled: false }
@@ -146,7 +144,6 @@ NormalModeContentItem {
         Text {
             text: MediaPlayerModel.modeLabel
             font.pixelSize: 10
-            font.family: "Sarabun"
             color: "#657080"
         }
     }

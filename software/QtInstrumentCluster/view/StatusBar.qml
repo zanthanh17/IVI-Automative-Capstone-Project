@@ -15,7 +15,6 @@ Item {
         text: "ODO";
         color: "#657080"
         font.pixelSize: 12;
-        font.family: "Sarabun";
     }
 
     Text {
@@ -26,7 +25,6 @@ Item {
         text: Units.toInt(Units.kilometersToLongDistanceUnit(MainModel.odo));
         color: Style.lightPeriwinkle;
         font.pixelSize: 20;
-        font.family: "Sarabun";
     }
 
     Text {
@@ -37,7 +35,6 @@ Item {
         text: Units.longDistanceUnit;
         color: "#657080"
         font.pixelSize: 12;
-        font.family: "Sarabun";
     }
 
     Text {
@@ -48,7 +45,6 @@ Item {
         text: "RANGE";
         color: "#657080"
         font.pixelSize: 12;
-        font.family: "Sarabun";
     }
 
     Text {
@@ -59,7 +55,6 @@ Item {
         text: Units.toInt(Units.kilometersToLongDistanceUnit(MainModel.range));
         color: Style.lightPeriwinkle;
         font.pixelSize: 20;
-        font.family: "Sarabun";
     }
 
     Text {
@@ -70,7 +65,6 @@ Item {
         text: Units.longDistanceUnit;
         color: "#657080"
         font.pixelSize: 12;
-        font.family: "Sarabun";
     }
 
     LinearGauge {
