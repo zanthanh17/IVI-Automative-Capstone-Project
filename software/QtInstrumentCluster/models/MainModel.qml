@@ -14,10 +14,10 @@ QtObject {
 
     property int speedLimitWarning: SpeedLimitValues.Slow
     readonly property int initialOdo: 300
-    property int odo: initialOdo
+    property real odo: initialOdo
 
     readonly property int fullRange: 895
-    property int range: fullRange - odo
+    property real range: fullRange - odo
     property real speed: 0
     property real rpm: 0
     property string gearShiftText: "P"
@@ -48,6 +48,26 @@ QtObject {
 
     Component.onCompleted: {
         MainModelData.modelUpdated.connect(modelUpdated);
+    }
+
+    property Timer odometerTimer: Timer {
+        interval: 1000
+        repeat: true
+        running: true
+        onTriggered: {
+            // Integrate odometer from current speed (km/h -> km each second).
+            if (MainModel.speed <= 0)
+                return
+
+            var deltaKm = MainModel.speed / 3600.0
+            MainModel.odo = MainModel.odo + deltaKm
+            MainModel.range = Math.max(0, MainModel.range - deltaKm)
+
+            // Keep fuel gauge coherent in simulation mode.
+            if (!MainModelData.hardwareConnected) {
+                MainModel.fuelLevel = Math.max(0, Math.min(1, MainModel.range / MainModel.fullRange))
+            }
+        }
     }
 
     function modelUpdated(){

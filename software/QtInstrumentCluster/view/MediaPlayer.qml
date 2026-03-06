@@ -5,31 +5,106 @@ import NormalModeModel 1.0
 
 NormalModeContentItem {
     id: playerRoot
+    readonly property int textAreaWidth: 330
 
     /* === Song Title === */
-    Text {
-        id: songTitle
+    Item {
+        id: songTitleViewport
+        width: playerRoot.textAreaWidth
+        height: 26
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 125
-        text: MediaPlayerModel.currentSong
-        font.pixelSize: 18
-        font.bold: true
-        color: Style.lightPeriwinkle
+        y: 122
+        clip: true
 
-        Behavior on text { enabled: false }
-        Behavior on opacity { NumberAnimation { duration: MediaPlayerModel.changeSongDuration } }
+        property real marqueeOffset: 0
+        readonly property bool marqueeNeeded: songTitle.implicitWidth > width
+
+        onMarqueeNeededChanged: if (!marqueeNeeded) marqueeOffset = 0
+
+        SequentialAnimation {
+            id: songTitleMarqueeAnim
+            loops: Animation.Infinite
+            running: songTitleViewport.marqueeNeeded && playerRoot.selected && playerRoot.visible
+
+            PauseAnimation { duration: 900 }
+            NumberAnimation {
+                target: songTitleViewport
+                property: "marqueeOffset"
+                from: 0
+                to: songTitle.implicitWidth - songTitleViewport.width
+                duration: Math.max(2600, (songTitle.implicitWidth - songTitleViewport.width) * 18)
+                easing.type: Easing.Linear
+            }
+            PauseAnimation { duration: 500 }
+            ScriptAction { script: songTitleViewport.marqueeOffset = 0 }
+            PauseAnimation { duration: 400 }
+        }
+
+        Text {
+            id: songTitle
+            y: 0
+            x: songTitleViewport.marqueeNeeded
+               ? -songTitleViewport.marqueeOffset
+               : (songTitleViewport.width - implicitWidth) / 2
+            text: MediaPlayerModel.currentSong
+            font.pixelSize: 18
+            font.bold: true
+            color: Style.lightPeriwinkle
+
+            onTextChanged: songTitleViewport.marqueeOffset = 0
+
+            Behavior on text { enabled: false }
+            Behavior on opacity { NumberAnimation { duration: MediaPlayerModel.changeSongDuration } }
+        }
     }
 
     /* === Artist Name === */
-    Text {
-        id: artistName
+    Item {
+        id: artistViewport
+        width: playerRoot.textAreaWidth
+        height: 20
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 160
-        text: MediaPlayerModel.currentArtist
-        font.pixelSize: 13
-        color: "#657080"
+        y: 156
+        clip: true
 
-        Behavior on text { enabled: false }
+        property real marqueeOffset: 0
+        readonly property bool marqueeNeeded: artistName.implicitWidth > width
+
+        onMarqueeNeededChanged: if (!marqueeNeeded) marqueeOffset = 0
+
+        SequentialAnimation {
+            id: artistMarqueeAnim
+            loops: Animation.Infinite
+            running: artistViewport.marqueeNeeded && playerRoot.selected && playerRoot.visible
+
+            PauseAnimation { duration: 1200 }
+            NumberAnimation {
+                target: artistViewport
+                property: "marqueeOffset"
+                from: 0
+                to: artistName.implicitWidth - artistViewport.width
+                duration: Math.max(2600, (artistName.implicitWidth - artistViewport.width) * 20)
+                easing.type: Easing.Linear
+            }
+            PauseAnimation { duration: 500 }
+            ScriptAction { script: artistViewport.marqueeOffset = 0 }
+            PauseAnimation { duration: 500 }
+        }
+
+        Text {
+            id: artistName
+            y: 0
+            x: artistViewport.marqueeNeeded
+               ? -artistViewport.marqueeOffset
+               : (artistViewport.width - implicitWidth) / 2
+            text: MediaPlayerModel.currentArtist
+            font.pixelSize: 13
+            color: "#657080"
+
+            onTextChanged: artistViewport.marqueeOffset = 0
+
+            Behavior on text { enabled: false }
+        }
     }
 
     /* === Transport Controls === */

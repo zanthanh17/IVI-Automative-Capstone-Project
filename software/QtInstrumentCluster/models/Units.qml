@@ -11,7 +11,9 @@ QtObject {
     readonly property int maximumSpeed: 200
 
     function toInt(value: real) : int {
-        return value;
+        if (!isFinite(value))
+            return 0
+        return Math.round(value)
     }
 
     function metersToShortDistanceUnit(meters : real) : real {

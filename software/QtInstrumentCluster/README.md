@@ -133,3 +133,18 @@ sudo apt install -y qt6-location-dev qt6-positioning-dev qml6-module-qtlocation 
 ./scripts/pi/build_pi.sh
 ```
 
+If Pi build shows `Project ERROR: Unknown module(s) in QT: svg`:
+
+```bash
+qmake6 -query QT_VERSION
+dpkg -l | grep -E 'qt6-svg-dev|libqt6svg6'
+```
+
+Install missing SVG packages, then rebuild:
+
+```bash
+sudo apt update
+sudo apt install -y qt6-svg-dev
+./scripts/pi/build_pi.sh
+```
+

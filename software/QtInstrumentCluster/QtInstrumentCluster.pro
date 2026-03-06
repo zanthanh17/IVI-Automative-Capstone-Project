@@ -1,4 +1,11 @@
-QT += quick serialport multimedia network svg
+QT += quick serialport multimedia network
+
+qtHaveModule(svg) {
+    QT += svg
+    message("QtSvg detected: SVG weather icons enabled")
+} else {
+    message("QtSvg not found: build continues, but SVG assets may not render on target")
+}
 
 qtHaveModule(location):qtHaveModule(positioning) {
     QT += location positioning

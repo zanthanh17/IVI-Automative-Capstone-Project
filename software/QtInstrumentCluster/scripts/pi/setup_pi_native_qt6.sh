@@ -27,6 +27,7 @@ BASE_PACKAGES=(
     qt6-declarative-dev-tools \
     qt6-serialport-dev \
     qt6-multimedia-dev \
+    qt6-svg-dev \
     qt6-tools-dev-tools \
     qt6-l10n-tools \
     libqt6dbus6 \

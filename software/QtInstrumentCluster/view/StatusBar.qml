@@ -22,7 +22,7 @@ Item {
         anchors.baseline: odo.baseline;
         anchors.left: odo.right;
         anchors.leftMargin: 4;
-        text: Units.toInt(Units.kilometersToLongDistanceUnit(MainModel.odo));
+        text: Units.toInt(Units.kilometersToLongDistanceUnit(Math.max(MainModel.odo, 0)));
         color: Style.lightPeriwinkle;
         font.pixelSize: 20;
     }
@@ -52,7 +52,7 @@ Item {
         anchors.baseline: range.baseline;
         anchors.left: range.right;
         anchors.leftMargin: 4;
-        text: Units.toInt(Units.kilometersToLongDistanceUnit(MainModel.range));
+        text: Units.toInt(Units.kilometersToLongDistanceUnit(Math.max(MainModel.range, 0)));
         color: Style.lightPeriwinkle;
         font.pixelSize: 20;
     }
