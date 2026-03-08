@@ -62,6 +62,29 @@
       const DEFAULT_CENTER = [108.2200, 16.0620];
       const DEFAULT_ZOOM = 16.8;
       const DEFAULT_PITCH = 55;
+      const RASTER_DARK_STYLE = {
+        version: 8,
+        sources: {
+          cartoDark: {
+            type: "raster",
+            tiles: [
+              "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+            ],
+            tileSize: 256,
+            maxzoom: 20,
+            attribution: "Map tiles: CARTO | Data: OpenStreetMap contributors"
+          }
+        },
+        layers: [
+          {
+            id: "carto-dark-raster",
+            type: "raster",
+            source: "cartoDark",
+            minzoom: 0,
+            maxzoom: 22
+          }
+        ]
+      };
 
       let map = null;
       let mapReady = false;
@@ -241,13 +264,14 @@
 
       map = new maplibregl.Map({
         container: "map",
-        style: "https://demotiles.maplibre.org/style.json",
+        style: RASTER_DARK_STYLE,
         center: DEFAULT_CENTER,
         zoom: DEFAULT_ZOOM,
         bearing: 0,
         pitch: DEFAULT_PITCH,
         antialias: true,
-        attributionControl: false
+        maxZoom: 20,
+        attributionControl: true
       });
 
       map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
