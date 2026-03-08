@@ -62,6 +62,9 @@
       const DEFAULT_CENTER = [108.2200, 16.0620];
       const DEFAULT_ZOOM = 16.8;
       const DEFAULT_PITCH = 55;
+      const EPS = 1e-6;
+      const SNAP_BACKTRACK_TOLERANCE_METERS = 15.0;
+      const MAX_MERCATOR_LAT = 85.05112878;
       const RASTER_DARK_STYLE = {
         version: 8,
         sources: {
@@ -90,6 +93,8 @@
       let mapReady = false;
       let routeCoords = [];
       let routeProgress = 0;
+      let latestSplit = null;
+      let lastAlongMeters = 0;
       let vehicleState = {
         lat: DEFAULT_CENTER[1],
         lng: DEFAULT_CENTER[0],
@@ -102,16 +107,228 @@
         return v;
       }
 
-      function splitRouteByProgress(coords, progress) {
-        if (!coords || coords.length < 2) {
-          return { past: [], future: [] };
+      function isValidLngLat(point) {
+        return Array.isArray(point)
+          && point.length >= 2
+          && Number.isFinite(point[0])
+          && Number.isFinite(point[1]);
+      }
+
+      function pushUniquePoint(target, point, eps) {
+        if (!isValidLngLat(point)) {
+          return;
+        }
+        if (target.length === 0) {
+          target.push([point[0], point[1]]);
+          return;
+        }
+        const last = target[target.length - 1];
+        if (Math.abs(last[0] - point[0]) > eps || Math.abs(last[1] - point[1]) > eps) {
+          target.push([point[0], point[1]]);
+        }
+      }
+
+      function lonLatToMercator(point) {
+        if (!isValidLngLat(point)) {
+          return null;
+        }
+        const lng = point[0];
+        const lat = Math.max(-MAX_MERCATOR_LAT, Math.min(MAX_MERCATOR_LAT, point[1]));
+        const x = (lng * 20037508.34) / 180.0;
+        const y = Math.log(Math.tan(((90 + lat) * Math.PI) / 360.0)) / (Math.PI / 180.0);
+        return [x, (y * 20037508.34) / 180.0];
+      }
+
+      function buildRouteMetrics(coords) {
+        if (!Array.isArray(coords)) {
+          return { points: [], mercator: [], cumulative: [], total: 0 };
         }
 
-        const p = clamp01(progress);
-        const splitIndex = Math.floor((coords.length - 1) * p);
+        const rawPoints = [];
+        for (let i = 0; i < coords.length; i += 1) {
+          if (isValidLngLat(coords[i])) {
+            rawPoints.push([Number(coords[i][0]), Number(coords[i][1])]);
+          }
+        }
+        if (rawPoints.length < 2) {
+          return { points: [], mercator: [], cumulative: [], total: 0 };
+        }
+
+        const points = [];
+        const mercator = [];
+        const cumulative = [0];
+        let total = 0;
+
+        for (let i = 0; i < rawPoints.length; i += 1) {
+          const m = lonLatToMercator(rawPoints[i]);
+          if (!m) {
+            continue;
+          }
+
+          if (mercator.length === 0) {
+            points.push(rawPoints[i]);
+            mercator.push(m);
+            continue;
+          }
+
+          const prev = mercator[mercator.length - 1];
+          const segLen = Math.hypot(m[0] - prev[0], m[1] - prev[1]);
+          if (segLen <= EPS) {
+            continue;
+          }
+
+          points.push(rawPoints[i]);
+          mercator.push(m);
+          total += segLen;
+          cumulative.push(total);
+        }
+
+        if (mercator.length < 2 || total <= EPS) {
+          return { points: [], mercator: [], cumulative: [], total: 0 };
+        }
+
         return {
-          past: coords.slice(0, splitIndex + 1),
-          future: coords.slice(splitIndex)
+          points: points,
+          mercator: mercator,
+          cumulative: cumulative,
+          total: total
+        };
+      }
+
+      function projectToSegment(vehicleMercator, a, b) {
+        const dx = b[0] - a[0];
+        const dy = b[1] - a[1];
+        const segLenSq = dx * dx + dy * dy;
+        if (segLenSq <= EPS) {
+          return { t: 0, projected: [a[0], a[1]], distSq: Number.POSITIVE_INFINITY };
+        }
+        const ax = vehicleMercator[0] - a[0];
+        const ay = vehicleMercator[1] - a[1];
+        let t = (ax * dx + ay * dy) / segLenSq;
+        t = Math.max(0, Math.min(1, t));
+        const projected = [a[0] + dx * t, a[1] + dy * t];
+        const distSq = (vehicleMercator[0] - projected[0]) * (vehicleMercator[0] - projected[0])
+                     + (vehicleMercator[1] - projected[1]) * (vehicleMercator[1] - projected[1]);
+        return { t: t, projected: projected, distSq: distSq };
+      }
+
+      function interpolateAlong(metrics, alongMeters) {
+        const points = metrics.points;
+        const cumulative = metrics.cumulative;
+        const total = metrics.total;
+
+        if (!points || points.length < 2 || !cumulative || cumulative.length < 2 || total <= EPS) {
+          return { snapped: null, segIndex: 0 };
+        }
+
+        if (alongMeters <= 0) {
+          return { snapped: [points[0][0], points[0][1]], segIndex: 0 };
+        }
+        if (alongMeters >= total) {
+          const lastIdx = points.length - 1;
+          return { snapped: [points[lastIdx][0], points[lastIdx][1]], segIndex: Math.max(0, lastIdx - 1) };
+        }
+
+        let segIndex = 0;
+        for (let i = 0; i < cumulative.length - 1; i += 1) {
+          if (alongMeters <= cumulative[i + 1]) {
+            segIndex = i;
+            break;
+          }
+        }
+
+        const segStart = cumulative[segIndex];
+        const segEnd = cumulative[segIndex + 1];
+        const segLen = Math.max(EPS, segEnd - segStart);
+        const t = Math.max(0, Math.min(1, (alongMeters - segStart) / segLen));
+        const a = points[segIndex];
+        const b = points[segIndex + 1];
+        return {
+          snapped: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t],
+          segIndex: segIndex
+        };
+      }
+
+      function splitRouteByVehicle(coords, vehicle, fallbackProgress) {
+        const metrics = buildRouteMetrics(coords);
+        if (metrics.points.length < 2) {
+          return { past: [], future: [], progress: 0, snapped: null, alongMeters: 0 };
+        }
+
+        const fallbackAlong = clamp01(fallbackProgress) * metrics.total;
+        const vehicleMercator = lonLatToMercator(vehicle);
+        let bestAny = null;
+        let bestForward = null;
+        let minAlong = Math.max(0, Math.min(lastAlongMeters, metrics.total));
+
+        if (vehicleMercator && minAlong > metrics.total * 0.6) {
+          const startPoint = metrics.mercator[0];
+          const distanceToStart = Math.hypot(vehicleMercator[0] - startPoint[0], vehicleMercator[1] - startPoint[1]);
+          if (distanceToStart < 35.0) {
+            minAlong = 0;
+          }
+        }
+
+        if (vehicleMercator) {
+          for (let i = 0; i < metrics.mercator.length - 1; i += 1) {
+            const a = metrics.mercator[i];
+            const b = metrics.mercator[i + 1];
+            const projection = projectToSegment(vehicleMercator, a, b);
+            const segLen = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            const along = metrics.cumulative[i] + segLen * projection.t;
+
+            const candidate = {
+              segIndex: i,
+              along: along,
+              distSq: projection.distSq
+            };
+
+            if (!bestAny || candidate.distSq < bestAny.distSq) {
+              bestAny = candidate;
+            }
+
+            if (along + SNAP_BACKTRACK_TOLERANCE_METERS >= minAlong) {
+              if (!bestForward || candidate.distSq < bestForward.distSq) {
+                bestForward = candidate;
+              }
+            }
+          }
+        }
+
+        const chosen = bestForward || bestAny;
+        let along = chosen ? chosen.along : fallbackAlong;
+        if (!Number.isFinite(along)) {
+          along = fallbackAlong;
+        }
+        // Keep route progress monotonic, so lane never jumps backward around intersections.
+        along = Math.max(along, minAlong);
+        along = Math.max(0, Math.min(metrics.total, along));
+
+        const interp = interpolateAlong(metrics, along);
+        const snapped = interp.snapped;
+        const future = [];
+        const past = [];
+        if (snapped) {
+          pushUniquePoint(past, snapped, EPS);
+        }
+
+        if (snapped) {
+          pushUniquePoint(future, snapped, EPS);
+          for (let i = interp.segIndex + 1; i < metrics.points.length; i += 1) {
+            pushUniquePoint(future, metrics.points[i], EPS);
+          }
+        } else {
+          for (let i = 0; i < metrics.points.length; i += 1) {
+            pushUniquePoint(future, metrics.points[i], EPS);
+          }
+        }
+
+        return {
+          past: past,
+          future: future,
+          progress: metrics.total > EPS ? along / metrics.total : 0,
+          snapped: snapped,
+          alongMeters: along
         };
       }
 
@@ -120,22 +337,12 @@
         if (!arrow) {
           return;
         }
-        arrow.style.transform = "rotate(" + (Number(vehicleState.heading) || 0) + "deg)";
+        arrow.style.transform = "rotate(0deg)";
       }
 
       function ensureRouteLayers() {
         if (!map || !mapReady) {
           return;
-        }
-
-        if (!map.getSource("route-past")) {
-          map.addSource("route-past", {
-            type: "geojson",
-            data: {
-              type: "Feature",
-              geometry: { type: "LineString", coordinates: [] }
-            }
-          });
         }
 
         if (!map.getSource("route-future")) {
@@ -153,6 +360,10 @@
             id: "route-future-case",
             type: "line",
             source: "route-future",
+            layout: {
+              "line-cap": "round",
+              "line-join": "round"
+            },
             paint: {
               "line-color": "#20405d",
               "line-width": 11,
@@ -166,23 +377,14 @@
             id: "route-future-main",
             type: "line",
             source: "route-future",
+            layout: {
+              "line-cap": "round",
+              "line-join": "round"
+            },
             paint: {
               "line-color": "#67e5ff",
               "line-width": 7,
               "line-opacity": 0.98
-            }
-          });
-        }
-
-        if (!map.getLayer("route-past")) {
-          map.addLayer({
-            id: "route-past",
-            type: "line",
-            source: "route-past",
-            paint: {
-              "line-color": "#6f7f93",
-              "line-width": 7,
-              "line-opacity": 0.85
             }
           });
         }
@@ -194,14 +396,12 @@
         }
         ensureRouteLayers();
 
-        const split = splitRouteByProgress(routeCoords, routeProgress);
-
-        const pastSource = map.getSource("route-past");
-        if (pastSource) {
-          pastSource.setData({
-            type: "Feature",
-            geometry: { type: "LineString", coordinates: split.past }
-          });
+        const vehiclePoint = [vehicleState.lng, vehicleState.lat];
+        const split = splitRouteByVehicle(routeCoords, vehiclePoint, routeProgress);
+        latestSplit = split;
+        routeProgress = split.progress;
+        if (Number.isFinite(split.alongMeters)) {
+          lastAlongMeters = split.alongMeters;
         }
 
         const futureSource = map.getSource("route-future");
@@ -217,8 +417,13 @@
         if (!map || !mapReady) {
           return;
         }
+
+        const snapped = latestSplit && isValidLngLat(latestSplit.snapped)
+          ? latestSplit.snapped
+          : [vehicleState.lng, vehicleState.lat];
+
         map.easeTo({
-          center: [vehicleState.lng, vehicleState.lat],
+          center: snapped,
           bearing: Number(vehicleState.heading) || 0,
           pitch: DEFAULT_PITCH,
           zoom: DEFAULT_ZOOM,
@@ -245,12 +450,15 @@
         }
 
         updateArrowRotation();
+        updateRouteLayers();
         updateCamera();
       };
 
       window.setRoute = function (payload) {
         const coords = (payload && Array.isArray(payload.coordinates)) ? payload.coordinates : [];
         routeCoords = coords;
+        lastAlongMeters = 0;
+        latestSplit = null;
         if (payload && payload.progress !== undefined) {
           routeProgress = clamp01(Number(payload.progress) || 0);
         }
@@ -258,7 +466,12 @@
       };
 
       window.setRouteProgress = function (progressValue) {
-        routeProgress = clamp01(Number(progressValue) || 0);
+        const nextProgress = clamp01(Number(progressValue) || 0);
+        if (nextProgress <= 0.02) {
+          lastAlongMeters = 0;
+          latestSplit = null;
+        }
+        routeProgress = nextProgress;
         updateRouteLayers();
       };
 
