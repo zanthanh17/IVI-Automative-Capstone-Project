@@ -1,4 +1,4 @@
-QT += quick serialport multimedia network
+QT += quick serialport multimedia network positioning
 
 qtHaveModule(svg) {
     QT += svg
@@ -25,6 +25,7 @@ SOURCES += \
         main.cpp \
         src/externalmediacontroller.cpp \
         src/mainmodel.cpp \
+        src/osrmrouteprovider.cpp \
         src/serialreceiver.cpp \
         src/weatherprovider.cpp
 
@@ -51,5 +52,6 @@ HEADERS += \
     src/externalmediacontroller.h \
     src/mainmodel.h \
     src/mathutils.h \
+    src/osrmrouteprovider.h \
     src/serialreceiver.h \
     src/weatherprovider.h

@@ -57,8 +57,16 @@ After setup, re-login (or run `newgrp dialout`), then:
 
 ```bash
 ./scripts/pi/build_pi.sh
+./scripts/pi/verify_pi_env.sh
 ./scripts/pi/run_pi.sh
 ```
+
+`verify_pi_env.sh` performs a preflight check:
+- Qt6 toolchain/runtime packages
+- Qt Location plugin availability
+- optional Qt WebEngine packages
+- tile/OSRM network reachability
+- serial permission (`dialout`) and device node presence
 
 If you use UART from STM32, verify serial devices:
 

@@ -47,8 +47,6 @@ BASE_PACKAGES=(
     libspa-0.2-bluetooth
 )
 
-# Qt Location / Positioning packages are distro-dependent.
-# On some Raspberry Pi OS (Debian bookworm), these Qt6 packages may be unavailable.
 MAP_OPTIONAL_PACKAGES=(
     qt6-location-dev
     qt6-positioning-dev
@@ -57,18 +55,39 @@ MAP_OPTIONAL_PACKAGES=(
     qml6-module-qtpositioning
 )
 
+WEB_OPTIONAL_PACKAGES=(
+    qt6-webengine-dev
+    qt6-webengine-dev-tools
+    qml6-module-qtwebengine
+    qml6-module-qtwebchannel
+)
+
+collect_available_packages() {
+    local -n input_ref=$1
+    local -n available_ref=$2
+    local -n missing_ref=$3
+
+    available_ref=()
+    missing_ref=()
+    for pkg in "${input_ref[@]}"; do
+        if apt-cache show "${pkg}" >/dev/null 2>&1; then
+            available_ref+=("${pkg}")
+        else
+            missing_ref+=("${pkg}")
+        fi
+    done
+}
+
 AVAILABLE_MAP_PACKAGES=()
 MISSING_MAP_PACKAGES=()
-for pkg in "${MAP_OPTIONAL_PACKAGES[@]}"; do
-    if apt-cache show "${pkg}" >/dev/null 2>&1; then
-        AVAILABLE_MAP_PACKAGES+=("${pkg}")
-    else
-        MISSING_MAP_PACKAGES+=("${pkg}")
-    fi
-done
+AVAILABLE_WEB_PACKAGES=()
+MISSING_WEB_PACKAGES=()
+
+collect_available_packages MAP_OPTIONAL_PACKAGES AVAILABLE_MAP_PACKAGES MISSING_MAP_PACKAGES
+collect_available_packages WEB_OPTIONAL_PACKAGES AVAILABLE_WEB_PACKAGES MISSING_WEB_PACKAGES
 
 echo "[INFO] Installing build tools and runtime dependencies..."
-sudo apt install -y "${BASE_PACKAGES[@]}" "${AVAILABLE_MAP_PACKAGES[@]}"
+sudo apt install -y "${BASE_PACKAGES[@]}" "${AVAILABLE_MAP_PACKAGES[@]}" "${AVAILABLE_WEB_PACKAGES[@]}"
 
 if ((${#AVAILABLE_MAP_PACKAGES[@]} > 0)); then
     echo "[INFO] Installed Qt map packages: ${AVAILABLE_MAP_PACKAGES[*]}"
@@ -79,6 +98,16 @@ if ((${#MISSING_MAP_PACKAGES[@]} > 0)); then
     echo "       ${MISSING_MAP_PACKAGES[*]}"
     echo "       Navigation map will fall back to turn-by-turn HUD."
     echo "       For full QtLocation map, use a repo/Qt SDK that provides these packages."
+fi
+
+if ((${#AVAILABLE_WEB_PACKAGES[@]} > 0)); then
+    echo "[INFO] Installed Qt WebEngine packages: ${AVAILABLE_WEB_PACKAGES[*]}"
+fi
+
+if ((${#MISSING_WEB_PACKAGES[@]} > 0)); then
+    echo "[WARN] Some Qt6 WebEngine packages are not available in this apt repo:"
+    echo "       ${MISSING_WEB_PACKAGES[*]}"
+    echo "       WebEngine-based map MVP will not be available on this image."
 fi
 
 echo "[INFO] Adding user '${USER}' to dialout group for serial access..."

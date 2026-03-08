@@ -11,11 +11,13 @@ NormalModeContentItem {
         source: "qrc:/view/NavigationMapLocation.qml"
 
         onStatusChanged: {
-            if (status !== Loader.Error) {
-                return
+            if (status === Loader.Error) {
+                console.error("Navigation map load failed: " + source)
+                if (!navRoot.usingFallback) {
+                    navRoot.usingFallback = true
+                    source = "qrc:/view/NavigationHudFallback.qml"
+                }
             }
-            navRoot.usingFallback = true
-            source = "qrc:/view/NavigationHudFallback.qml"
         }
     }
 }

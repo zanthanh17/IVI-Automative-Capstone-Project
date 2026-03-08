@@ -12,6 +12,7 @@
 #include "src/mainmodel.h"
 #include "src/serialreceiver.h"
 #include "src/weatherprovider.h"
+#include "src/osrmrouteprovider.h"
 
 int main(int argc, char *argv[])
 {
@@ -52,6 +53,11 @@ int main(int argc, char *argv[])
         });
     qmlRegisterSingletonType(QUrl("qrc:///models/NavigationFeed.qml"), "NavigationFeed", 1, 0, "NavigationFeed");
     qmlRegisterSingletonType(QUrl("qrc:///models/NavigationModel.qml"), "NavigationModel", 1, 0, "NavigationModel");
+
+    qmlRegisterSingletonType<OsrmRouteProvider>("OsrmRoute", 1, 0, "OsrmRoute",
+        [](QQmlEngine*, QJSEngine*) -> QObject* {
+            return OsrmRouteProvider::instance();
+        });
 
     qmlRegisterSingletonType<ExternalMediaController>("ExternalMedia", 1, 0, "ExternalMedia",
         [](QQmlEngine*, QJSEngine*) -> QObject* {

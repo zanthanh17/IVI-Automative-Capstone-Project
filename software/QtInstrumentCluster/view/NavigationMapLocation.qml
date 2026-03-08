@@ -3,9 +3,19 @@ import QtLocation 6.2
 import QtPositioning 6.2
 import NavigationModel 1.0
 import NavigationFeed 1.0
+import OsrmRoute 1.0
 
 Item {
     id: navMapRoot
+
+    /*
+     * CartoDB Dark Matter tiles: free, beautiful dark theme, HiDPI support
+     * No API key required. Perfect for automotive dashboard.
+     */
+    property string darkTileHost: "https://basemaps.cartocdn.com/dark_all/%z/%x/%y@2x.png"
+    property string destinationSearchText: "Cau Rong, Da Nang, Vietnam"
+    property var destinationCoordinate: QtPositioning.coordinate(16.05200, 108.21870)
+    property bool liveRouteReady: false
 
     property var routePath: []
     property var pastPath: []
@@ -41,6 +51,29 @@ Item {
 
         list.push(QtPositioning.coordinate(raw[raw.length - 1].lat, raw[raw.length - 1].lon))
         return list
+    }
+
+    function rebuildRouteFromActiveSource() {
+        if (liveRouteReady && OsrmRoute.routePath.length > 1) {
+            routePath = OsrmRoute.routePath
+            updateSegmentedPath()
+            return
+        }
+
+        routePath = buildRoutePath()
+        updateSegmentedPath()
+    }
+
+    function requestRouteToDestination() {
+        var origin = QtPositioning.coordinate(NavigationFeed.currentLatitude, NavigationFeed.currentLongitude)
+        if (!origin.isValid || !destinationCoordinate || !destinationCoordinate.isValid) {
+            return
+        }
+
+        OsrmRoute.requestRoute(
+            origin.latitude, origin.longitude,
+            destinationCoordinate.latitude, destinationCoordinate.longitude
+        )
     }
 
     function subPath(startIndex, endIndex) {
@@ -165,36 +198,32 @@ Item {
             return
         }
 
-        var bestIndex = -1
         for (var i = 0; i < navMap.supportedMapTypes.length; ++i) {
             var mt = navMap.supportedMapTypes[i]
-            var text = ((mt.name || "") + " " + (mt.description || "")).toLowerCase()
-            if (text.indexOf("dark") >= 0 || text.indexOf("night") >= 0 || text.indexOf("gray") >= 0) {
-                bestIndex = i
-                break
+            if (mt.style === MapType.CustomMap) {
+                navMap.activeMapType = mt
+                return
             }
         }
 
-        if (bestIndex < 0) {
-            for (var j = 0; j < navMap.supportedMapTypes.length; ++j) {
-                var fallback = navMap.supportedMapTypes[j]
-                var fallbackText = ((fallback.name || "") + " " + (fallback.description || "")).toLowerCase()
-                if (fallbackText.indexOf("navigation") >= 0) {
-                    bestIndex = j
-                    break
-                }
+        for (var j = 0; j < navMap.supportedMapTypes.length; ++j) {
+            var fallback = navMap.supportedMapTypes[j]
+            var text = ((fallback.name || "") + " " + (fallback.description || "")).toLowerCase()
+            if (text.indexOf("dark") >= 0 || text.indexOf("night") >= 0 || text.indexOf("navigation") >= 0) {
+                navMap.activeMapType = fallback
+                return
             }
         }
 
-        if (bestIndex >= 0) {
-            navMap.activeMapType = navMap.supportedMapTypes[bestIndex]
+        if (navMap.supportedMapTypes.length > 0) {
+            navMap.activeMapType = navMap.supportedMapTypes[0]
         }
     }
 
     Component.onCompleted: {
-        routePath = buildRoutePath()
-        updateSegmentedPath()
+        rebuildRouteFromActiveSource()
         applyPreferredMapType()
+        requestRouteToDestination()
     }
 
     Connections {
@@ -202,29 +231,49 @@ Item {
         function onRouteProgressChanged() { navMapRoot.updateSegmentedPath() }
     }
 
-    Plugin {
-        id: osmPlugin
-        name: "osm"
+    Connections {
+        target: OsrmRoute
+        function onRouteReady(path) {
+            navMapRoot.liveRouteReady = true
+            navMapRoot.rebuildRouteFromActiveSource()
+        }
+        function onRouteFailed(error) {
+            console.warn("OSRM routing failed:", error)
+            navMapRoot.liveRouteReady = false
+            navMapRoot.rebuildRouteFromActiveSource()
+        }
     }
 
-    Rectangle {
-        id: mapShell
+    /*
+     * OSM plugin with CartoDB Dark Matter tiles
+     * Free, no API key, beautiful dark theme with HiDPI @2x tiles
+     * Routing via OSRM HTTP API (OsrmRouteProvider C++)
+     */
+    Plugin {
+        id: darkMapPlugin
+        name: "osm"
+        PluginParameter { name: "osm.useragent"; value: "QtInstrumentCluster/1.0" }
+        PluginParameter { name: "osm.mapping.providersrepository.disabled"; value: true }
+        PluginParameter { name: "osm.mapping.highdpi_tiles"; value: true }
+        PluginParameter { name: "osm.mapping.custom.host"; value: navMapRoot.darkTileHost }
+        PluginParameter { name: "osm.mapping.custom.mapcopyright"; value: "CartoDB" }
+        PluginParameter { name: "osm.mapping.custom.datacopyright"; value: "OpenStreetMap contributors" }
+    }
+
+    /* Invisible container – same size as other menu pages content area */
+    Item {
+        id: mapArea
         anchors.horizontalCenter: parent.horizontalCenter
         y: 82
         width: 392
         height: 286
-        radius: 18
-        color: "#0a1322"
-        border.width: 1
-        border.color: "#2f70be"
         clip: true
 
         Map {
             id: navMap
             anchors.fill: parent
-            anchors.margins: 1
-            plugin: osmPlugin
-            color: "#0a0f16"
+            plugin: darkMapPlugin
+            color: "#00091a"
             zoomLevel: 16.8
             tilt: 50
             bearing: NavigationFeed.currentHeadingDeg
@@ -308,154 +357,116 @@ Item {
                 }
             }
         }
+    }
 
-        Rectangle {
-            anchors.fill: parent
-            color: "#060b11"
-            opacity: 0.38
+    /* Floating mini-guide overlay */
+    Row {
+        id: topMiniGuide
+        anchors.left: mapArea.left
+        anchors.leftMargin: 10
+        anchors.top: mapArea.top
+        anchors.topMargin: 10
+        spacing: 8
+
+        Canvas {
+            width: 28
+            height: 28
+            anchors.verticalCenter: parent.verticalCenter
+            onPaint: navMapRoot.drawArrow(getContext("2d"), NavigationModel.maneuver, "#7ef2d0")
         }
 
-        Rectangle {
-            id: topMiniGuide
-            anchors.left: parent.left
-            anchors.leftMargin: 10
-            anchors.top: parent.top
-            anchors.topMargin: 12
-            width: 170
-            height: 42
-            radius: 10
-            color: "#111a27"
-            border.width: 1
-            border.color: "#2f6fbe"
-            opacity: 0.92
+        Column {
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 0
 
-            Row {
-                anchors.fill: parent
-                anchors.leftMargin: 9
-                anchors.rightMargin: 8
-                spacing: 8
-
-                Canvas {
-                    width: 28
-                    height: 28
-                    anchors.verticalCenter: parent.verticalCenter
-                    onPaint: navMapRoot.drawArrow(getContext("2d"), NavigationModel.maneuver, "#7ef2d0")
-                }
-
-                Column {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 0
-
-                    Text {
-                        text: NavigationModel.distanceToTurnText
-                        color: "#f0f8ff"
-                        font.pixelSize: 16
-                        font.bold: true
-                    }
-                    Text {
-                        text: navMapRoot.maneuverVerb(NavigationModel.maneuver)
-                        color: "#99b4cf"
-                        font.pixelSize: 10
-                    }
-                }
+            Text {
+                text: NavigationModel.distanceToTurnText
+                color: "#f0f8ff"
+                font.pixelSize: 16
+                font.bold: true
             }
-        }
-
-        Rectangle {
-            id: guidePanel
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            anchors.bottomMargin: 8
-            height: 104
-            radius: 14
-            color: "#08111c"
-            border.width: 1
-            border.color: "#1f3d5d"
-            opacity: 0.96
-
-            Column {
-                anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
-                anchors.topMargin: 10
-                anchors.bottomMargin: 10
-                spacing: 8
-
-                Row {
-                    spacing: 8
-
-                    Canvas {
-                        width: 24
-                        height: 24
-                        onPaint: navMapRoot.drawArrow(getContext("2d"), NavigationModel.maneuver, "#7ef2d0")
-                    }
-
-                    Text {
-                        text: NavigationModel.nextStreet.length > 0 ? NavigationModel.nextStreet : NavigationModel.currentStreet
-                        color: "#f0f8ff"
-                        font.pixelSize: 16
-                        font.bold: true
-                    }
-
-                    Item { width: 1; height: 1 }
-
-                    Text {
-                        text: navMapRoot.maneuverVerb(NavigationModel.maneuver)
-                        color: "#a7c0d8"
-                        font.pixelSize: 12
-                    }
-                }
-
-                Row {
-                    spacing: 8
-
-                    Text {
-                        text: "THEN"
-                        color: "#6f8499"
-                        font.pixelSize: 10
-                        font.bold: true
-                    }
-
-                    Canvas {
-                        width: 20
-                        height: 20
-                        property int nextManeuver: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
-                                                   ? NavigationModel.route[NavigationModel.currentStep + 1].maneuver
-                                                   : NavigationModel.Arrive
-                        onPaint: navMapRoot.drawArrow(getContext("2d"), nextManeuver, "#7ea8ec")
-                    }
-
-                    Text {
-                        property string nextStreet: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
-                                                    ? NavigationModel.route[NavigationModel.currentStep + 1].next
-                                                    : "Destination"
-                        text: nextStreet
-                        color: "#8ea4bb"
-                        font.pixelSize: 13
-                    }
-
-                    Text {
-                        property real nextDistance: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
-                                                    ? NavigationModel.route[NavigationModel.currentStep + 1].dist
-                                                    : 0
-                        text: nextDistance > 0 ? ("in " + navMapRoot.formatMeters(nextDistance)) : ""
-                        color: "#8ea4bb"
-                        font.pixelSize: 12
-                    }
-                }
+            Text {
+                text: navMapRoot.maneuverVerb(NavigationModel.maneuver)
+                color: "#99b4cf"
+                font.pixelSize: 10
             }
         }
     }
 
-    Text {
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: 372
-        text: NavigationFeed.useMockGps ? "GPS source: MOCK" : "GPS source: HARDWARE"
-        font.pixelSize: 10
-        color: "#5d9ae2"
-        opacity: 0.82
+    /* Floating guide panel overlay */
+    Column {
+        id: guidePanel
+        anchors.left: mapArea.left
+        anchors.right: mapArea.right
+        anchors.bottom: mapArea.bottom
+        anchors.leftMargin: 10
+        anchors.rightMargin: 10
+        anchors.bottomMargin: 6
+        spacing: 6
+
+        Row {
+            spacing: 8
+
+            Canvas {
+                width: 24
+                height: 24
+                onPaint: navMapRoot.drawArrow(getContext("2d"), NavigationModel.maneuver, "#7ef2d0")
+            }
+
+            Text {
+                text: NavigationModel.nextStreet.length > 0 ? NavigationModel.nextStreet : NavigationModel.currentStreet
+                color: "#f0f8ff"
+                font.pixelSize: 16
+                font.bold: true
+            }
+
+            Item { width: 1; height: 1 }
+
+            Text {
+                text: navMapRoot.maneuverVerb(NavigationModel.maneuver)
+                color: "#a7c0d8"
+                font.pixelSize: 12
+            }
+        }
+
+        Row {
+            spacing: 8
+
+            Text {
+                text: "THEN"
+                color: "#6f8499"
+                font.pixelSize: 10
+                font.bold: true
+            }
+
+            Canvas {
+                width: 20
+                height: 20
+                property int nextManeuver: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
+                                           ? NavigationModel.route[NavigationModel.currentStep + 1].maneuver
+                                           : NavigationModel.Arrive
+                onPaint: navMapRoot.drawArrow(getContext("2d"), nextManeuver, "#7ea8ec")
+            }
+
+            Text {
+                property string nextStreet: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
+                                            ? NavigationModel.route[NavigationModel.currentStep + 1].next
+                                            : "Destination"
+                text: nextStreet
+                color: "#8ea4bb"
+                font.pixelSize: 13
+            }
+
+            Text {
+                property real nextDistance: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
+                                            ? NavigationModel.route[NavigationModel.currentStep + 1].dist
+                                            : 0
+                text: nextDistance > 0 ? ("in " + navMapRoot.formatMeters(nextDistance)) : ""
+                color: "#8ea4bb"
+                font.pixelSize: 12
+            }
+        }
     }
 }
+
+
