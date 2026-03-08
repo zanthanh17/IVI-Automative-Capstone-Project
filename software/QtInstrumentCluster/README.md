@@ -83,8 +83,11 @@ QT_QPA_PLATFORM=eglfs ./scripts/pi/run_pi.sh
 
 ### Navigation map behavior
 
-- Navigation page uses QtLocation map implementation.
-- If QtLocation cannot be loaded at runtime, app falls back to turn-by-turn HUD.
+- Navigation page now tries this order at runtime:
+  1. Qt WebEngine + MapLibre GL JS (`web/maplibre_navigation.html`) + OSRM route provider
+  2. QtLocation map (`NavigationMapLocation.qml`)
+  3. Turn-by-turn HUD fallback (`NavigationHudFallback.qml`)
+- This keeps the app usable even when a given Pi image misses some Qt map modules.
 
 ### Bluetooth Audio + Dashboard Controls (Phone -> Pi)
 
@@ -129,7 +132,8 @@ If Pi build shows `Project ERROR: Unknown module(s) in QT: location`:
 
 ```bash
 qmake6 -query QT_VERSION
-dpkg -l | grep -E 'qt6-location-dev|qt6-positioning-dev|qml6-module-qtlocation|qml6-module-qtpositioning'
+dpkg -l | grep -E 'qt6-location-dev|qt6-positioning-dev|qml6-module-qtpositioning'
+apt-cache search qt6 | grep -E 'location|positioning'
 ```
 
 - If packages are unavailable in your repo, project now auto-builds without `QT += location positioning` and uses Navigation HUD fallback.
@@ -137,9 +141,13 @@ dpkg -l | grep -E 'qt6-location-dev|qt6-positioning-dev|qml6-module-qtlocation|q
 
 ```bash
 sudo apt update
-sudo apt install -y qt6-location-dev qt6-positioning-dev qml6-module-qtlocation qml6-module-qtpositioning
+sudo apt install -y qt6-location-dev qt6-positioning-dev qml6-module-qtpositioning
 ./scripts/pi/build_pi.sh
+./scripts/pi/verify_pi_env.sh
 ```
+
+`qml6-module-qtlocation` may be unavailable on Raspberry Pi OS Bookworm repositories.
+In that case, use `verify_pi_env.sh` to confirm module/plugin presence and keep HUD fallback enabled.
 
 If Pi build shows `Project ERROR: Unknown module(s) in QT: svg`:
 

@@ -7,6 +7,10 @@ BUILD_DIR="${PROJECT_DIR}/build-pi"
 
 FAIL_COUNT=0
 WARN_COUNT=0
+MAP_INSTALLED=0
+MAP_TOTAL=0
+QML_LOCATION_MODULE_PATH=""
+QML_POSITIONING_MODULE_PATH=""
 
 ok() {
     echo "[OK] $*"
@@ -69,16 +73,17 @@ if command -v dpkg-query >/dev/null 2>&1; then
     done
 
     MAP_PKGS=(qt6-location-dev qml6-module-qtlocation qml6-module-qtpositioning)
+    MAP_TOTAL=${#MAP_PKGS[@]}
     MAP_INSTALLED=0
     for pkg in "${MAP_PKGS[@]}"; do
         if is_installed_pkg "${pkg}"; then
             MAP_INSTALLED=$((MAP_INSTALLED + 1))
         fi
     done
-    if ((MAP_INSTALLED == ${#MAP_PKGS[@]})); then
+    if ((MAP_INSTALLED == MAP_TOTAL)); then
         ok "Qt Location stack installed (${MAP_PKGS[*]})"
     else
-        warn "Qt Location stack incomplete (${MAP_INSTALLED}/${#MAP_PKGS[@]}). Navigation may fall back to HUD."
+        warn "Qt Location stack incomplete by package check (${MAP_INSTALLED}/${MAP_TOTAL})."
     fi
 
     WEB_PKGS=(qt6-webengine-dev qml6-module-qtwebengine qml6-module-qtwebchannel)
@@ -97,11 +102,62 @@ else
     warn "dpkg-query not found; skipping package checks."
 fi
 
-OSM_PLUGIN_PATH="$(find /usr/lib -type f -name 'qtgeoservices_osm*' 2>/dev/null | head -n 1 || true)"
+if [[ -n "${QMAKE_BIN}" ]]; then
+    QML_INSTALL_DIR="$("${QMAKE_BIN}" -query QT_INSTALL_QML 2>/dev/null || true)"
+    if [[ -n "${QML_INSTALL_DIR}" && -d "${QML_INSTALL_DIR}" ]]; then
+        if [[ -f "${QML_INSTALL_DIR}/QtLocation/qmldir" ]]; then
+            QML_LOCATION_MODULE_PATH="${QML_INSTALL_DIR}/QtLocation/qmldir"
+        fi
+        if [[ -f "${QML_INSTALL_DIR}/QtPositioning/qmldir" ]]; then
+            QML_POSITIONING_MODULE_PATH="${QML_INSTALL_DIR}/QtPositioning/qmldir"
+        fi
+    fi
+fi
+
+if [[ -z "${QML_LOCATION_MODULE_PATH}" ]]; then
+    QML_LOCATION_MODULE_PATH="$(find /usr/lib /usr/local/lib -type f -path '*/qt6/qml/QtLocation/qmldir' 2>/dev/null | head -n 1 || true)"
+fi
+
+if [[ -z "${QML_POSITIONING_MODULE_PATH}" ]]; then
+    QML_POSITIONING_MODULE_PATH="$(find /usr/lib /usr/local/lib -type f -path '*/qt6/qml/QtPositioning/qmldir' 2>/dev/null | head -n 1 || true)"
+fi
+
+if [[ -n "${QML_LOCATION_MODULE_PATH}" ]]; then
+    ok "Found QtLocation QML module: ${QML_LOCATION_MODULE_PATH}"
+else
+    warn "QtLocation QML module not found. On Raspberry Pi OS Bookworm this package is often unavailable in apt."
+fi
+
+if [[ -n "${QML_POSITIONING_MODULE_PATH}" ]]; then
+    ok "Found QtPositioning QML module: ${QML_POSITIONING_MODULE_PATH}"
+else
+    warn "QtPositioning QML module not found."
+fi
+
+if [[ -z "${QML_LOCATION_MODULE_PATH}" || -z "${QML_POSITIONING_MODULE_PATH}" ]]; then
+    warn "Navigation map may fall back to HUD. Check available packages with: apt-cache search qt6 | grep -E 'location|positioning'"
+fi
+
+OSM_PLUGIN_PATH=""
+if [[ -n "${QMAKE_BIN}" ]]; then
+    QT_PLUGINS_DIR="$("${QMAKE_BIN}" -query QT_INSTALL_PLUGINS 2>/dev/null || true)"
+    if [[ -n "${QT_PLUGINS_DIR}" && -d "${QT_PLUGINS_DIR}" ]]; then
+        OSM_PLUGIN_PATH="$(find "${QT_PLUGINS_DIR}" -type f -iname '*qtgeoservices*osm*' 2>/dev/null | head -n 1 || true)"
+    fi
+fi
+
+if [[ -z "${OSM_PLUGIN_PATH}" ]]; then
+    OSM_PLUGIN_PATH="$(find /usr/lib /lib -type f -iname '*qtgeoservices*osm*' 2>/dev/null | head -n 1 || true)"
+fi
+
 if [[ -n "${OSM_PLUGIN_PATH}" ]]; then
     ok "Found OSM geoservices plugin: ${OSM_PLUGIN_PATH}"
 else
-    fail "Qt OSM geoservices plugin not found in /usr/lib."
+    if [[ -n "${QML_LOCATION_MODULE_PATH}" ]] && [[ -n "${QML_POSITIONING_MODULE_PATH}" ]]; then
+        fail "Qt OSM geoservices plugin not found under Qt plugin paths."
+    else
+        warn "Qt OSM geoservices plugin not found (expected while Qt Location QML modules are missing)."
+    fi
 fi
 
 if command -v curl >/dev/null 2>&1; then

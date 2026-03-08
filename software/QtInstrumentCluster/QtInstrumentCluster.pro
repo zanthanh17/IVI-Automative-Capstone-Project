@@ -14,6 +14,14 @@ qtHaveModule(location):qtHaveModule(positioning) {
     message("QtLocation/QtPositioning not found: build uses Navigation HUD fallback")
 }
 
+qtHaveModule(webenginequick):qtHaveModule(webchannel) {
+    QT += webenginequick webchannel
+    DEFINES += HAS_WEBENGINE_MAP
+    message("QtWebEngine detected: WebEngine map support enabled")
+} else {
+    message("QtWebEngine not found: map falls back to QtLocation/HUD")
+}
+
 linux: QT += dbus
 
 # You can make your code fail to compile if it uses deprecated APIs.

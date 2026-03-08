@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MapLibre Navigation</title>
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+  <style>
+    html, body, #map {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #00091a;
+      font-family: Inter, Arial, sans-serif;
+    }
+
+    #vehicle-pin {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 34px;
+      height: 34px;
+      margin-left: -17px;
+      margin-top: -17px;
+      border-radius: 50%;
+      background: rgba(34, 148, 244, 0.85);
+      border: 1px solid #8bd0ff;
+      box-sizing: border-box;
+      pointer-events: none;
+      z-index: 4;
+      box-shadow: 0 0 12px rgba(80, 180, 255, 0.3);
+    }
+
+    #vehicle-arrow {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 0;
+      height: 0;
+      margin-left: -6px;
+      margin-top: -9px;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-bottom: 14px solid #f3fbff;
+      transform-origin: 50% 75%;
+      filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.25));
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="vehicle-pin">
+    <div id="vehicle-arrow"></div>
+  </div>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script>
+    (function () {
+      "use strict";
+
+      const DEFAULT_CENTER = [108.2200, 16.0620];
+      const DEFAULT_ZOOM = 16.8;
+      const DEFAULT_PITCH = 55;
+
+      let map = null;
+      let mapReady = false;
+      let routeCoords = [];
+      let routeProgress = 0;
+      let vehicleState = {
+        lat: DEFAULT_CENTER[1],
+        lng: DEFAULT_CENTER[0],
+        heading: 0
+      };
+
+      function clamp01(v) {
+        if (v < 0) return 0;
+        if (v > 1) return 1;
+        return v;
+      }
+
+      function splitRouteByProgress(coords, progress) {
+        if (!coords || coords.length < 2) {
+          return { past: [], future: [] };
+        }
+
+        const p = clamp01(progress);
+        const splitIndex = Math.floor((coords.length - 1) * p);
+        return {
+          past: coords.slice(0, splitIndex + 1),
+          future: coords.slice(splitIndex)
+        };
+      }
+
+      function updateArrowRotation() {
+        const arrow = document.getElementById("vehicle-arrow");
+        if (!arrow) {
+          return;
+        }
+        arrow.style.transform = "rotate(" + (Number(vehicleState.heading) || 0) + "deg)";
+      }
+
+      function ensureRouteLayers() {
+        if (!map || !mapReady) {
+          return;
+        }
+
+        if (!map.getSource("route-past")) {
+          map.addSource("route-past", {
+            type: "geojson",
+            data: {
+              type: "Feature",
+              geometry: { type: "LineString", coordinates: [] }
+            }
+          });
+        }
+
+        if (!map.getSource("route-future")) {
+          map.addSource("route-future", {
+            type: "geojson",
+            data: {
+              type: "Feature",
+              geometry: { type: "LineString", coordinates: [] }
+            }
+          });
+        }
+
+        if (!map.getLayer("route-future-case")) {
+          map.addLayer({
+            id: "route-future-case",
+            type: "line",
+            source: "route-future",
+            paint: {
+              "line-color": "#20405d",
+              "line-width": 11,
+              "line-opacity": 0.95
+            }
+          });
+        }
+
+        if (!map.getLayer("route-future-main")) {
+          map.addLayer({
+            id: "route-future-main",
+            type: "line",
+            source: "route-future",
+            paint: {
+              "line-color": "#67e5ff",
+              "line-width": 7,
+              "line-opacity": 0.98
+            }
+          });
+        }
+
+        if (!map.getLayer("route-past")) {
+          map.addLayer({
+            id: "route-past",
+            type: "line",
+            source: "route-past",
+            paint: {
+              "line-color": "#6f7f93",
+              "line-width": 7,
+              "line-opacity": 0.85
+            }
+          });
+        }
+      }
+
+      function updateRouteLayers() {
+        if (!map || !mapReady) {
+          return;
+        }
+        ensureRouteLayers();
+
+        const split = splitRouteByProgress(routeCoords, routeProgress);
+
+        const pastSource = map.getSource("route-past");
+        if (pastSource) {
+          pastSource.setData({
+            type: "Feature",
+            geometry: { type: "LineString", coordinates: split.past }
+          });
+        }
+
+        const futureSource = map.getSource("route-future");
+        if (futureSource) {
+          futureSource.setData({
+            type: "Feature",
+            geometry: { type: "LineString", coordinates: split.future }
+          });
+        }
+      }
+
+      function updateCamera() {
+        if (!map || !mapReady) {
+          return;
+        }
+        map.easeTo({
+          center: [vehicleState.lng, vehicleState.lat],
+          bearing: Number(vehicleState.heading) || 0,
+          pitch: DEFAULT_PITCH,
+          zoom: DEFAULT_ZOOM,
+          duration: 220,
+          essential: true
+        });
+      }
+
+      window.setVehicleState = function (payload) {
+        if (!payload) {
+          return;
+        }
+
+        const lat = Number(payload.lat);
+        const lng = Number(payload.lng);
+        const heading = Number(payload.heading);
+
+        if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+          vehicleState.lat = lat;
+          vehicleState.lng = lng;
+        }
+        if (!Number.isNaN(heading)) {
+          vehicleState.heading = heading;
+        }
+
+        updateArrowRotation();
+        updateCamera();
+      };
+
+      window.setRoute = function (payload) {
+        const coords = (payload && Array.isArray(payload.coordinates)) ? payload.coordinates : [];
+        routeCoords = coords;
+        if (payload && payload.progress !== undefined) {
+          routeProgress = clamp01(Number(payload.progress) || 0);
+        }
+        updateRouteLayers();
+      };
+
+      window.setRouteProgress = function (progressValue) {
+        routeProgress = clamp01(Number(progressValue) || 0);
+        updateRouteLayers();
+      };
+
+      map = new maplibregl.Map({
+        container: "map",
+        style: "https://demotiles.maplibre.org/style.json",
+        center: DEFAULT_CENTER,
+        zoom: DEFAULT_ZOOM,
+        bearing: 0,
+        pitch: DEFAULT_PITCH,
+        antialias: true,
+        attributionControl: false
+      });
+
+      map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+
+      map.on("load", function () {
+        mapReady = true;
+        ensureRouteLayers();
+        updateRouteLayers();
+        updateArrowRotation();
+        updateCamera();
+      });
+    })();
+  </script>
+</body>
+</html>

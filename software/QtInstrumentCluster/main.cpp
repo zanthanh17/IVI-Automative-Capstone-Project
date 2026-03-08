@@ -7,6 +7,10 @@
 #include <QLocale>
 #include <QTranslator>
 
+#ifdef HAS_WEBENGINE_MAP
+#include <QtWebEngineQuick/qtwebenginequickglobal.h>
+#endif
+
 #include "src/externalmediacontroller.h"
 #include "src/bluetoothcontroller.h"
 #include "src/mainmodel.h"
@@ -19,6 +23,11 @@ int main(int argc, char *argv[])
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
+
+#ifdef HAS_WEBENGINE_MAP
+    QtWebEngineQuick::initialize();
+#endif
+
     QGuiApplication app(argc, argv);
 
     int fontId = QFontDatabase::addApplicationFont(":/fonts/Inter-Regular.ttf");
