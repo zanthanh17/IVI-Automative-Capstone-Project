@@ -7,6 +7,8 @@ Image {
 
     property int location: LaneAssistWhiteLine.Left
     property real scale: 1
+    property real centerX: 512
+    property real baseY: 600
 
     property real t: 0
 
@@ -16,8 +18,8 @@ Image {
     source: location == LaneAssistWhiteLine.Left ? "qrc:/images/lanes/white-line-left.png"
                                                  : "qrc:/images/lanes/white-line-right.png"
 
-    x: location == LaneAssistWhiteLine.Left ? 453 : 551
-    y: 500
+    x: location == LaneAssistWhiteLine.Left ? centerX - 59 : centerX + 39
+    y: baseY - 100
 
     opacity: Math.min(1 - (1 - s) * (1 - s), 1)
 
@@ -32,8 +34,8 @@ Image {
         },
         // navi scale
         Scale {
-            origin.x: 512 - root.x
-            origin.y: 600 - root.y
+            origin.x: centerX - root.x
+            origin.y: baseY - root.y
 
             xScale: scale
             yScale: scale

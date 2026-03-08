@@ -8,10 +8,10 @@ Item {
 
     Text {
         id: odo
-        anchors.bottom: parent.bottom;
-        anchors.bottomMargin: 42;
+        anchors.top: parent.top
+        anchors.topMargin: 32
         anchors.left: parent.left;
-        anchors.leftMargin: 49;
+        anchors.leftMargin: 38
         text: "ODO";
         color: "#657080"
         font.pixelSize: 12;
@@ -39,9 +39,10 @@ Item {
 
     Text {
         id: range
-        anchors.bottom: parent.bottom;
-        anchors.bottomMargin: 42;
-        x: 279
+        anchors.top: parent.top
+        anchors.topMargin: 32
+        anchors.right: parent.right
+        anchors.rightMargin: 116
         text: "RANGE";
         color: "#657080"
         font.pixelSize: 12;
@@ -68,18 +69,22 @@ Item {
     }
 
     LinearGauge {
+        id: fuelGauge
         anchors.bottom: parent.bottom;
-        anchors.bottomMargin: 42;
-        x: 730;
+        anchors.bottomMargin: 46
+        anchors.left: parent.left
+        anchors.leftMargin: 18
         image: "qrc:/images/status/fuel.png";
         emptyText: "R";
         value: MainModel.fuelLevel;
     }
 
     LinearGauge {
+        id: batteryGauge
         anchors.bottom: parent.bottom;
-        anchors.bottomMargin: 42;
-        x: 870;
+        anchors.bottomMargin: 46
+        anchors.right: parent.right
+        anchors.rightMargin: 18
         image: "qrc:/images/status/battery.png";
         emptyText: "E";
         value: MainModel.batteryLevel;

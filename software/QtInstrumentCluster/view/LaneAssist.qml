@@ -6,20 +6,22 @@ Item {
 
     property real redBorderOpacity: 0
     property real scale: 1
+    property real centerX: width / 2
+    property real baseY: height
 
     Image {
         id: leftLaneAssist
 
         source: "qrc:/images/lanes/red-border-left.png"
         opacity: redBorderOpacity
-        x: 432
-        y: 380
+        x: laneAssist.centerX - 80
+        y: laneAssist.baseY - 220
         width: 70
         height: 200
 
         transform: Scale {
-            origin.x: laneAssist.width / 2 - leftLaneAssist.x
-            origin.y: laneAssist.height - leftLaneAssist.y
+            origin.x: laneAssist.centerX - leftLaneAssist.x
+            origin.y: laneAssist.baseY - leftLaneAssist.y
 
             xScale: laneAssist.scale
             yScale: laneAssist.scale
@@ -31,14 +33,14 @@ Item {
 
         source: "qrc:/images/lanes/red-border-right.png"
         opacity: redBorderOpacity
-        x: 522
-        y: 380
+        x: laneAssist.centerX + 10
+        y: laneAssist.baseY - 220
         width: 70
         height: 200
 
         transform: Scale {
-            origin.x: laneAssist.width / 2 - rightLaneAssist.x
-            origin.y: laneAssist.height - rightLaneAssist.y
+            origin.x: laneAssist.centerX - rightLaneAssist.x
+            origin.y: laneAssist.baseY - rightLaneAssist.y
 
             xScale: laneAssist.scale
             yScale: laneAssist.scale
@@ -76,24 +78,32 @@ Item {
     LaneAssistWhiteLine {
         t: t0
         scale: laneAssist.scale
+        centerX: laneAssist.centerX
+        baseY: laneAssist.baseY
         location: LaneAssistWhiteLine.Left
     }
 
     LaneAssistWhiteLine {
         t: t1 > 1 ? t1 - 1 : t1
         scale: laneAssist.scale
+        centerX: laneAssist.centerX
+        baseY: laneAssist.baseY
         location: LaneAssistWhiteLine.Left
     }
 
     LaneAssistWhiteLine {
         t: t0
         scale: laneAssist.scale
+        centerX: laneAssist.centerX
+        baseY: laneAssist.baseY
         location: LaneAssistWhiteLine.Right
     }
 
     LaneAssistWhiteLine {
         t: t1 > 1 ? t1 - 1 : t1
         scale: laneAssist.scale
+        centerX: laneAssist.centerX
+        baseY: laneAssist.baseY
         location: LaneAssistWhiteLine.Right
     }
 

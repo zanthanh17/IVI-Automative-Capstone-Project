@@ -122,10 +122,11 @@ Item {
 
     Item {
         id: mapArea
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: 82
-        width: 392
-        height: 286
+        anchors.fill: parent
+        anchors.leftMargin: 10
+        anchors.rightMargin: 10
+        anchors.topMargin: 8
+        anchors.bottomMargin: 8
         clip: true
 
         WebEngineView {

@@ -121,29 +121,42 @@ Window {
             anchors.fill: parent;
             focus: true
 
-            color: "#00091a"
+            color: "#141414"
 
             Keys.onPressed: (event) => {
                 window.handleKey(event.key)
                 event.accepted = true
             }
 
-            View.TellTales {
-                anchors.horizontalCenter: parent.horizontalCenter;
-                y:16;
-            }
-
-            View.Car {
-                anchors.fill: parent;
-            }
-
             View.NormalMode {
                 id: normalMode;
                 anchors.fill: parent;
+                z: 1
+            }
+
+            View.Car {
+                x: normalMode.leftPaneX
+                y: normalMode.leftPaneY
+                width: normalMode.leftPaneWidth
+                height: normalMode.leftPaneHeight
+                bottomInset: normalMode.vehicleBottomInset
+                centerOffsetX: normalMode.vehicleCenterOffsetX
+                carScale: 1.0
+                z: 10
+            }
+
+            View.TellTales {
+                x: (root.width - width) / 2
+                y: normalMode.topPaneY + (normalMode.topPaneHeight - height) / 2
+                z: 10
             }
 
             View.StatusBar {
-                anchors.fill: parent;
+                x: normalMode.leftPaneX
+                y: normalMode.leftPaneY
+                width: normalMode.leftPaneWidth
+                height: normalMode.leftPaneHeight
+                z: 10
             }
 
             Component.onCompleted: {

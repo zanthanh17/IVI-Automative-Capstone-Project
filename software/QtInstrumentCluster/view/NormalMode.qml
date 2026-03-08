@@ -8,23 +8,106 @@ Item {
     id: root;
     property real scale: 1.0
     property int menu: NormalModeModel.menu;
+    readonly property real layoutMargin: 16
+    readonly property real layoutGap: 16
+    readonly property real topPaneHeight: 64
+    readonly property real topPaneY: layoutMargin
+    
+    readonly property real leftPaneX: layoutMargin
+    readonly property real leftPaneY: topPaneY + topPaneHeight + layoutGap
+    readonly property real leftPaneWidth: 500
+    readonly property real leftPaneHeight: root.height - leftPaneY - layoutMargin
+    
+    readonly property real rightPaneX: leftPaneX + leftPaneWidth + layoutGap
+    readonly property real rightPaneY: topPaneY + topPaneHeight + layoutGap
+    readonly property real rightPaneWidth: root.width - rightPaneX - layoutMargin
+    
+    readonly property real menuPaneHeight: 70
+    readonly property real rightPaneHeight: root.height - rightPaneY - layoutMargin - menuPaneHeight - layoutGap
+    
+    readonly property real bottomPaneY: root.height - layoutMargin - menuPaneHeight
+    
+    readonly property real contentTopY: topLine.y + topLine.height + 2
+    readonly property real rightContentHeight: rightPaneHeight - (contentTopY - rightPaneY) - layoutGap
+    readonly property real gaugeTopY: leftPaneY + 32
+    readonly property real gaugeInset: 8
+    readonly property real vehicleBottomInset: 135
+    readonly property real vehiclePanelCenterX: leftPaneX + leftPaneWidth / 2
+    // Gauge frame in BaseGauge is asymmetric (half-arc), so visible center is not width/2.
+    readonly property real gaugeFrameVisualCenterX: 83.07
+    readonly property real gaugeFrameWidth: 360
+    readonly property real gaugeFrameCenterX: gaugeFrameWidth / 2
+    readonly property real gaugeFrameXInItem: (leftGauge.width - gaugeFrameWidth) / 2
+    readonly property real leftGaugeVisualCenterX: leftGauge.x + (60 - gaugeFrameXInItem)
+                                                   + ((gaugeFrameXInItem + gaugeFrameVisualCenterX) - (60 - gaugeFrameXInItem)) * leftGauge.scale
+    readonly property real rightGaugeMirroredCenterX: gaugeFrameCenterX
+                                                      + ((gaugeFrameXInItem + gaugeFrameVisualCenterX) - gaugeFrameCenterX) * (-1)
+    readonly property real rightGaugeVisualCenterX: rightGauge.x + (280 - gaugeFrameXInItem)
+                                                    + (rightGaugeMirroredCenterX - (280 - gaugeFrameXInItem)) * rightGauge.scale
+    readonly property real gaugesMidX: (leftGaugeVisualCenterX + rightGaugeVisualCenterX) / 2
+    readonly property real vehicleCenterOffsetX: gaugesMidX - vehiclePanelCenterX
 
-    Image {
-        id: topLine;
-        source: "qrc:/images/top-line.png";
-        anchors.horizontalCenter: parent.horizontalCenter;
-        anchors.top: parent.top;
-        anchors.topMargin: 96;
+    // Card Backgrounds
+    Rectangle {
+        id: topCardBg
+        x: leftPaneX
+        y: topPaneY
+        width: root.width - layoutMargin * 2
+        height: topPaneHeight
+        color: "#111625"
+        radius: 20
+        z: -1
+    }
+
+    Rectangle {
+        id: leftCardBg
+        x: leftPaneX
+        y: leftPaneY
+        width: leftPaneWidth
+        height: leftPaneHeight
+        color: "#111625"
+        radius: 20
+        z: -1
+    }
+
+    Rectangle {
+        id: rightCardBg
+        x: rightPaneX
+        y: rightPaneY
+        width: rightPaneWidth
+        height: rightPaneHeight
+        color: "#111625"
+        radius: 20
+        z: -1
+    }
+
+    Rectangle {
+        id: bottomCardBg
+        x: rightPaneX
+        y: bottomPaneY
+        width: rightPaneWidth
+        height: menuPaneHeight
+        color: "#111625"
+        radius: 20
+        z: -1
     }
 
     LaneAssist {
         anchors.fill: parent
-        scale: root.scale
+        scale: root.scale * 1.35
+        centerX: vehiclePanelCenterX + vehicleCenterOffsetX
+        baseY: leftPaneY + leftPaneHeight - vehicleBottomInset
+        z: 1
     }
 
+    // Right Card contents fill the entire area
     Item {
         id: mainElement;
-        anchors.fill: parent
+        x: rightPaneX
+        y: rightPaneY
+        width: rightPaneWidth
+        height: rightPaneHeight
+        clip: true
 
         MediaPlayer {
             activeMode: active;
@@ -53,8 +136,11 @@ Item {
 
     Gauge {
         id: leftGauge;
-        x: 32;
-        y: 69;
+        x: leftPaneX + gaugeInset
+        y: gaugeTopY
+        scale: 0.90
+        valueHorizontalCenterOffset: -96
+        labelHorizontalCenterOffset: -96
         leftOrientation: true;
         value: Units.kilometersToLongDistanceUnit(MainModel.speed)
         maxValue: Units.maximumSpeed
@@ -63,8 +149,11 @@ Item {
 
     Gauge {
         id: rightGauge;
-        x: root.width - rightGauge.width - 32;
-        y: 69;
+        x: leftPaneX + leftPaneWidth - rightGauge.width - gaugeInset
+        y: gaugeTopY
+        scale: 0.90
+        valueHorizontalCenterOffset: 96
+        labelHorizontalCenterOffset: 96
         leftOrientation: false;
         value: MainModel.rpm / 1000;
         valueText: MainModel.gearShiftText
@@ -75,7 +164,7 @@ Item {
         Text {
             id: rpmLabel
             anchors.centerIn: parent
-            anchors.horizontalCenterOffset: -45
+            anchors.horizontalCenterOffset: 65
             anchors.verticalCenterOffset: 125
 
             opacity: 0.2
@@ -96,8 +185,9 @@ Item {
     Menu {
         id: normalMenu;
         opacity: topLine.opacity;
-        anchors.horizontalCenter: parent.horizontalCenter;
-        y: 375;
+        anchors.horizontalCenter: undefined
+        x: rightPaneX + (rightPaneWidth - width) / 2
+        y: bottomPaneY + (menuPaneHeight - height) / 2
         currentIndex: menu;
         onClicked: NormalModeModel.menu = index;
     }
