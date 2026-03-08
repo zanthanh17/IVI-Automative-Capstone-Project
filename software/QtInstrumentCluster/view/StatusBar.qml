@@ -5,6 +5,13 @@ import Style 1.0
 
 Item {
     id: root
+    readonly property real bottomRowMargin: 18
+    readonly property string activeGear: {
+        var gear = MainModel.normalizeGear(MainModel.gearShiftText)
+        if (gear !== "")
+            return gear
+        return "P"
+    }
 
     Text {
         id: odo
@@ -68,10 +75,20 @@ Item {
         font.pixelSize: 12;
     }
 
+    Image {
+        id: teslaLogo
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.verticalCenter: odoValue.verticalCenter
+        source: "qrc:/images/Tesla_Logo.png"
+        sourceSize.width: 26
+        sourceSize.height: 26
+        fillMode: Image.PreserveAspectFit
+        opacity: 0.72
+    }
+
     LinearGauge {
         id: fuelGauge
-        anchors.bottom: parent.bottom;
-        anchors.bottomMargin: 46
+        anchors.verticalCenter: gearSelector.verticalCenter
         anchors.left: parent.left
         anchors.leftMargin: 18
         image: "qrc:/images/status/fuel.png";
@@ -81,12 +98,54 @@ Item {
 
     LinearGauge {
         id: batteryGauge
-        anchors.bottom: parent.bottom;
-        anchors.bottomMargin: 46
+        anchors.verticalCenter: gearSelector.verticalCenter
         anchors.right: parent.right
         anchors.rightMargin: 18
         image: "qrc:/images/status/battery.png";
         emptyText: "E";
         value: MainModel.batteryLevel;
+    }
+
+    Rectangle {
+        id: gearSelector
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.bottomRowMargin
+        width: 190
+        height: 34
+        radius: 12
+        color: "#2a3247"
+        border.color: "#33435f"
+        border.width: 1
+
+        readonly property var gears: ["R", "P", "N", "D"]
+        readonly property real segmentSpacing: 4
+        readonly property real segmentWidth: (width - 6 - segmentSpacing * 3) / 4
+
+        Row {
+            anchors.fill: parent
+            anchors.margins: 3
+            spacing: gearSelector.segmentSpacing
+
+            Repeater {
+                model: gearSelector.gears
+                delegate: Rectangle {
+                    property string gearText: modelData
+                    width: gearSelector.segmentWidth
+                    height: parent.height
+                    radius: 9
+                    color: root.activeGear === gearText ? "#55d9df" : "transparent"
+                    border.width: 0
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: parent.gearText
+                        color: root.activeGear === parent.gearText ? "#10263a" : "#a3b7d6"
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+                }
+            }
+        }
     }
 }

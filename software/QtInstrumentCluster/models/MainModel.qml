@@ -21,6 +21,10 @@ QtObject {
     property real speed: 0
     property real rpm: 0
     property string gearShiftText: "P"
+    property bool autoGearEnabled: true
+    readonly property real gearReverseThresholdKph: -0.4
+    readonly property real gearDriveThresholdKph: 0.8
+    readonly property real gearNeutralRpmThreshold: 1400
     property real temp: 0
 
     readonly property real initialFuelLevel: range / fullRange
@@ -45,6 +49,38 @@ QtObject {
     property int gaugesValueChangeDuration: gaugesValueChangeDurationNormal
 
     property bool laneAssistCarMoving: MainModelData.hardwareConnected
+    onSpeedChanged: updateAutomaticGear()
+    onRpmChanged: updateAutomaticGear()
+
+    function normalizeGear(text) {
+        var gear = (text || "").toString().trim().toUpperCase()
+        if (gear === "R" || gear === "P" || gear === "N" || gear === "D")
+            return gear
+        return ""
+    }
+
+    function inferAutomaticGear(speedValue, rpmValue) {
+        if (speedValue <= gearReverseThresholdKph)
+            return "R"
+        if (speedValue >= gearDriveThresholdKph)
+            return "D"
+        if (rpmValue > gearNeutralRpmThreshold)
+            return "N"
+        return "P"
+    }
+
+    function updateAutomaticGear() {
+        if (!autoGearEnabled || MainModelData.hardwareConnected)
+            return
+
+        var incomingGear = normalizeGear(MainModelData.gearText)
+        if (incomingGear !== "") {
+            MainModel.gearShiftText = incomingGear
+            return
+        }
+
+        MainModel.gearShiftText = inferAutomaticGear(MainModel.speed, MainModel.rpm)
+    }
 
     Component.onCompleted: {
         MainModelData.modelUpdated.connect(modelUpdated);
@@ -57,6 +93,7 @@ QtObject {
 
         MainModelData.setOdo(MainModel.odo)
         MainModelData.setRange(MainModel.range)
+        updateAutomaticGear()
     }
 
     property Timer odometerTimer: Timer {
@@ -93,7 +130,7 @@ QtObject {
             MainModel.range = MainModelData.range
             MainModel.fuelLevel = MainModelData.fuelLevel
             MainModel.batteryLevel = MainModelData.batteryLevel
-            MainModel.gearShiftText = MainModelData.gearText
+            updateAutomaticGear()
         }
     }
 }

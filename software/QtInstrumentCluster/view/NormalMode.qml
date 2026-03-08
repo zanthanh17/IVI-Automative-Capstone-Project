@@ -12,6 +12,7 @@ Item {
     readonly property real layoutGap: 16
     readonly property real topPaneHeight: 64
     readonly property real topPaneY: layoutMargin
+    readonly property real topCardWidth: Math.min(root.width - layoutMargin * 2, 520)
     
     readonly property real leftPaneX: layoutMargin
     readonly property real leftPaneY: topPaneY + topPaneHeight + layoutGap
@@ -50,9 +51,9 @@ Item {
     // Card Backgrounds
     Rectangle {
         id: topCardBg
-        x: leftPaneX
+        x: (root.width - width) / 2
         y: topPaneY
-        width: root.width - layoutMargin * 2
+        width: topCardWidth
         height: topPaneHeight
         color: "#111625"
         radius: 20
@@ -144,7 +145,26 @@ Item {
         leftOrientation: true;
         value: Units.kilometersToLongDistanceUnit(MainModel.speed)
         maxValue: Units.maximumSpeed
-        textLabel: Units.speedUnit
+        valueText: ""
+        textLabel: ""
+
+        Text {
+            id: speedUnitOnly
+            anchors.centerIn: parent
+            anchors.horizontalCenterOffset: -78
+            anchors.verticalCenterOffset: -2
+            text: "KM/H"
+            color: Style.lightPeriwinkle
+            font.pixelSize: 18
+            font.bold: false
+
+            transform: Scale {
+                origin.x: leftGauge.transformOriginX - speedUnitOnly.x
+                origin.y: 340 - speedUnitOnly.y
+                xScale: leftGauge.scale
+                yScale: leftGauge.scale
+            }
+        }
     }
 
     Gauge {
@@ -156,26 +176,26 @@ Item {
         labelHorizontalCenterOffset: 96
         leftOrientation: false;
         value: MainModel.rpm / 1000;
-        valueText: MainModel.gearShiftText
+        valueText: ""
         maxValue: MainModel.maxRpm / 1000;
         maxAngle: 180
         textLabel: ""
 
         Text {
-            id: rpmLabel
+            id: rpmUnitOnly
             anchors.centerIn: parent
-            anchors.horizontalCenterOffset: 65
-            anchors.verticalCenterOffset: 125
+            anchors.horizontalCenterOffset: 78
+            anchors.verticalCenterOffset: -2
 
-            opacity: 0.2
-            horizontalAlignment: Text.AlignRight
-            text: "x1000\n    RPM"
+            horizontalAlignment: Text.AlignHCenter
+            text: "x1000 RPM"
             color: Style.lightPeriwinkle;
-            font.pixelSize: 10
+            font.pixelSize: 18
+            font.bold: false
 
             transform: Scale {
-                origin.x: rightGauge.transformOriginX - rpmLabel.x
-                origin.y: 340 - rpmLabel.y
+                origin.x: rightGauge.transformOriginX - rpmUnitOnly.x
+                origin.y: 340 - rpmUnitOnly.y
                 xScale: rightGauge.scale
                 yScale: rightGauge.scale
             }
