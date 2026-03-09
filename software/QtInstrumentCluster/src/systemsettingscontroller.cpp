@@ -3,6 +3,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QFile>
+#include <QRegularExpression>
 #include <QTextStream>
 
 #if defined(Q_OS_LINUX)
@@ -518,18 +519,20 @@ qreal SystemSettingsController::readSystemVolume() const
         const QString out = QString::fromUtf8(proc.readAllStandardOutput());
         // Output dạng: "Volume: front-left: 42000 /  64% / ..."
         // Tìm phần trăm đầu tiên
-        QRegExp rx(QStringLiteral("(\\d+)%"));
-        if (rx.indexIn(out) != -1) {
-            return rx.cap(1).toDouble() / 100.0;
+        QRegularExpression rx(QStringLiteral("(\\d+)%"));
+        QRegularExpressionMatch match = rx.match(out);
+        if (match.hasMatch()) {
+            return match.captured(1).toDouble() / 100.0;
         }
     } else if (m_audioBackend == QStringLiteral("amixer")) {
         QProcess proc;
         proc.start(QStringLiteral("amixer"), { QStringLiteral("sget"), QStringLiteral("Master") });
         proc.waitForFinished(2000);
         const QString out = QString::fromUtf8(proc.readAllStandardOutput());
-        QRegExp rx(QStringLiteral("\\[(\\d+)%\\]"));
-        if (rx.indexIn(out) != -1) {
-            return rx.cap(1).toDouble() / 100.0;
+        QRegularExpression rx(QStringLiteral("\\[(\\d+)%\\]"));
+        QRegularExpressionMatch match = rx.match(out);
+        if (match.hasMatch()) {
+            return match.captured(1).toDouble() / 100.0;
         }
     }
 #endif
@@ -563,9 +566,10 @@ qreal SystemSettingsController::readSystemBrightness() const
         proc.start(QStringLiteral("brightnessctl"), { QStringLiteral("info") });
         proc.waitForFinished(2000);
         const QString out = QString::fromUtf8(proc.readAllStandardOutput());
-        QRegExp rx(QStringLiteral("\\((\\d+)%\\)"));
-        if (rx.indexIn(out) != -1) {
-            return rx.cap(1).toDouble() / 100.0;
+        QRegularExpression rx(QStringLiteral("\\((\\d+)%\\)"));
+        QRegularExpressionMatch match = rx.match(out);
+        if (match.hasMatch()) {
+            return match.captured(1).toDouble() / 100.0;
         }
     }
 #endif

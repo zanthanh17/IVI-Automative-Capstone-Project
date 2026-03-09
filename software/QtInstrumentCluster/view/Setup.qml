@@ -65,7 +65,7 @@ NormalModeContentItem {
         Row {
             spacing: 10
             Image {
-                source: "qrc:/images/others/settings.png"
+                source: "qrc:/images/others/quick controls.svg"
                 width: 24; height: 24
                 fillMode: Image.PreserveAspectFit
                 anchors.verticalCenter: parent.verticalCenter
@@ -141,7 +141,7 @@ NormalModeContentItem {
                     anchors.centerIn: parent
                     spacing: 8
                     Image {
-                        source: "qrc:/images/others/bluetooth.png"
+                        source: "qrc:/images/others/bluetooth.svg"
                         width: 18; height: 18
                         fillMode: Image.PreserveAspectFit
                         anchors.verticalCenter: parent.verticalCenter
@@ -180,7 +180,7 @@ NormalModeContentItem {
             width: parent.width
 
             Image {
-                source: "qrc:/images/others/volume.png"
+                source: "qrc:/images/others/volume.svg"
                 width: 22; height: 22
                 fillMode: Image.PreserveAspectFit
                 anchors.verticalCenter: parent.verticalCenter
@@ -237,7 +237,7 @@ NormalModeContentItem {
             width: parent.width
 
             Image {
-                source: "qrc:/images/others/brightness.png"
+                source: "qrc:/images/others/brightness.svg"
                 width: 22; height: 22
                 fillMode: Image.PreserveAspectFit
                 anchors.verticalCenter: parent.verticalCenter
