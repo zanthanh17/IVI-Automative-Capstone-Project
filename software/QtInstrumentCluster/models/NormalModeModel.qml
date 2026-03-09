@@ -14,6 +14,7 @@ QtObject {
     property bool bluetoothEnabled: true
     property real volumeLevel: 0.6
     property real brightnessLevel: 0.7
+    
 
     function nextMenu() {
         if (menu === NormalModeModel.MediaPlayerMenu) {

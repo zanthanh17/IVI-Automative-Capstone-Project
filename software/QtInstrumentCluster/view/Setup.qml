@@ -7,13 +7,15 @@ import SystemSettings 1.0
 NormalModeContentItem {
     id: setupRoot
 
-    // Local UI state for popups
     property bool wifiPopupOpen: false
     property bool bluetoothPopupOpen: false
+    property string wifiPasswordInput: ""
+    property string selectedWifiSSID: ""
+    property bool showPasswordDialog: false
 
     Component.onCompleted: {
-        // Đồng bộ trạng thái ban đầu từ controllers hệ thống
-        NormalModeModel.bluetoothEnabled = BluetoothManager.powered
+        SystemSettings.syncFromSystem()
+        NormalModeModel.bluetoothEnabled = SystemSettings.bluetoothEnabled
         NormalModeModel.wifiEnabled = SystemSettings.wifiEnabled
         NormalModeModel.volumeLevel = SystemSettings.volumeLevel
         NormalModeModel.brightnessLevel = SystemSettings.brightnessLevel
@@ -23,6 +25,8 @@ NormalModeContentItem {
         target: BluetoothManager
         onPoweredChanged: {
             NormalModeModel.bluetoothEnabled = BluetoothManager.powered
+            if (SystemSettings.bluetoothEnabled !== BluetoothManager.powered)
+                SystemSettings.bluetoothEnabled = BluetoothManager.powered
         }
     }
 
@@ -31,40 +35,42 @@ NormalModeContentItem {
         onWifiEnabledChanged: {
             NormalModeModel.wifiEnabled = SystemSettings.wifiEnabled
         }
+        onBluetoothEnabledChanged: {
+            NormalModeModel.bluetoothEnabled = SystemSettings.bluetoothEnabled
+        }
         onVolumeLevelChanged: {
             NormalModeModel.volumeLevel = SystemSettings.volumeLevel
         }
         onBrightnessLevelChanged: {
             NormalModeModel.brightnessLevel = SystemSettings.brightnessLevel
         }
+        onWifiConnectionResult: {
+            if (success) {
+                console.log("[Setup] Wi-Fi connected:", message)
+                wifiPopupOpen = false
+                showPasswordDialog = false
+            } else {
+                console.log("[Setup] Wi-Fi connection failed:", message)
+            }
+        }
     }
 
+    // ==================== Main content ====================
     Column {
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.horizontalCenter: parent.horizontalCenter
-        spacing: 28
+        anchors.fill: parent
+        anchors.margins: 16
+        spacing: 14
 
-        // Quick controls master toggle
+        // Title
         Row {
             spacing: 10
-            anchors.horizontalCenter: parent.horizontalCenter
-
             Image {
-                id: quickToggle
-                source: "qrc:/images/others/quick controls.svg"
-                width: 26
-                height: 26
+                source: "qrc:/images/others/settings.png"
+                width: 24; height: 24
                 fillMode: Image.PreserveAspectFit
-                opacity: NormalModeModel.quickControlsEnabled ? 1.0 : 0.4
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: NormalModeModel.quickControlsEnabled = !NormalModeModel.quickControlsEnabled
-                }
+                anchors.verticalCenter: parent.verticalCenter
             }
-
             Column {
-                spacing: 2
                 Text {
                     text: "Quick controls"
                     color: Style.textPrimary
@@ -72,23 +78,23 @@ NormalModeContentItem {
                     font.bold: true
                 }
                 Text {
-                    text: NormalModeModel.quickControlsEnabled ? "Visible on status bar" : "Hidden from status bar"
+                    text: "Visible on status bar"
                     color: Style.textSecondary
                     font.pixelSize: 11
                 }
             }
         }
 
-        // Connectivity toggles
+        // Wi-Fi & Bluetooth buttons
         Row {
+            spacing: 12
             anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 24
 
+            // Wi-Fi button
             Rectangle {
-                width: 120
-                height: 42
-                radius: 18
-                color: NormalModeModel.wifiEnabled ? Style.brightBlue : Style.backgroundPanelSoft
+                width: 140; height: 40
+                radius: 20
+                color: NormalModeModel.wifiEnabled ? Style.brightBlue : "#444"
 
                 Row {
                     anchors.centerIn: parent
@@ -97,18 +103,13 @@ NormalModeContentItem {
                         source: "qrc:/images/others/wifi.png"
                         width: 18; height: 18
                         fillMode: Image.PreserveAspectFit
+                        anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
-                        text: "Wi‑Fi"
-                        color: NormalModeModel.wifiEnabled ? Style.textPrimary : Style.textSecondary
+                        text: "Wi-Fi ›"
+                        color: "white"
                         font.pixelSize: 14
-                    }
-                    // Small arrow when enabled to hint more settings
-                    Text {
-                        visible: NormalModeModel.wifiEnabled
-                        text: "\u203A"   // single right-pointing angle quote
-                        color: Style.textPrimary
-                        font.pixelSize: 16
+                        anchors.verticalCenter: parent.verticalCenter
                     }
                 }
 
@@ -119,36 +120,37 @@ NormalModeContentItem {
                             NormalModeModel.wifiEnabled = true
                             SystemSettings.wifiEnabled = true
                         } else {
+                            SystemSettings.scanWifiNetworks()
                             setupRoot.wifiPopupOpen = true
                         }
+                    }
+                    onPressAndHold: {
+                        NormalModeModel.wifiEnabled = false
+                        SystemSettings.wifiEnabled = false
                     }
                 }
             }
 
+            // Bluetooth button
             Rectangle {
-                width: 140
-                height: 42
-                radius: 18
-                color: NormalModeModel.bluetoothEnabled ? Style.brightBlue : Style.backgroundPanelSoft
+                width: 160; height: 40
+                radius: 20
+                color: NormalModeModel.bluetoothEnabled ? Style.brightBlue : "#444"
 
                 Row {
                     anchors.centerIn: parent
                     spacing: 8
                     Image {
-                        source: "qrc:/images/others/bluetooth.svg"
+                        source: "qrc:/images/others/bluetooth.png"
                         width: 18; height: 18
                         fillMode: Image.PreserveAspectFit
+                        anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
-                        text: "Bluetooth"
-                        color: NormalModeModel.bluetoothEnabled ? Style.textPrimary : Style.textSecondary
+                        text: "Bluetooth ›"
+                        color: "white"
                         font.pixelSize: 14
-                    }
-                    Text {
-                        visible: NormalModeModel.bluetoothEnabled
-                        text: "\u203A"
-                        color: Style.textPrimary
-                        font.pixelSize: 16
+                        anchors.verticalCenter: parent.verticalCenter
                     }
                 }
 
@@ -157,95 +159,129 @@ NormalModeContentItem {
                     onClicked: {
                         if (!NormalModeModel.bluetoothEnabled) {
                             NormalModeModel.bluetoothEnabled = true
+                            SystemSettings.bluetoothEnabled = true
                             BluetoothManager.setPowered(true)
                         } else {
                             setupRoot.bluetoothPopupOpen = true
+                        }
+                    }
+                    onPressAndHold: {
+                        NormalModeModel.bluetoothEnabled = false
+                        SystemSettings.bluetoothEnabled = false
+                        BluetoothManager.setPowered(false)
+                    }
+                }
+            }
+        }
+
+        // ==================== Volume slider ====================
+        Row {
+            spacing: 10
+            width: parent.width
+
+            Image {
+                source: "qrc:/images/others/volume.png"
+                width: 22; height: 22
+                fillMode: Image.PreserveAspectFit
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Rectangle {
+                id: volumeTrack
+                width: parent.width - 40
+                height: 8
+                radius: 4
+                color: "#444"
+                anchors.verticalCenter: parent.verticalCenter
+
+                Rectangle {
+                    width: volumeHandle.x + volumeHandle.width / 2
+                    height: parent.height
+                    radius: parent.radius
+                    color: Style.brightBlue
+                }
+
+                Rectangle {
+                    id: volumeHandle
+                    width: 22; height: 22
+                    radius: 11
+                    color: Style.brightBlue
+                    border.color: "white"
+                    border.width: 2
+                    y: (parent.height - height) / 2
+                    x: NormalModeModel.volumeLevel * (parent.width - width)
+
+                    MouseArea {
+                        anchors.fill: parent
+                        drag.target: parent
+                        drag.axis: Drag.XAxis
+                        drag.minimumX: 0
+                        drag.maximumX: volumeTrack.width - volumeHandle.width
+
+                        onPositionChanged: {
+                            if (drag.active) {
+                                var ratio = Math.max(0, Math.min(1,
+                                    volumeHandle.x / (volumeTrack.width - volumeHandle.width)))
+                                NormalModeModel.volumeLevel = ratio
+                                SystemSettings.volumeLevel = ratio
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Sliders: volume & brightness (custom, không dùng QtQuick.Controls)
-        Column {
-            anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 16
+        // ==================== Brightness slider ====================
+        Row {
+            spacing: 10
+            width: parent.width
 
-            Row {
-                spacing: 10
-                anchors.horizontalCenter: parent.horizontalCenter
-
-                Image {
-                    source: "qrc:/images/others/volume.svg"
-                    width: 18; height: 18
-                    fillMode: Image.PreserveAspectFit
-                }
-
-                Rectangle {
-                    id: volumeTrack
-                    width: 220
-                    height: 4
-                    radius: 2
-                    color: "#ffffff30"
-
-                    Rectangle {
-                        width: NormalModeModel.volumeLevel * parent.width
-                        height: parent.height
-                        radius: parent.radius
-                        color: Style.brightBlue
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onPositionChanged: if (pressed) {
-                            var v = (mouse.x / volumeTrack.width)
-                            NormalModeModel.volumeLevel = Math.max(0, Math.min(1, v))
-                            SystemSettings.volumeLevel = NormalModeModel.volumeLevel
-                        }
-                        onPressed: {
-                            var v = (mouse.x / volumeTrack.width)
-                            NormalModeModel.volumeLevel = Math.max(0, Math.min(1, v))
-                            SystemSettings.volumeLevel = NormalModeModel.volumeLevel
-                        }
-                    }
-                }
+            Image {
+                source: "qrc:/images/others/brightness.png"
+                width: 22; height: 22
+                fillMode: Image.PreserveAspectFit
+                anchors.verticalCenter: parent.verticalCenter
             }
 
-            Row {
-                spacing: 10
-                anchors.horizontalCenter: parent.horizontalCenter
+            Rectangle {
+                id: brightnessTrack
+                width: parent.width - 40
+                height: 8
+                radius: 4
+                color: "#444"
+                anchors.verticalCenter: parent.verticalCenter
 
-                Image {
-                    source: "qrc:/images/others/brightness.svg"
-                    width: 18; height: 18
-                    fillMode: Image.PreserveAspectFit
+                Rectangle {
+                    width: brightnessHandle.x + brightnessHandle.width / 2
+                    height: parent.height
+                    radius: parent.radius
+                    color: "#FFD600"
                 }
 
                 Rectangle {
-                    id: brightnessTrack
-                    width: 220
-                    height: 4
-                    radius: 2
-                    color: "#ffffff30"
-
-                    Rectangle {
-                        width: NormalModeModel.brightnessLevel * parent.width
-                        height: parent.height
-                        radius: parent.radius
-                        color: Style.brightBlue
-                    }
+                    id: brightnessHandle
+                    width: 22; height: 22
+                    radius: 11
+                    color: "#FFD600"
+                    border.color: "white"
+                    border.width: 2
+                    y: (parent.height - height) / 2
+                    x: NormalModeModel.brightnessLevel * (parent.width - width)
 
                     MouseArea {
                         anchors.fill: parent
-                        onPositionChanged: if (pressed) {
-                            var v = (mouse.x / brightnessTrack.width)
-                            NormalModeModel.brightnessLevel = Math.max(0, Math.min(1, v))
-                            SystemSettings.brightnessLevel = NormalModeModel.brightnessLevel
-                        }
-                        onPressed: {
-                            var v = (mouse.x / brightnessTrack.width)
-                            NormalModeModel.brightnessLevel = Math.max(0, Math.min(1, v))
-                            SystemSettings.brightnessLevel = NormalModeModel.brightnessLevel
+                        drag.target: parent
+                        drag.axis: Drag.XAxis
+                        drag.minimumX: 0
+                        drag.maximumX: brightnessTrack.width - brightnessHandle.width
+
+                        onPositionChanged: {
+                            if (drag.active) {
+                                var ratio = Math.max(0, Math.min(1,
+                                    brightnessHandle.x / (brightnessTrack.width - brightnessHandle.width)))
+                                NormalModeModel.brightnessLevel = ratio
+                                SystemSettings.brightnessLevel = ratio
+                            }
                         }
                     }
                 }
@@ -253,120 +289,253 @@ NormalModeContentItem {
         }
     }
 
-    // === Wi‑Fi settings overlay ===
+    // ==================== Wi-Fi popup overlay ====================
     Rectangle {
         id: wifiPopup
         anchors.fill: parent
-        color: "#00000080"
+        color: "#80000000"
         visible: wifiPopupOpen
         z: 50
 
+        MouseArea {
+            anchors.fill: parent
+            onClicked: {
+                wifiPopupOpen = false
+                showPasswordDialog = false
+            }
+        }
+
         Rectangle {
             width: 360
-            height: 260
+            height: showPasswordDialog ? 280 : 380
             radius: 22
             color: Style.backgroundPanelSoft
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.centerIn: parent
+
+            MouseArea { anchors.fill: parent }
 
             Column {
                 anchors.fill: parent
-                anchors.margins: 22
-                spacing: 16
+                anchors.margins: 20
+                spacing: 12
 
+                // Header
                 Row {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.left: parent.left
-                    anchors.right: parent.right
+                    width: parent.width
                     spacing: 10
 
-                    // Back icon
-                    Image {
-                        id: wifiBack
-                        source: "qrc:/images/others/back.png"
-                        width: 20
-                        height: 20
-                        fillMode: Image.PreserveAspectFit
-
+                    Rectangle {
+                        width: 28; height: 28
+                        radius: 14
+                        color: "#444"
+                        Text {
+                            anchors.centerIn: parent
+                            text: "‹"
+                            color: "white"
+                            font.pixelSize: 18
+                            font.bold: true
+                        }
                         MouseArea {
                             anchors.fill: parent
-                            onClicked: wifiPopupOpen = false
+                            onClicked: {
+                                if (showPasswordDialog) {
+                                    showPasswordDialog = false
+                                } else {
+                                    wifiPopupOpen = false
+                                }
+                            }
                         }
                     }
 
-                    // Title + subtitle
                     Column {
-                        spacing: 2
                         Text {
-                            text: "Wi‑Fi networks"
+                            text: showPasswordDialog ? "Enter Password" : "Wi‑Fi Networks"
                             color: Style.textPrimary
                             font.pixelSize: 16
                             font.bold: true
                         }
                         Text {
-                            text: "Select a network to connect"
+                            text: showPasswordDialog
+                                  ? selectedWifiSSID
+                                  : (SystemSettings.connectedWifiSSID.length > 0
+                                     ? "Connected: " + SystemSettings.connectedWifiSSID
+                                     : "Select a network")
                             color: Style.textSecondary
                             font.pixelSize: 11
                         }
                     }
                 }
 
-                ListView {
-                    id: wifiList
-                    model: ListModel {
-                        ListElement { ssid: "Home Wi‑Fi"; strength: "•••"; secured: true }
-                        ListElement { ssid: "Office"; strength: "•••"; secured: true }
-                        ListElement { ssid: "Guest"; strength: "••"; secured: false }
+                // Password input
+                Column {
+                    visible: showPasswordDialog
+                    width: parent.width
+                    spacing: 12
+
+                    Rectangle {
+                        width: parent.width
+                        height: 40
+                        radius: 8
+                        color: "#333"
+                        border.color: Style.brightBlue
+                        border.width: 1
+
+                        TextInput {
+                            id: passwordInput
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            color: Style.textPrimary
+                            font.pixelSize: 14
+                            echoMode: TextInput.Password
+                            clip: true
+                            onTextChanged: wifiPasswordInput = text
+                        }
                     }
+
+                    Row {
+                        spacing: 12
+                        anchors.horizontalCenter: parent.horizontalCenter
+
+                        Rectangle {
+                            width: 100; height: 36
+                            radius: 12
+                            color: "#666"
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Cancel"
+                                color: "white"
+                                font.pixelSize: 13
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: showPasswordDialog = false
+                            }
+                        }
+
+                        Rectangle {
+                            width: 100; height: 36
+                            radius: 12
+                            color: Style.brightBlue
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Connect"
+                                color: "white"
+                                font.pixelSize: 13
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    SystemSettings.connectToWifi(selectedWifiSSID, wifiPasswordInput)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Network list
+                ListView {
+                    visible: !showPasswordDialog
+                    width: parent.width
+                    height: parent.height - 100
                     clip: true
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.topMargin: 4
-                    anchors.bottom: parent.bottom
+                    model: SystemSettings.wifiNetworks
+                    spacing: 2
 
                     delegate: Rectangle {
-                        width: ListView.view.width
-                        height: 34
-                        radius: 10
-                        color: hovered ? "#ffffff10" : "transparent"
-
-                        property bool hovered: false
+                        width: parent ? parent.width : 0
+                        height: 40
+                        radius: 8
+                        color: wifiDelegateArea.containsMouse ? "#3a3a3a" : "transparent"
 
                         Row {
                             anchors.fill: parent
-                            anchors.margins: 6
-                            spacing: 10
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            spacing: 8
 
                             Text {
-                                text: ssid
+                                text: modelData.ssid || ""
                                 color: Style.textPrimary
                                 font.pixelSize: 13
                                 elide: Text.ElideRight
-                                horizontalAlignment: Text.AlignLeft
+                                width: parent.width * 0.45
+                                anchors.verticalCenter: parent.verticalCenter
                             }
-
                             Text {
-                                text: strength
+                                text: (modelData.strength || "") + "%"
                                 color: Style.textSecondary
+                                font.pixelSize: 11
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text {
+                                text: modelData.secured ? "🔒" : ""
                                 font.pixelSize: 12
+                                anchors.verticalCenter: parent.verticalCenter
                             }
-
                             Text {
-                                text: secured ? "lock" : ""
-                                color: Style.textSecondary
-                                font.pixelSize: 10
+                                visible: modelData.active || false
+                                text: "✓"
+                                color: Style.brightBlue
+                                font.pixelSize: 14
+                                font.bold: true
+                                anchors.verticalCenter: parent.verticalCenter
                             }
                         }
 
                         MouseArea {
+                            id: wifiDelegateArea
                             anchors.fill: parent
                             hoverEnabled: true
-                            onEntered: parent.hovered = true
-                            onExited: parent.hovered = false
                             onClicked: {
-                                // TODO: trigger backend connect using ssid
-                                wifiPopupOpen = false
+                                selectedWifiSSID = modelData.ssid
+                                if (modelData.secured) {
+                                    showPasswordDialog = true
+                                    wifiPasswordInput = ""
+                                    passwordInput.text = ""
+                                } else {
+                                    SystemSettings.connectToWifi(modelData.ssid, "")
+                                }
                             }
+                        }
+                    }
+                }
+
+                // Scan + Disconnect buttons
+                Row {
+                    visible: !showPasswordDialog
+                    spacing: 12
+                    anchors.horizontalCenter: parent.horizontalCenter
+
+                    Rectangle {
+                        width: 90; height: 32
+                        radius: 10
+                        color: Style.brightBlue
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Scan"
+                            color: "white"
+                            font.pixelSize: 13
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: SystemSettings.scanWifiNetworks()
+                        }
+                    }
+
+                    Rectangle {
+                        visible: SystemSettings.connectedWifiSSID.length > 0
+                        width: 110; height: 32
+                        radius: 10
+                        color: "#cc3333"
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Disconnect"
+                            color: "white"
+                            font.pixelSize: 13
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: SystemSettings.disconnectWifi()
                         }
                     }
                 }
@@ -374,40 +543,47 @@ NormalModeContentItem {
         }
     }
 
-    // === Bluetooth settings overlay ===
+    // ==================== Bluetooth popup overlay ====================
     Rectangle {
         id: bluetoothPopup
         anchors.fill: parent
-        color: "#00000080"
+        color: "#80000000"
         visible: bluetoothPopupOpen
         z: 50
 
+        MouseArea {
+            anchors.fill: parent
+            onClicked: bluetoothPopupOpen = false
+        }
+
         Rectangle {
-            width: 320
-            height: 220
+            width: 340
+            height: 320
             radius: 22
             color: Style.backgroundPanelSoft
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.centerIn: parent
+
+            MouseArea { anchors.fill: parent }
 
             Column {
                 anchors.fill: parent
-                anchors.margins: 22
-                spacing: 16
+                anchors.margins: 20
+                spacing: 12
 
                 Row {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.left: parent.left
-                    anchors.right: parent.right
                     spacing: 10
 
-                    Image {
-                        id: btBack
-                        source: "qrc:/images/others/back.png"
-                        width: 20
-                        height: 20
-                        fillMode: Image.PreserveAspectFit
-
+                    Rectangle {
+                        width: 28; height: 28
+                        radius: 14
+                        color: "#444"
+                        Text {
+                            anchors.centerIn: parent
+                            text: "‹"
+                            color: "white"
+                            font.pixelSize: 18
+                            font.bold: true
+                        }
                         MouseArea {
                             anchors.fill: parent
                             onClicked: bluetoothPopupOpen = false
@@ -415,26 +591,116 @@ NormalModeContentItem {
                     }
 
                     Column {
-                        spacing: 2
                         Text {
-                            text: "Bluetooth devices"
+                            text: "Bluetooth Devices"
                             color: Style.textPrimary
                             font.pixelSize: 16
                             font.bold: true
                         }
                         Text {
-                            text: "Manage paired devices from Pi"
+                            text: BluetoothManager.powered ? "Powered On" : "Powered Off"
                             color: Style.textSecondary
                             font.pixelSize: 11
                         }
                     }
                 }
 
-                Text {
-                    text: "Pairing logic will be handled by the Pi backend."
-                    color: Style.textSecondary
-                    font.pixelSize: 12
-                    wrapMode: Text.WordWrap
+                // Bluetooth ON/OFF toggle
+                Row {
+                    spacing: 10
+                    anchors.horizontalCenter: parent.horizontalCenter
+
+                    Text {
+                        text: "Bluetooth"
+                        color: Style.textPrimary
+                        font.pixelSize: 14
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    Rectangle {
+                        width: 50; height: 26
+                        radius: 13
+                        color: NormalModeModel.bluetoothEnabled ? Style.brightBlue : "#666"
+
+                        Rectangle {
+                            width: 20; height: 20
+                            radius: 10
+                            color: "white"
+                            y: 3
+                            x: NormalModeModel.bluetoothEnabled ? parent.width - width - 3 : 3
+
+                            Behavior on x { NumberAnimation { duration: 200 } }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                var newState = !NormalModeModel.bluetoothEnabled
+                                NormalModeModel.bluetoothEnabled = newState
+                                SystemSettings.bluetoothEnabled = newState
+                                BluetoothManager.setPowered(newState)
+                            }
+                        }
+                    }
+                }
+
+                // Paired devices list
+                ListView {
+                    width: parent.width
+                    height: parent.height - 120
+                    clip: true
+                    model: BluetoothManager.devices
+                    spacing: 2
+
+                    delegate: Rectangle {
+                        width: parent ? parent.width : 0
+                        height: 38
+                        radius: 8
+                        color: btDelegateArea.containsMouse ? "#3a3a3a" : "transparent"
+
+                        Row {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            spacing: 8
+
+                            Text {
+                                text: modelData.name || "Unknown"
+                                color: Style.textPrimary
+                                font.pixelSize: 13
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text {
+                                text: modelData.connected ? "Connected" : ""
+                                color: Style.brightBlue
+                                font.pixelSize: 11
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        MouseArea {
+                            id: btDelegateArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                        }
+                    }
+                }
+
+                // Scan button
+                Rectangle {
+                    width: 90; height: 32
+                    radius: 10
+                    color: Style.brightBlue
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Scan"
+                        color: "white"
+                        font.pixelSize: 13
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: BluetoothManager.startDiscovery()
+                    }
                 }
             }
         }
