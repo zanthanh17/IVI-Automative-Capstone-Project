@@ -91,6 +91,16 @@ QString SystemSettingsController::connectedWifiSSID() const
     return m_connectedWifiSSID;
 }
 
+bool SystemSettingsController::wifiConnecting() const
+{
+    return m_wifiConnecting;
+}
+
+QString SystemSettingsController::wifiStatusMessage() const
+{
+    return m_wifiStatusMessage;
+}
+
 // ────────────────────────── Property setters ──────────────────────────
 
 void SystemSettingsController::setWifiEnabled(bool on)
@@ -214,26 +224,56 @@ void SystemSettingsController::connectToWifi(const QString &ssid, const QString 
 #if defined(Q_OS_LINUX)
     qDebug() << "[SystemSettings] connecting to Wi-Fi:" << ssid;
 
+    // --- Set connecting status ---
+    m_wifiConnecting = true;
+    m_wifiStatusMessage = QStringLiteral("Connecting to ") + ssid + QStringLiteral("…");
+    emit wifiConnectingChanged();
+    emit wifiStatusMessageChanged();
+
     auto *proc = new QProcess(this);
     connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, proc, ssid](int exitCode, QProcess::ExitStatus) {
+            this, [this, proc, ssid, password](int exitCode, QProcess::ExitStatus) {
         if (exitCode == 0) {
             m_connectedWifiSSID = ssid;
+            m_wifiConnecting = false;
+            m_wifiStatusMessage = QStringLiteral("Connected to ") + ssid;
             emit connectedWifiSSIDChanged();
-            emit wifiConnectionResult(true, QStringLiteral("Connected to ") + ssid);
+            emit wifiConnectingChanged();
+            emit wifiStatusMessageChanged();
+            emit wifiConnectionResult(true, m_wifiStatusMessage);
             qDebug() << "[SystemSettings] Wi-Fi connected:" << ssid;
+            proc->deleteLater();
+            return;
+        }
+
+        // Nếu password rỗng (thử reconnect saved) mà thất bại, không báo lỗi ngay
+        // vì có thể mạng chưa lưu → QML sẽ hiện password dialog
+        if (password.isEmpty()) {
+            m_wifiConnecting = false;
+            m_wifiStatusMessage.clear();
+            emit wifiConnectingChanged();
+            emit wifiStatusMessageChanged();
+            // Báo cho QML biết cần nhập mật khẩu
+            emit wifiConnectionResult(false, QStringLiteral("NEED_PASSWORD"));
+            qDebug() << "[SystemSettings] Wi-Fi saved connection not found for:" << ssid;
         } else {
             const QString err = QString::fromUtf8(proc->readAllStandardError()).trimmed();
-            emit wifiConnectionResult(false, err.isEmpty() ? QStringLiteral("Connection failed") : err);
-            qWarning() << "[SystemSettings] Wi-Fi connect failed:" << err;
+            m_wifiConnecting = false;
+            m_wifiStatusMessage = err.isEmpty() ? QStringLiteral("Connection failed")
+                                                : err;
+            emit wifiConnectingChanged();
+            emit wifiStatusMessageChanged();
+            emit wifiConnectionResult(false, m_wifiStatusMessage);
+            qWarning() << "[SystemSettings] Wi-Fi connect failed:" << m_wifiStatusMessage;
         }
         proc->deleteLater();
     });
 
     if (password.isEmpty()) {
-        // Open network or previously saved
+        // Thử kết nối lại bằng saved connection (nmcli con up)
+        // Nếu thất bại, QML sẽ hiện dialog nhập mật khẩu
         proc->start(QStringLiteral("nmcli"),
-            { QStringLiteral("dev"), QStringLiteral("wifi"), QStringLiteral("connect"), ssid });
+            { QStringLiteral("con"), QStringLiteral("up"), ssid });
     } else {
         proc->start(QStringLiteral("nmcli"),
             { QStringLiteral("dev"), QStringLiteral("wifi"), QStringLiteral("connect"), ssid,
@@ -411,33 +451,47 @@ void SystemSettingsController::applyVolumeToSystem(qreal level)
 void SystemSettingsController::applyBrightnessToSystem(qreal level)
 {
 #if defined(Q_OS_LINUX)
-    const int percent = static_cast<int>(level * 100.0);
+    const int percent = qMax(1, static_cast<int>(level * 100.0));
     qDebug() << "[SystemSettings] applying brightness:" << percent << "%";
 
-    if (!m_backlightPath.isEmpty()) {
-        // Ghi trực tiếp vào sysfs – nhanh hơn và không cần cài thêm tool
-        QFile maxFile(m_backlightPath + QStringLiteral("/max_brightness"));
-        int maxBrightness = 255;
-        if (maxFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            maxBrightness = QString::fromUtf8(maxFile.readAll().trimmed()).toInt();
-            maxFile.close();
-        }
-
-        const int value = qMax(1, static_cast<int>(level * maxBrightness));
-        QFile brightnessFile(m_backlightPath + QStringLiteral("/brightness"));
-        if (brightnessFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            brightnessFile.write(QByteArray::number(value));
-            brightnessFile.close();
+    // Ưu tiên dùng brightnessctl (có suid bit, không cần root)
+    // Nếu không có brightnessctl thì ghi trực tiếp sysfs (cần quyền)
+    auto *proc = new QProcess(this);
+    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, proc, level, percent](int exitCode, QProcess::ExitStatus) {
+        if (exitCode != 0) {
+            qWarning() << "[SystemSettings] brightnessctl failed, trying sysfs fallback";
+            // Fallback: ghi trực tiếp sysfs
+            if (!m_backlightPath.isEmpty()) {
+                QFile maxFile(m_backlightPath + QStringLiteral("/max_brightness"));
+                int maxBrightness = 255;
+                if (maxFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                    maxBrightness = QString::fromUtf8(maxFile.readAll().trimmed()).toInt();
+                    maxFile.close();
+                }
+                const int value = qMax(1, static_cast<int>(level * maxBrightness));
+                QFile brightnessFile(m_backlightPath + QStringLiteral("/brightness"));
+                if (brightnessFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                    brightnessFile.write(QByteArray::number(value));
+                    brightnessFile.close();
+                    qDebug() << "[SystemSettings] brightness set via sysfs:" << value << "/" << maxBrightness;
+                } else {
+                    qWarning() << "[SystemSettings] Cannot write brightness sysfs:"
+                               << brightnessFile.errorString()
+                               << "Run: sudo chmod a+w" << (m_backlightPath + "/brightness")
+                               << " or install brightnessctl";
+                }
+            } else {
+                qWarning() << "[SystemSettings] No backlight path found and brightnessctl unavailable.";
+            }
         } else {
-            // Fallback: dùng brightnessctl nếu không ghi sysfs được (cần quyền)
-            QProcess::startDetached(QStringLiteral("brightnessctl"),
-                { QStringLiteral("set"), QStringLiteral("%1%").arg(percent) });
+            qDebug() << "[SystemSettings] brightness set via brightnessctl:" << percent << "%";
         }
-    } else {
-        // Không tìm thấy backlight sysfs, dùng brightnessctl
-        QProcess::startDetached(QStringLiteral("brightnessctl"),
-            { QStringLiteral("set"), QStringLiteral("%1%").arg(percent) });
-    }
+        proc->deleteLater();
+    });
+
+    proc->start(QStringLiteral("brightnessctl"),
+        { QStringLiteral("set"), QStringLiteral("%1%").arg(percent) });
 #else
     Q_UNUSED(level);
 #endif

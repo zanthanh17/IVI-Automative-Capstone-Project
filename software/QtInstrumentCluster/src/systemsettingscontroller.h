@@ -21,6 +21,8 @@ class SystemSettingsController : public QObject
     Q_PROPERTY(qreal brightnessLevel READ brightnessLevel WRITE setBrightnessLevel NOTIFY brightnessLevelChanged)
     Q_PROPERTY(QVariantList wifiNetworks READ wifiNetworks NOTIFY wifiNetworksChanged)
     Q_PROPERTY(QString connectedWifiSSID READ connectedWifiSSID NOTIFY connectedWifiSSIDChanged)
+    Q_PROPERTY(bool wifiConnecting READ wifiConnecting NOTIFY wifiConnectingChanged)
+    Q_PROPERTY(QString wifiStatusMessage READ wifiStatusMessage NOTIFY wifiStatusMessageChanged)
 
 public:
     static SystemSettingsController *instance();
@@ -34,6 +36,8 @@ public:
     qreal brightnessLevel() const;
     QVariantList wifiNetworks() const;
     QString connectedWifiSSID() const;
+    bool wifiConnecting() const;
+    QString wifiStatusMessage() const;
 
 public slots:
     void setWifiEnabled(bool on);
@@ -54,6 +58,8 @@ signals:
     void brightnessLevelChanged();
     void wifiNetworksChanged();
     void connectedWifiSSIDChanged();
+    void wifiConnectingChanged();
+    void wifiStatusMessageChanged();
     void wifiConnectionResult(bool success, const QString &message);
 
 private:
@@ -76,6 +82,8 @@ private:
     qreal m_brightnessLevel;
     QVariantList m_wifiNetworks;
     QString m_connectedWifiSSID;
+    bool m_wifiConnecting = false;
+    QString m_wifiStatusMessage;
 
     QString m_audioBackend;
     QString m_wifiBackend;

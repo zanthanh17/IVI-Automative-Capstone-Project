@@ -12,6 +12,7 @@ NormalModeContentItem {
     property string wifiPasswordInput: ""
     property string selectedWifiSSID: ""
     property bool showPasswordDialog: false
+    property string wifiErrorMessage: ""
 
     Component.onCompleted: {
         SystemSettings.syncFromSystem()
@@ -47,10 +48,19 @@ NormalModeContentItem {
         onWifiConnectionResult: {
             if (success) {
                 console.log("[Setup] Wi-Fi connected:", message)
+                setupRoot.wifiErrorMessage = ""
                 wifiPopupOpen = false
                 showPasswordDialog = false
+            } else if (message === "NEED_PASSWORD") {
+                // Saved connection not found – prompt for password
+                console.log("[Setup] Wi-Fi needs password for:", selectedWifiSSID)
+                showPasswordDialog = true
+                setupRoot.wifiErrorMessage = ""
+                wifiPasswordInput = ""
+                if (passwordInput) passwordInput.text = ""
             } else {
                 console.log("[Setup] Wi-Fi connection failed:", message)
+                setupRoot.wifiErrorMessage = message
             }
         }
     }
@@ -355,12 +365,16 @@ NormalModeContentItem {
                             font.bold: true
                         }
                         Text {
-                            text: showPasswordDialog
-                                  ? selectedWifiSSID
-                                  : (SystemSettings.connectedWifiSSID.length > 0
-                                     ? "Connected: " + SystemSettings.connectedWifiSSID
-                                     : "Select a network")
-                            color: Style.textSecondary
+                            text: {
+                                if (SystemSettings.wifiConnecting)
+                                    return SystemSettings.wifiStatusMessage
+                                if (showPasswordDialog)
+                                    return selectedWifiSSID
+                                if (SystemSettings.connectedWifiSSID.length > 0)
+                                    return "Connected: " + SystemSettings.connectedWifiSSID
+                                return "Select a network"
+                            }
+                            color: SystemSettings.wifiConnecting ? "#FFD600" : Style.textSecondary
                             font.pixelSize: 11
                         }
                     }
@@ -408,27 +422,44 @@ NormalModeContentItem {
                             }
                             MouseArea {
                                 anchors.fill: parent
-                                onClicked: showPasswordDialog = false
+                                onClicked: {
+                                    showPasswordDialog = false
+                                    setupRoot.wifiErrorMessage = ""
+                                }
                             }
                         }
 
                         Rectangle {
                             width: 100; height: 36
                             radius: 12
-                            color: Style.brightBlue
+                            color: SystemSettings.wifiConnecting ? "#888" : Style.brightBlue
+                            opacity: SystemSettings.wifiConnecting ? 0.7 : 1.0
                             Text {
                                 anchors.centerIn: parent
-                                text: "Connect"
+                                text: SystemSettings.wifiConnecting ? "Connecting…" : "Connect"
                                 color: "white"
                                 font.pixelSize: 13
                             }
                             MouseArea {
                                 anchors.fill: parent
+                                enabled: !SystemSettings.wifiConnecting
                                 onClicked: {
+                                    setupRoot.wifiErrorMessage = ""
                                     SystemSettings.connectToWifi(selectedWifiSSID, wifiPasswordInput)
                                 }
                             }
                         }
+                    }
+
+                    // Error message
+                    Text {
+                        visible: setupRoot.wifiErrorMessage.length > 0
+                        text: "⚠ " + setupRoot.wifiErrorMessage
+                        color: "#FF4444"
+                        font.pixelSize: 11
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignHCenter
                     }
                 }
 
@@ -440,6 +471,7 @@ NormalModeContentItem {
                     clip: true
                     model: SystemSettings.wifiNetworks
                     spacing: 2
+                    enabled: !SystemSettings.wifiConnecting
 
                     delegate: Rectangle {
                         width: parent ? parent.width : 0
@@ -488,16 +520,26 @@ NormalModeContentItem {
                             hoverEnabled: true
                             onClicked: {
                                 selectedWifiSSID = modelData.ssid
-                                if (modelData.secured) {
-                                    showPasswordDialog = true
-                                    wifiPasswordInput = ""
-                                    passwordInput.text = ""
-                                } else {
-                                    SystemSettings.connectToWifi(modelData.ssid, "")
-                                }
+                                setupRoot.wifiErrorMessage = ""
+                                // Luôn thử reconnect saved trước (password rỗng)
+                                // Nếu thất bại với NEED_PASSWORD → hiện dialog nhập mật khẩu
+                                SystemSettings.connectToWifi(modelData.ssid, "")
                             }
                         }
                     }
+                }
+
+                // Status bar (connecting / error)
+                Text {
+                    visible: !showPasswordDialog && (SystemSettings.wifiConnecting || setupRoot.wifiErrorMessage.length > 0)
+                    text: SystemSettings.wifiConnecting
+                          ? ("⏳ " + SystemSettings.wifiStatusMessage)
+                          : ("⚠ " + setupRoot.wifiErrorMessage)
+                    color: SystemSettings.wifiConnecting ? "#FFD600" : "#FF4444"
+                    font.pixelSize: 11
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    horizontalAlignment: Text.AlignHCenter
                 }
 
                 // Scan + Disconnect buttons
@@ -661,17 +703,22 @@ NormalModeContentItem {
                         Row {
                             anchors.fill: parent
                             anchors.leftMargin: 10
+                            anchors.rightMargin: 10
                             spacing: 8
 
                             Text {
                                 text: modelData.name || "Unknown"
                                 color: Style.textPrimary
                                 font.pixelSize: 13
+                                elide: Text.ElideRight
+                                width: parent.width * 0.5
                                 anchors.verticalCenter: parent.verticalCenter
                             }
                             Text {
-                                text: modelData.connected ? "Connected" : ""
-                                color: Style.brightBlue
+                                text: modelData.connected ? "Connected"
+                                     : modelData.paired   ? "Paired"
+                                     : ""
+                                color: modelData.connected ? Style.brightBlue : Style.textSecondary
                                 font.pixelSize: 11
                                 anchors.verticalCenter: parent.verticalCenter
                             }
@@ -681,6 +728,15 @@ NormalModeContentItem {
                             id: btDelegateArea
                             anchors.fill: parent
                             hoverEnabled: true
+                            onClicked: {
+                                if (modelData.connected) {
+                                    BluetoothManager.disconnectDevice(modelData.path)
+                                } else if (modelData.paired) {
+                                    BluetoothManager.connectDevice(modelData.path)
+                                } else {
+                                    BluetoothManager.pairDevice(modelData.path)
+                                }
+                            }
                         }
                     }
                 }
