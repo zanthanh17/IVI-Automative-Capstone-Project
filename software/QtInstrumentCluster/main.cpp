@@ -17,6 +17,7 @@
 #include "src/serialreceiver.h"
 #include "src/weatherprovider.h"
 #include "src/osrmrouteprovider.h"
+#include "src/systemsettingscontroller.h"
 
 int main(int argc, char *argv[])
 {
@@ -71,6 +72,11 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonType<ExternalMediaController>("ExternalMedia", 1, 0, "ExternalMedia",
         [](QQmlEngine*, QJSEngine*) -> QObject* {
             return ExternalMediaController::instance();
+        });
+
+    qmlRegisterSingletonType<SystemSettingsController>("SystemSettings", 1, 0, "SystemSettings",
+        [](QQmlEngine*, QJSEngine*) -> QObject* {
+            return SystemSettingsController::instance();
         });
 
     QObject::connect(BluetoothController::instance(), &BluetoothController::deviceConnectionChanged,

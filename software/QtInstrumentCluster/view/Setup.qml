@@ -1,6 +1,8 @@
 import QtQuick 2.12
 import Style 1.0
 import NormalModeModel 1.0
+import BluetoothManager 1.0
+import SystemSettings 1.0
 
 NormalModeContentItem {
     id: setupRoot
@@ -8,6 +10,34 @@ NormalModeContentItem {
     // Local UI state for popups
     property bool wifiPopupOpen: false
     property bool bluetoothPopupOpen: false
+
+    Component.onCompleted: {
+        // Đồng bộ trạng thái ban đầu từ controllers hệ thống
+        NormalModeModel.bluetoothEnabled = BluetoothManager.powered
+        NormalModeModel.wifiEnabled = SystemSettings.wifiEnabled
+        NormalModeModel.volumeLevel = SystemSettings.volumeLevel
+        NormalModeModel.brightnessLevel = SystemSettings.brightnessLevel
+    }
+
+    Connections {
+        target: BluetoothManager
+        onPoweredChanged: {
+            NormalModeModel.bluetoothEnabled = BluetoothManager.powered
+        }
+    }
+
+    Connections {
+        target: SystemSettings
+        onWifiEnabledChanged: {
+            NormalModeModel.wifiEnabled = SystemSettings.wifiEnabled
+        }
+        onVolumeLevelChanged: {
+            NormalModeModel.volumeLevel = SystemSettings.volumeLevel
+        }
+        onBrightnessLevelChanged: {
+            NormalModeModel.brightnessLevel = SystemSettings.brightnessLevel
+        }
+    }
 
     Column {
         anchors.verticalCenter: parent.verticalCenter
@@ -87,6 +117,7 @@ NormalModeContentItem {
                     onClicked: {
                         if (!NormalModeModel.wifiEnabled) {
                             NormalModeModel.wifiEnabled = true
+                            SystemSettings.wifiEnabled = true
                         } else {
                             setupRoot.wifiPopupOpen = true
                         }
@@ -126,6 +157,7 @@ NormalModeContentItem {
                     onClicked: {
                         if (!NormalModeModel.bluetoothEnabled) {
                             NormalModeModel.bluetoothEnabled = true
+                            BluetoothManager.setPowered(true)
                         } else {
                             setupRoot.bluetoothPopupOpen = true
                         }
@@ -168,10 +200,12 @@ NormalModeContentItem {
                         onPositionChanged: if (pressed) {
                             var v = (mouse.x / volumeTrack.width)
                             NormalModeModel.volumeLevel = Math.max(0, Math.min(1, v))
+                            SystemSettings.volumeLevel = NormalModeModel.volumeLevel
                         }
                         onPressed: {
                             var v = (mouse.x / volumeTrack.width)
                             NormalModeModel.volumeLevel = Math.max(0, Math.min(1, v))
+                            SystemSettings.volumeLevel = NormalModeModel.volumeLevel
                         }
                     }
                 }
@@ -206,10 +240,12 @@ NormalModeContentItem {
                         onPositionChanged: if (pressed) {
                             var v = (mouse.x / brightnessTrack.width)
                             NormalModeModel.brightnessLevel = Math.max(0, Math.min(1, v))
+                            SystemSettings.brightnessLevel = NormalModeModel.brightnessLevel
                         }
                         onPressed: {
                             var v = (mouse.x / brightnessTrack.width)
                             NormalModeModel.brightnessLevel = Math.max(0, Math.min(1, v))
+                            SystemSettings.brightnessLevel = NormalModeModel.brightnessLevel
                         }
                     }
                 }

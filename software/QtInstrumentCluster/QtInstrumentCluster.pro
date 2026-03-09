@@ -35,6 +35,7 @@ SOURCES += \
         src/mainmodel.cpp \
         src/osrmrouteprovider.cpp \
         src/serialreceiver.cpp \
+        src/systemsettingscontroller.cpp \
         src/weatherprovider.cpp
 
 RESOURCES += qml.qrc
@@ -62,4 +63,5 @@ HEADERS += \
     src/mathutils.h \
     src/osrmrouteprovider.h \
     src/serialreceiver.h \
-    src/weatherprovider.h
+    src/weatherprovider.h \
+    src/systemsettingscontroller.h

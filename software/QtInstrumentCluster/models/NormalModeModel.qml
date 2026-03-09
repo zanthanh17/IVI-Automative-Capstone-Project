@@ -7,7 +7,8 @@ QtObject {
     enum Menu { MediaPlayerMenu, NavigationMenu, WeatherMenu, BluetoothMenu, CarStatusMenu, MenuCount }
     property int menu: NormalModeModel.MediaPlayerMenu
 
-    // Quick-controls / system settings (used by Setup page + status row)
+    // Quick-controls / system settings (mirrors of SystemSettingsController properties)
+    // QML Setup page sẽ cập nhật đồng thời cả NormalModeModel.* và SystemSettings.*.
     property bool quickControlsEnabled: true
     property bool wifiEnabled: true
     property bool bluetoothEnabled: true
