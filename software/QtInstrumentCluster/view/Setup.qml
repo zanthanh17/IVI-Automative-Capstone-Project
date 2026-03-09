@@ -297,6 +297,237 @@ NormalModeContentItem {
                 }
             }
         }
+
+        // ==================== Power controls ====================
+        Rectangle {
+            width: parent.width
+            height: 1
+            color: "#333"
+        }
+
+        Row {
+            spacing: 10
+            Image {
+                source: "qrc:/images/others/power.png"
+                width: 22; height: 22
+                fillMode: Image.PreserveAspectFit
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Text {
+                text: "Power"
+                color: Style.textPrimary
+                font.pixelSize: 14
+                font.bold: true
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
+        Row {
+            spacing: 12
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            // Reboot
+            Rectangle {
+                width: 110; height: 38
+                radius: 12
+                color: powerRebootArea.containsMouse ? "#555" : "#3a3a3a"
+
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 6
+                    Text {
+                        text: "🔄"
+                        font.pixelSize: 14
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: "Reboot"
+                        color: "white"
+                        font.pixelSize: 13
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                MouseArea {
+                    id: powerRebootArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: powerConfirmDialog.show("reboot")
+                }
+            }
+
+            // Shutdown
+            Rectangle {
+                width: 120; height: 38
+                radius: 12
+                color: powerShutdownArea.containsMouse ? "#6a2222" : "#4a2222"
+
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 6
+                    Text {
+                        text: "⏻"
+                        font.pixelSize: 14
+                        color: "#FF4444"
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: "Shutdown"
+                        color: "#FF6666"
+                        font.pixelSize: 13
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                MouseArea {
+                    id: powerShutdownArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: powerConfirmDialog.show("shutdown")
+                }
+            }
+
+            // Restart App
+            Rectangle {
+                width: 130; height: 38
+                radius: 12
+                color: powerRestartArea.containsMouse ? "#555" : "#3a3a3a"
+
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 6
+                    Text {
+                        text: "↺"
+                        font.pixelSize: 16
+                        color: Style.brightBlue
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: "Restart App"
+                        color: "white"
+                        font.pixelSize: 13
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                MouseArea {
+                    id: powerRestartArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: powerConfirmDialog.show("restart")
+                }
+            }
+        }
+    }
+
+    // ==================== Power confirm dialog ====================
+    Item {
+        id: powerConfirmDialog
+        anchors.fill: parent
+        visible: false
+        z: 60
+
+        property string action: ""
+
+        function show(act) {
+            action = act
+            visible = true
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: "#AA000000"
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: powerConfirmDialog.visible = false
+            }
+
+            Rectangle {
+                width: 300; height: 160
+                radius: 20
+                color: Style.backgroundPanelSoft
+                anchors.centerIn: parent
+
+                MouseArea { anchors.fill: parent }
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 16
+
+                    Text {
+                        text: {
+                            if (powerConfirmDialog.action === "reboot") return "Reboot system?"
+                            if (powerConfirmDialog.action === "shutdown") return "Shutdown system?"
+                            return "Restart application?"
+                        }
+                        color: Style.textPrimary
+                        font.pixelSize: 16
+                        font.bold: true
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+
+                    Text {
+                        text: {
+                            if (powerConfirmDialog.action === "shutdown")
+                                return "The system will power off."
+                            if (powerConfirmDialog.action === "reboot")
+                                return "The system will restart."
+                            return "The app will close and relaunch."
+                        }
+                        color: Style.textSecondary
+                        font.pixelSize: 12
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+
+                    Row {
+                        spacing: 16
+                        anchors.horizontalCenter: parent.horizontalCenter
+
+                        Rectangle {
+                            width: 100; height: 36
+                            radius: 12
+                            color: "#666"
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Cancel"
+                                color: "white"
+                                font.pixelSize: 13
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: powerConfirmDialog.visible = false
+                            }
+                        }
+
+                        Rectangle {
+                            width: 100; height: 36
+                            radius: 12
+                            color: powerConfirmDialog.action === "shutdown" ? "#cc3333" : Style.brightBlue
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Confirm"
+                                color: "white"
+                                font.pixelSize: 13
+                                font.bold: true
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    powerConfirmDialog.visible = false
+                                    if (powerConfirmDialog.action === "reboot")
+                                        SystemSettings.systemReboot()
+                                    else if (powerConfirmDialog.action === "shutdown")
+                                        SystemSettings.systemShutdown()
+                                    else
+                                        SystemSettings.restartApp()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // ==================== Wi-Fi popup overlay ====================

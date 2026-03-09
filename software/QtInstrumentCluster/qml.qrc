@@ -60,6 +60,7 @@
         <file>images/others/brightness.svg</file>
         <file>images/others/bluetooth.svg</file>
         <file>images/others/wifi.png</file>
+        <file>images/others/power.png</file>
         <file>models/NormalModeModel.qml</file>
         <file>images/albums/ak.png</file>
         <file>images/albums/juno.png</file>

@@ -1,6 +1,7 @@
 #include "systemsettingscontroller.h"
 
 #include <QDebug>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QRegularExpression>
@@ -9,6 +10,8 @@
 #if defined(Q_OS_LINUX)
 #include <QProcess>
 #include <QTimer>
+#include <unistd.h>   // write(), close(), lseek()
+#include <fcntl.h>     // open(), O_WRONLY
 #endif
 
 // ────────────────────────── Singleton ──────────────────────────
@@ -35,15 +38,44 @@ SystemSettingsController::SystemSettingsController(QObject *parent)
     m_audioBackend  = detectAudioBackend();
     m_wifiBackend   = detectWifiBackend();
     m_backlightPath = findBacklightPath();
+    m_maxBrightness = readMaxBrightness();
 
     qDebug() << "[SystemSettings] audio backend :" << m_audioBackend;
     qDebug() << "[SystemSettings] wifi  backend :" << m_wifiBackend;
-    qDebug() << "[SystemSettings] backlight path:" << m_backlightPath;
+    qDebug() << "[SystemSettings] backlight path:" << m_backlightPath
+             << " max:" << m_maxBrightness;
 
-    // Periodic sync timer – reads real state every 5 s so UI stays up-to-date
-    // when user changes settings outside the dashboard (e.g. via terminal)
+    // Open persistent fd for brightness sysfs (zero-latency writes)
+    openBrightnessFd();
+
+    // ── Throttle timers ──
+    // Volume: gom nhiều thay đổi slider lại, chỉ gọi pactl/amixer 1 lần sau 50 ms
+    m_volumeThrottle = new QTimer(this);
+    m_volumeThrottle->setSingleShot(true);
+    m_volumeThrottle->setInterval(50);
+    connect(m_volumeThrottle, &QTimer::timeout, this, [this]() {
+        if (m_pendingVolume >= 0.0) {
+            applyVolumeToSystem(m_pendingVolume);
+            m_pendingVolume = -1.0;
+        }
+    });
+
+    // Brightness: ghi sysfs trực tiếp nên rất nhanh, nhưng vẫn throttle 30 ms
+    // để tránh flood syscall trên Pi
+    m_brightnessThrottle = new QTimer(this);
+    m_brightnessThrottle->setSingleShot(true);
+    m_brightnessThrottle->setInterval(30);
+    connect(m_brightnessThrottle, &QTimer::timeout, this, [this]() {
+        if (m_pendingBrightness >= 0.0) {
+            applyBrightnessToSystem(m_pendingBrightness);
+            m_pendingBrightness = -1.0;
+        }
+    });
+
+    // Periodic sync timer – reads real state every 10 s (increased from 5 s)
+    // syncFromSystem runs blocking QProcess calls, 10 s is gentler on Pi CPU
     m_syncTimer = new QTimer(this);
-    m_syncTimer->setInterval(5000);
+    m_syncTimer->setInterval(10000);
     connect(m_syncTimer, &QTimer::timeout, this, &SystemSettingsController::syncFromSystem);
     m_syncTimer->start();
 #endif
@@ -56,50 +88,21 @@ SystemSettingsController::~SystemSettingsController()
         m_scanProcess->kill();
         m_scanProcess->waitForFinished(500);
     }
+    if (m_brightnessFd >= 0)
+        ::close(m_brightnessFd);
 #endif
 }
 
 // ────────────────────────── Property getters ──────────────────────────
 
-bool SystemSettingsController::wifiEnabled() const
-{
-    return m_wifiEnabled;
-}
-
-bool SystemSettingsController::bluetoothEnabled() const
-{
-    return m_bluetoothEnabled;
-}
-
-qreal SystemSettingsController::volumeLevel() const
-{
-    return m_volumeLevel;
-}
-
-qreal SystemSettingsController::brightnessLevel() const
-{
-    return m_brightnessLevel;
-}
-
-QVariantList SystemSettingsController::wifiNetworks() const
-{
-    return m_wifiNetworks;
-}
-
-QString SystemSettingsController::connectedWifiSSID() const
-{
-    return m_connectedWifiSSID;
-}
-
-bool SystemSettingsController::wifiConnecting() const
-{
-    return m_wifiConnecting;
-}
-
-QString SystemSettingsController::wifiStatusMessage() const
-{
-    return m_wifiStatusMessage;
-}
+bool SystemSettingsController::wifiEnabled() const           { return m_wifiEnabled; }
+bool SystemSettingsController::bluetoothEnabled() const      { return m_bluetoothEnabled; }
+qreal SystemSettingsController::volumeLevel() const          { return m_volumeLevel; }
+qreal SystemSettingsController::brightnessLevel() const      { return m_brightnessLevel; }
+QVariantList SystemSettingsController::wifiNetworks() const  { return m_wifiNetworks; }
+QString SystemSettingsController::connectedWifiSSID() const  { return m_connectedWifiSSID; }
+bool SystemSettingsController::wifiConnecting() const        { return m_wifiConnecting; }
+QString SystemSettingsController::wifiStatusMessage() const  { return m_wifiStatusMessage; }
 
 // ────────────────────────── Property setters ──────────────────────────
 
@@ -107,10 +110,8 @@ void SystemSettingsController::setWifiEnabled(bool on)
 {
     if (m_wifiEnabled == on)
         return;
-
     m_wifiEnabled = on;
     emit wifiEnabledChanged();
-
     applyWifiToSystem(on);
 }
 
@@ -118,10 +119,8 @@ void SystemSettingsController::setBluetoothEnabled(bool on)
 {
     if (m_bluetoothEnabled == on)
         return;
-
     m_bluetoothEnabled = on;
     emit bluetoothEnabledChanged();
-
     applyBluetoothToSystem(on);
 }
 
@@ -134,7 +133,13 @@ void SystemSettingsController::setVolumeLevel(qreal level)
     m_volumeLevel = clamped;
     emit volumeLevelChanged();
 
+#if defined(Q_OS_LINUX)
+    // Throttle: chỉ gọi pactl/amixer sau khi slider ngừng thay đổi 50 ms
+    m_pendingVolume = clamped;
+    m_volumeThrottle->start();
+#else
     applyVolumeToSystem(clamped);
+#endif
 }
 
 void SystemSettingsController::setBrightnessLevel(qreal level)
@@ -146,7 +151,42 @@ void SystemSettingsController::setBrightnessLevel(qreal level)
     m_brightnessLevel = clamped;
     emit brightnessLevelChanged();
 
+#if defined(Q_OS_LINUX)
+    // Throttle: ghi sysfs sau 30 ms (đủ nhanh cho cảm giác real-time)
+    m_pendingBrightness = clamped;
+    m_brightnessThrottle->start();
+#else
     applyBrightnessToSystem(clamped);
+#endif
+}
+
+// ────────────────────────── Power management ──────────────────────────
+
+void SystemSettingsController::systemReboot()
+{
+#if defined(Q_OS_LINUX)
+    qDebug() << "[SystemSettings] REBOOT requested";
+    QProcess::startDetached(QStringLiteral("systemctl"), { QStringLiteral("reboot") });
+#endif
+}
+
+void SystemSettingsController::systemShutdown()
+{
+#if defined(Q_OS_LINUX)
+    qDebug() << "[SystemSettings] SHUTDOWN requested";
+    QProcess::startDetached(QStringLiteral("systemctl"), { QStringLiteral("poweroff") });
+#endif
+}
+
+void SystemSettingsController::restartApp()
+{
+#if defined(Q_OS_LINUX)
+    qDebug() << "[SystemSettings] RESTART APP requested";
+    // Lấy đường dẫn binary hiện tại, khởi động lại rồi thoát
+    const QString appPath = QCoreApplication::applicationFilePath();
+    QProcess::startDetached(appPath, QCoreApplication::arguments());
+    QCoreApplication::quit();
+#endif
 }
 
 // ────────────────────────── Wi-Fi scan / connect / disconnect ──────────────────────────
@@ -174,13 +214,11 @@ void SystemSettingsController::scanWifiNetworks()
         const QString output = QString::fromUtf8(m_scanProcess->readAllStandardOutput());
         QVariantList networks;
 
-        // Parse nmcli output: SSID:SIGNAL:SECURITY:ACTIVE
         const QStringList lines = output.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
         for (const QString &line : lines) {
             const QStringList fields = line.split(QLatin1Char(':'));
             if (fields.size() < 4)
                 continue;
-
             const QString ssid = fields[0].trimmed();
             if (ssid.isEmpty() || ssid == QStringLiteral("--"))
                 continue;
@@ -192,25 +230,19 @@ void SystemSettingsController::scanWifiNetworks()
                                               && fields[2].trimmed() != QStringLiteral("--");
             net[QStringLiteral("active")]   = fields[3].trimmed() == QStringLiteral("yes");
 
-            if (net[QStringLiteral("active")].toBool()) {
-                const QString newSSID = ssid;
-                if (m_connectedWifiSSID != newSSID) {
-                    m_connectedWifiSSID = newSSID;
-                    emit connectedWifiSSIDChanged();
-                }
+            if (net[QStringLiteral("active")].toBool() && m_connectedWifiSSID != ssid) {
+                m_connectedWifiSSID = ssid;
+                emit connectedWifiSSIDChanged();
             }
-
             networks.append(net);
         }
 
         m_wifiNetworks = networks;
         emit wifiNetworksChanged();
-
         m_scanProcess->deleteLater();
         m_scanProcess = nullptr;
     });
 
-    // nmcli: terse, fields SSID,SIGNAL,SECURITY,ACTIVE
     m_scanProcess->start(QStringLiteral("nmcli"),
         { QStringLiteral("-t"), QStringLiteral("-f"),
           QStringLiteral("SSID,SIGNAL,SECURITY,ACTIVE"),
@@ -224,7 +256,6 @@ void SystemSettingsController::connectToWifi(const QString &ssid, const QString 
 #if defined(Q_OS_LINUX)
     qDebug() << "[SystemSettings] connecting to Wi-Fi:" << ssid;
 
-    // --- Set connecting status ---
     m_wifiConnecting = true;
     m_wifiStatusMessage = QStringLiteral("Connecting to ") + ssid + QStringLiteral("…");
     emit wifiConnectingChanged();
@@ -241,37 +272,27 @@ void SystemSettingsController::connectToWifi(const QString &ssid, const QString 
             emit wifiConnectingChanged();
             emit wifiStatusMessageChanged();
             emit wifiConnectionResult(true, m_wifiStatusMessage);
-            qDebug() << "[SystemSettings] Wi-Fi connected:" << ssid;
             proc->deleteLater();
             return;
         }
-
-        // Nếu password rỗng (thử reconnect saved) mà thất bại, không báo lỗi ngay
-        // vì có thể mạng chưa lưu → QML sẽ hiện password dialog
         if (password.isEmpty()) {
             m_wifiConnecting = false;
             m_wifiStatusMessage.clear();
             emit wifiConnectingChanged();
             emit wifiStatusMessageChanged();
-            // Báo cho QML biết cần nhập mật khẩu
             emit wifiConnectionResult(false, QStringLiteral("NEED_PASSWORD"));
-            qDebug() << "[SystemSettings] Wi-Fi saved connection not found for:" << ssid;
         } else {
             const QString err = QString::fromUtf8(proc->readAllStandardError()).trimmed();
             m_wifiConnecting = false;
-            m_wifiStatusMessage = err.isEmpty() ? QStringLiteral("Connection failed")
-                                                : err;
+            m_wifiStatusMessage = err.isEmpty() ? QStringLiteral("Connection failed") : err;
             emit wifiConnectingChanged();
             emit wifiStatusMessageChanged();
             emit wifiConnectionResult(false, m_wifiStatusMessage);
-            qWarning() << "[SystemSettings] Wi-Fi connect failed:" << m_wifiStatusMessage;
         }
         proc->deleteLater();
     });
 
     if (password.isEmpty()) {
-        // Thử kết nối lại bằng saved connection (nmcli con up)
-        // Nếu thất bại, QML sẽ hiện dialog nhập mật khẩu
         proc->start(QStringLiteral("nmcli"),
             { QStringLiteral("con"), QStringLiteral("up"), ssid });
     } else {
@@ -280,8 +301,7 @@ void SystemSettingsController::connectToWifi(const QString &ssid, const QString 
               QStringLiteral("password"), password });
     }
 #else
-    Q_UNUSED(ssid);
-    Q_UNUSED(password);
+    Q_UNUSED(ssid); Q_UNUSED(password);
     emit wifiConnectionResult(false, QStringLiteral("Not supported on this platform"));
 #endif
 }
@@ -297,49 +317,41 @@ void SystemSettingsController::disconnectWifi()
         emit connectedWifiSSIDChanged();
         proc->deleteLater();
     });
-
-    // Tìm interface wifi đang hoạt động rồi disconnect
-    // Cách đơn giản: nmcli dev disconnect wlan0 (thường là wlan0 trên Pi)
     proc->start(QStringLiteral("nmcli"),
         { QStringLiteral("dev"), QStringLiteral("disconnect"), QStringLiteral("wlan0") });
 #endif
 }
 
 // ────────────────────────── syncFromSystem ──────────────────────────
-// Đọc trạng thái thật từ OS và cập nhật vào dashboard
 
 void SystemSettingsController::syncFromSystem()
 {
 #if defined(Q_OS_LINUX)
-    // --- Wi-Fi ---
     const bool sysWifi = readSystemWifiState();
     if (m_wifiEnabled != sysWifi) {
         m_wifiEnabled = sysWifi;
         emit wifiEnabledChanged();
     }
 
-    // --- Bluetooth ---
     const bool sysBt = readSystemBluetoothState();
     if (m_bluetoothEnabled != sysBt) {
         m_bluetoothEnabled = sysBt;
         emit bluetoothEnabledChanged();
     }
 
-    // --- Volume ---
     const qreal sysVol = readSystemVolume();
     if (sysVol >= 0.0 && !qFuzzyCompare(m_volumeLevel, sysVol)) {
         m_volumeLevel = sysVol;
         emit volumeLevelChanged();
     }
 
-    // --- Brightness ---
     const qreal sysBright = readSystemBrightness();
     if (sysBright >= 0.0 && !qFuzzyCompare(m_brightnessLevel, sysBright)) {
         m_brightnessLevel = sysBright;
         emit brightnessLevelChanged();
     }
 
-    // --- Connected SSID ---
+    // Connected SSID
     {
         QProcess proc;
         proc.start(QStringLiteral("nmcli"), {
@@ -347,13 +359,12 @@ void SystemSettingsController::syncFromSystem()
             QStringLiteral("NAME,TYPE,DEVICE"),
             QStringLiteral("con"), QStringLiteral("show"), QStringLiteral("--active")
         });
-        proc.waitForFinished(3000);
+        proc.waitForFinished(2000);
 
         QString ssid;
         const QString output = QString::fromUtf8(proc.readAllStandardOutput());
         const QStringList lines = output.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
         for (const QString &line : lines) {
-            // NAME:TYPE:DEVICE  – chỉ lấy dòng wifi
             const QStringList parts = line.split(QLatin1Char(':'));
             if (parts.size() >= 3) {
                 const QString type   = parts[1].trimmed();
@@ -365,7 +376,6 @@ void SystemSettingsController::syncFromSystem()
                 }
             }
         }
-
         if (m_connectedWifiSSID != ssid) {
             m_connectedWifiSSID = ssid;
             emit connectedWifiSSIDChanged();
@@ -379,17 +389,15 @@ void SystemSettingsController::syncFromSystem()
 void SystemSettingsController::applyWifiToSystem(bool on)
 {
 #if defined(Q_OS_LINUX)
-    const QString state = on ? QStringLiteral("on") : QStringLiteral("off");
-    qDebug() << "[SystemSettings] applying Wi-Fi state:" << on;
-
+    qDebug() << "[SystemSettings] Wi-Fi:" << on;
     if (m_wifiBackend == QStringLiteral("nmcli")) {
         QProcess::startDetached(QStringLiteral("nmcli"),
-            { QStringLiteral("radio"), QStringLiteral("wifi"), state });
+            { QStringLiteral("radio"), QStringLiteral("wifi"),
+              on ? QStringLiteral("on") : QStringLiteral("off") });
     } else {
-        // rfkill fallback
-        const QString action = on ? QStringLiteral("unblock") : QStringLiteral("block");
         QProcess::startDetached(QStringLiteral("rfkill"),
-            { action, QStringLiteral("wifi") });
+            { on ? QStringLiteral("unblock") : QStringLiteral("block"),
+              QStringLiteral("wifi") });
     }
 #else
     Q_UNUSED(on);
@@ -399,25 +407,16 @@ void SystemSettingsController::applyWifiToSystem(bool on)
 void SystemSettingsController::applyBluetoothToSystem(bool on)
 {
 #if defined(Q_OS_LINUX)
-    qDebug() << "[SystemSettings] applying Bluetooth state:" << on;
-
-    // Dùng bluetoothctl hoặc rfkill
+    qDebug() << "[SystemSettings] Bluetooth:" << on;
     if (on) {
         QProcess::startDetached(QStringLiteral("rfkill"),
             { QStringLiteral("unblock"), QStringLiteral("bluetooth") });
-        // bluetoothctl power on
-        auto *proc = new QProcess();
-        connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                proc, &QProcess::deleteLater);
-        proc->start(QStringLiteral("bluetoothctl"),
-            { QStringLiteral("power"), QStringLiteral("on") });
-    } else {
-        auto *proc = new QProcess();
-        connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                proc, &QProcess::deleteLater);
-        proc->start(QStringLiteral("bluetoothctl"),
-            { QStringLiteral("power"), QStringLiteral("off") });
     }
+    auto *proc = new QProcess();
+    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            proc, &QProcess::deleteLater);
+    proc->start(QStringLiteral("bluetoothctl"),
+        { QStringLiteral("power"), on ? QStringLiteral("on") : QStringLiteral("off") });
 #else
     Q_UNUSED(on);
 #endif
@@ -427,18 +426,11 @@ void SystemSettingsController::applyVolumeToSystem(qreal level)
 {
 #if defined(Q_OS_LINUX)
     const int percent = static_cast<int>(level * 100.0);
-    qDebug() << "[SystemSettings] applying volume:" << percent << "%";
-
     if (m_audioBackend == QStringLiteral("pactl")) {
         QProcess::startDetached(QStringLiteral("pactl"),
             { QStringLiteral("set-sink-volume"), QStringLiteral("@DEFAULT_SINK@"),
               QStringLiteral("%1%").arg(percent) });
-    } else if (m_audioBackend == QStringLiteral("amixer")) {
-        QProcess::startDetached(QStringLiteral("amixer"),
-            { QStringLiteral("sset"), QStringLiteral("Master"),
-              QStringLiteral("%1%").arg(percent) });
     } else {
-        // Fallback: try amixer anyway
         QProcess::startDetached(QStringLiteral("amixer"),
             { QStringLiteral("sset"), QStringLiteral("Master"),
               QStringLiteral("%1%").arg(percent) });
@@ -451,46 +443,49 @@ void SystemSettingsController::applyVolumeToSystem(qreal level)
 void SystemSettingsController::applyBrightnessToSystem(qreal level)
 {
 #if defined(Q_OS_LINUX)
-    const int percent = qMax(1, static_cast<int>(level * 100.0));
-    qDebug() << "[SystemSettings] applying brightness:" << percent << "%";
+    const int value = qMax(1, static_cast<int>(level * qMax(1, m_maxBrightness)));
 
-    // Ưu tiên dùng brightnessctl (có suid bit, không cần root)
-    // Nếu không có brightnessctl thì ghi trực tiếp sysfs (cần quyền)
-    auto *proc = new QProcess(this);
-    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, proc, level, percent](int exitCode, QProcess::ExitStatus) {
-        if (exitCode != 0) {
-            qWarning() << "[SystemSettings] brightnessctl failed, trying sysfs fallback";
-            // Fallback: ghi trực tiếp sysfs
-            if (!m_backlightPath.isEmpty()) {
-                QFile maxFile(m_backlightPath + QStringLiteral("/max_brightness"));
-                int maxBrightness = 255;
-                if (maxFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                    maxBrightness = QString::fromUtf8(maxFile.readAll().trimmed()).toInt();
-                    maxFile.close();
+    // ── Fast path: direct sysfs write via cached fd (< 0.1 ms) ──
+    if (m_brightnessFd >= 0) {
+        QByteArray data = QByteArray::number(value);
+        // seek to beginning and write
+        if (::lseek(m_brightnessFd, 0, SEEK_SET) == 0) {
+            ssize_t written = ::write(m_brightnessFd, data.constData(), data.size());
+            if (written > 0) {
+                // Truncate file to new data length (handles shorter numbers)
+                if (::ftruncate(m_brightnessFd, data.size()) != 0) {
+                    // non-fatal
                 }
-                const int value = qMax(1, static_cast<int>(level * maxBrightness));
-                QFile brightnessFile(m_backlightPath + QStringLiteral("/brightness"));
-                if (brightnessFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                    brightnessFile.write(QByteArray::number(value));
-                    brightnessFile.close();
-                    qDebug() << "[SystemSettings] brightness set via sysfs:" << value << "/" << maxBrightness;
-                } else {
-                    qWarning() << "[SystemSettings] Cannot write brightness sysfs:"
-                               << brightnessFile.errorString()
-                               << "Run: sudo chmod a+w" << (m_backlightPath + "/brightness")
-                               << " or install brightnessctl";
-                }
-            } else {
-                qWarning() << "[SystemSettings] No backlight path found and brightnessctl unavailable.";
+                return;
             }
-        } else {
-            qDebug() << "[SystemSettings] brightness set via brightnessctl:" << percent << "%";
         }
-        proc->deleteLater();
-    });
+        qWarning() << "[SystemSettings] sysfs fd write failed, retrying open…";
+        ::close(m_brightnessFd);
+        m_brightnessFd = -1;
+        openBrightnessFd();
+        if (m_brightnessFd >= 0) {
+            ::lseek(m_brightnessFd, 0, SEEK_SET);
+            QByteArray d2 = QByteArray::number(value);
+            ::write(m_brightnessFd, d2.constData(), d2.size());
+            ::ftruncate(m_brightnessFd, d2.size());
+            return;
+        }
+    }
 
-    proc->start(QStringLiteral("brightnessctl"),
+    // ── Fallback: QFile write (slightly slower, needs permissions) ──
+    if (!m_backlightPath.isEmpty()) {
+        QFile f(m_backlightPath + QStringLiteral("/brightness"));
+        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            f.write(QByteArray::number(value));
+            f.close();
+            return;
+        }
+        qWarning() << "[SystemSettings] QFile write failed:" << f.errorString();
+    }
+
+    // ── Last resort: brightnessctl (spawns process, ~50 ms) ──
+    const int percent = qMax(1, static_cast<int>(level * 100.0));
+    QProcess::startDetached(QStringLiteral("brightnessctl"),
         { QStringLiteral("set"), QStringLiteral("%1%").arg(percent) });
 #else
     Q_UNUSED(level);
@@ -502,22 +497,12 @@ void SystemSettingsController::applyBrightnessToSystem(qreal level)
 QString SystemSettingsController::detectAudioBackend() const
 {
 #if defined(Q_OS_LINUX)
-    // Thử pactl trước (PulseAudio / PipeWire-pulse)
-    {
-        QProcess proc;
-        proc.start(QStringLiteral("pactl"), { QStringLiteral("info") });
-        proc.waitForFinished(2000);
-        if (proc.exitCode() == 0)
-            return QStringLiteral("pactl");
-    }
-    // Nếu không, amixer (ALSA)
-    {
-        QProcess proc;
-        proc.start(QStringLiteral("amixer"), { QStringLiteral("sget"), QStringLiteral("Master") });
-        proc.waitForFinished(2000);
-        if (proc.exitCode() == 0)
-            return QStringLiteral("amixer");
-    }
+    { QProcess p; p.start(QStringLiteral("pactl"), {QStringLiteral("info")});
+      p.waitForFinished(1500);
+      if (p.exitCode() == 0) return QStringLiteral("pactl"); }
+    { QProcess p; p.start(QStringLiteral("amixer"), {QStringLiteral("sget"), QStringLiteral("Master")});
+      p.waitForFinished(1500);
+      if (p.exitCode() == 0) return QStringLiteral("amixer"); }
 #endif
     return QStringLiteral("none");
 }
@@ -525,14 +510,9 @@ QString SystemSettingsController::detectAudioBackend() const
 QString SystemSettingsController::detectWifiBackend() const
 {
 #if defined(Q_OS_LINUX)
-    {
-        QProcess proc;
-        proc.start(QStringLiteral("nmcli"), { QStringLiteral("--version") });
-        proc.waitForFinished(2000);
-        if (proc.exitCode() == 0)
-            return QStringLiteral("nmcli");
-    }
-    // rfkill luôn có sẵn trên Pi
+    { QProcess p; p.start(QStringLiteral("nmcli"), {QStringLiteral("--version")});
+      p.waitForFinished(1500);
+      if (p.exitCode() == 0) return QStringLiteral("nmcli"); }
     return QStringLiteral("rfkill");
 #else
     return QStringLiteral("none");
@@ -542,22 +522,51 @@ QString SystemSettingsController::detectWifiBackend() const
 QString SystemSettingsController::findBacklightPath() const
 {
 #if defined(Q_OS_LINUX)
-    // Tìm backlight device đầu tiên trong /sys/class/backlight
+    // Ưu tiên: rpi_backlight (official 7" touchscreen)
+    for (const QString &name : { QStringLiteral("rpi_backlight"),
+                                  QStringLiteral("10-0045") }) {
+        const QString path = QStringLiteral("/sys/class/backlight/") + name;
+        if (QDir(path).exists())
+            return path;
+    }
+    // Scan tất cả backlight device
     QDir blDir(QStringLiteral("/sys/class/backlight"));
     const QStringList entries = blDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-    if (!entries.isEmpty()) {
+    if (!entries.isEmpty())
         return blDir.absoluteFilePath(entries.first());
-    }
-    // Fallback: Raspberry Pi official touchscreen
-    const QString rpiPath = QStringLiteral("/sys/class/backlight/rpi_backlight");
-    if (QDir(rpiPath).exists())
-        return rpiPath;
-    // Thêm fallback cho 10-inch
-    const QString bl10 = QStringLiteral("/sys/class/backlight/10-0045");
-    if (QDir(bl10).exists())
-        return bl10;
 #endif
     return QString();
+}
+
+int SystemSettingsController::readMaxBrightness() const
+{
+#if defined(Q_OS_LINUX)
+    if (m_backlightPath.isEmpty())
+        return -1;
+    QFile f(m_backlightPath + QStringLiteral("/max_brightness"));
+    if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        int val = QString::fromUtf8(f.readAll().trimmed()).toInt();
+        f.close();
+        return val > 0 ? val : -1;
+    }
+#endif
+    return -1;
+}
+
+void SystemSettingsController::openBrightnessFd()
+{
+#if defined(Q_OS_LINUX)
+    if (m_backlightPath.isEmpty() || m_maxBrightness <= 0)
+        return;
+    const QString path = m_backlightPath + QStringLiteral("/brightness");
+    m_brightnessFd = ::open(path.toLocal8Bit().constData(), O_WRONLY);
+    if (m_brightnessFd < 0) {
+        qWarning() << "[SystemSettings] Cannot open brightness fd:" << path
+                   << "— Run setup_brightness.sh or: sudo chmod a+w" << path;
+    } else {
+        qDebug() << "[SystemSettings] brightness fd opened:" << path << "fd=" << m_brightnessFd;
+    }
+#endif
 }
 
 // ────────────────────────── Read system state helpers ──────────────────────────
@@ -569,62 +578,48 @@ qreal SystemSettingsController::readSystemVolume() const
         QProcess proc;
         proc.start(QStringLiteral("pactl"),
             { QStringLiteral("get-sink-volume"), QStringLiteral("@DEFAULT_SINK@") });
-        proc.waitForFinished(2000);
+        proc.waitForFinished(1500);
         const QString out = QString::fromUtf8(proc.readAllStandardOutput());
-        // Output dạng: "Volume: front-left: 42000 /  64% / ..."
-        // Tìm phần trăm đầu tiên
-        QRegularExpression rx(QStringLiteral("(\\d+)%"));
+        static const QRegularExpression rx(QStringLiteral("(\\d+)%"));
         QRegularExpressionMatch match = rx.match(out);
-        if (match.hasMatch()) {
+        if (match.hasMatch())
             return match.captured(1).toDouble() / 100.0;
-        }
     } else if (m_audioBackend == QStringLiteral("amixer")) {
         QProcess proc;
         proc.start(QStringLiteral("amixer"), { QStringLiteral("sget"), QStringLiteral("Master") });
-        proc.waitForFinished(2000);
+        proc.waitForFinished(1500);
         const QString out = QString::fromUtf8(proc.readAllStandardOutput());
-        QRegularExpression rx(QStringLiteral("\\[(\\d+)%\\]"));
+        static const QRegularExpression rx(QStringLiteral("\\[(\\d+)%\\]"));
         QRegularExpressionMatch match = rx.match(out);
-        if (match.hasMatch()) {
+        if (match.hasMatch())
             return match.captured(1).toDouble() / 100.0;
-        }
     }
 #endif
-    return -1.0; // Không đọc được
+    return -1.0;
 }
 
 qreal SystemSettingsController::readSystemBrightness() const
 {
 #if defined(Q_OS_LINUX)
-    if (!m_backlightPath.isEmpty()) {
+    if (!m_backlightPath.isEmpty() && m_maxBrightness > 0) {
         QFile curFile(m_backlightPath + QStringLiteral("/brightness"));
-        QFile maxFile(m_backlightPath + QStringLiteral("/max_brightness"));
-
-        int cur = -1, mx = -1;
         if (curFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            cur = QString::fromUtf8(curFile.readAll().trimmed()).toInt();
+            int cur = QString::fromUtf8(curFile.readAll().trimmed()).toInt();
             curFile.close();
+            if (cur >= 0)
+                return static_cast<qreal>(cur) / static_cast<qreal>(m_maxBrightness);
         }
-        if (maxFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            mx = QString::fromUtf8(maxFile.readAll().trimmed()).toInt();
-            maxFile.close();
-        }
-
-        if (cur >= 0 && mx > 0)
-            return static_cast<qreal>(cur) / static_cast<qreal>(mx);
     }
-
     // Fallback: brightnessctl
     {
         QProcess proc;
         proc.start(QStringLiteral("brightnessctl"), { QStringLiteral("info") });
-        proc.waitForFinished(2000);
+        proc.waitForFinished(1500);
         const QString out = QString::fromUtf8(proc.readAllStandardOutput());
-        QRegularExpression rx(QStringLiteral("\\((\\d+)%\\)"));
+        static const QRegularExpression rx(QStringLiteral("\\((\\d+)%\\)"));
         QRegularExpressionMatch match = rx.match(out);
-        if (match.hasMatch()) {
+        if (match.hasMatch())
             return match.captured(1).toDouble() / 100.0;
-        }
     }
 #endif
     return -1.0;
@@ -636,19 +631,15 @@ bool SystemSettingsController::readSystemWifiState() const
     if (m_wifiBackend == QStringLiteral("nmcli")) {
         QProcess proc;
         proc.start(QStringLiteral("nmcli"), { QStringLiteral("radio"), QStringLiteral("wifi") });
-        proc.waitForFinished(2000);
-        const QString out = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
-        return out.contains(QStringLiteral("enabled"), Qt::CaseInsensitive);
+        proc.waitForFinished(1500);
+        return QString::fromUtf8(proc.readAllStandardOutput()).trimmed()
+                   .contains(QStringLiteral("enabled"), Qt::CaseInsensitive);
     }
-    // rfkill fallback
-    {
-        QProcess proc;
-        proc.start(QStringLiteral("rfkill"), { QStringLiteral("list"), QStringLiteral("wifi") });
-        proc.waitForFinished(2000);
-        const QString out = QString::fromUtf8(proc.readAllStandardOutput());
-        // "Soft blocked: no" => wifi is enabled
-        return !out.contains(QStringLiteral("Soft blocked: yes"), Qt::CaseInsensitive);
-    }
+    { QProcess proc;
+      proc.start(QStringLiteral("rfkill"), { QStringLiteral("list"), QStringLiteral("wifi") });
+      proc.waitForFinished(1500);
+      return !QString::fromUtf8(proc.readAllStandardOutput())
+                  .contains(QStringLiteral("Soft blocked: yes"), Qt::CaseInsensitive); }
 #else
     return m_wifiEnabled;
 #endif
@@ -657,26 +648,17 @@ bool SystemSettingsController::readSystemWifiState() const
 bool SystemSettingsController::readSystemBluetoothState() const
 {
 #if defined(Q_OS_LINUX)
-    // Dùng bluetoothctl show để kiểm tra Powered
-    {
-        QProcess proc;
-        proc.start(QStringLiteral("bluetoothctl"), { QStringLiteral("show") });
-        proc.waitForFinished(2000);
-        const QString out = QString::fromUtf8(proc.readAllStandardOutput());
-        // Tìm "Powered: yes"
-        if (out.contains(QStringLiteral("Powered: yes"), Qt::CaseInsensitive))
-            return true;
-        if (out.contains(QStringLiteral("Powered: no"), Qt::CaseInsensitive))
-            return false;
-    }
-    // rfkill fallback
-    {
-        QProcess proc;
-        proc.start(QStringLiteral("rfkill"), { QStringLiteral("list"), QStringLiteral("bluetooth") });
-        proc.waitForFinished(2000);
-        const QString out = QString::fromUtf8(proc.readAllStandardOutput());
-        return !out.contains(QStringLiteral("Soft blocked: yes"), Qt::CaseInsensitive);
-    }
+    { QProcess proc;
+      proc.start(QStringLiteral("bluetoothctl"), { QStringLiteral("show") });
+      proc.waitForFinished(1500);
+      const QString out = QString::fromUtf8(proc.readAllStandardOutput());
+      if (out.contains(QStringLiteral("Powered: yes"), Qt::CaseInsensitive)) return true;
+      if (out.contains(QStringLiteral("Powered: no"),  Qt::CaseInsensitive)) return false; }
+    { QProcess proc;
+      proc.start(QStringLiteral("rfkill"), { QStringLiteral("list"), QStringLiteral("bluetooth") });
+      proc.waitForFinished(1500);
+      return !QString::fromUtf8(proc.readAllStandardOutput())
+                  .contains(QStringLiteral("Soft blocked: yes"), Qt::CaseInsensitive); }
 #else
     return m_bluetoothEnabled;
 #endif

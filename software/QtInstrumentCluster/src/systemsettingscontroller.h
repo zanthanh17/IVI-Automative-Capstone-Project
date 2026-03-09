@@ -51,6 +51,11 @@ public slots:
 
     void syncFromSystem();
 
+    // Power management
+    void systemReboot();
+    void systemShutdown();
+    void restartApp();
+
 signals:
     void wifiEnabledChanged();
     void bluetoothEnabledChanged();
@@ -71,6 +76,9 @@ private:
     QString detectAudioBackend() const;
     QString detectWifiBackend() const;
     QString findBacklightPath() const;
+    int  readMaxBrightness() const;
+    void openBrightnessFd();
+
     qreal readSystemVolume() const;
     qreal readSystemBrightness() const;
     bool readSystemWifiState() const;
@@ -88,10 +96,16 @@ private:
     QString m_audioBackend;
     QString m_wifiBackend;
     QString m_backlightPath;
+    int m_maxBrightness = -1;       // cached max_brightness value
+    int m_brightnessFd  = -1;       // persistent fd for sysfs brightness
 
 #if defined(Q_OS_LINUX)
     QProcess *m_scanProcess = nullptr;
     QTimer *m_syncTimer = nullptr;
+    QTimer *m_volumeThrottle = nullptr;   // debounce volume changes
+    QTimer *m_brightnessThrottle = nullptr; // debounce brightness changes
+    qreal m_pendingVolume = -1.0;
+    qreal m_pendingBrightness = -1.0;
 #endif
 };
 
