@@ -10,13 +10,9 @@ Item {
     property alias source: image.source
     property bool active: false
     property color activeColor: Style.highlighterGreen
-    property color inactiveColor: Style.iconInactiveBlue
+    property color inactiveColor: "#5579b8"
     property real indicatorOpacity: 1.0
     property alias blinking: indicatorBlinkAnimation.running
-
-    function boostedColor(c) {
-        return Qt.lighter(c, 1.35)
-    }
 
     Image {
         id: image
@@ -32,11 +28,11 @@ Item {
         smooth: true
         antialiasing: true
 
-        property color iconColor: indicator.active ? indicator.boostedColor(indicator.activeColor) : indicator.inactiveColor
+        property color iconColor: indicator.active ? indicator.activeColor : indicator.inactiveColor
         property real iconOpacity: (indicator.active ? Style.iconActiveOpacity : Style.iconInactiveOpacity) * indicator.indicatorOpacity
-        property color glowColor: indicator.active ? indicator.boostedColor(indicator.activeColor) : indicator.inactiveColor
+        property color glowColor: indicator.active ? indicator.activeColor : indicator.inactiveColor
         property real glowOpacity: indicator.active ? Style.iconActiveShadowOpacity : Style.iconInactiveShadowOpacity
-        property real glowBlur: indicator.active ? 8 : 4
+        property real glowBlur: indicator.active ? 10 : 4
 
         onIconColorChanged: requestPaint()
         onIconOpacityChanged: requestPaint()

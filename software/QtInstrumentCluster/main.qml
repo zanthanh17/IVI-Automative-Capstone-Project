@@ -5,6 +5,7 @@ import MainModel 1.0
 import MediaPlayerModel 1.0
 import TellTalesModel 1.0
 import NormalModeModel 1.0
+import Style 1.0
 import "view" as View
 
 Window {
@@ -117,11 +118,10 @@ Window {
         }
 
         Rectangle {
-            id: root;
-            anchors.fill: parent;
+            id: root
+            anchors.fill: parent
             focus: true
-
-            color: "#141414"
+            color: Style.backgroundBase
 
             Keys.onPressed: (event) => {
                 window.handleKey(event.key)
@@ -157,6 +157,49 @@ Window {
                 width: normalMode.leftPaneWidth
                 height: normalMode.leftPaneHeight
                 z: 10
+            }
+
+            // Quick controls status icons (wifi / bt / volume / brightness)
+            Row {
+                id: quickStatusRow
+                spacing: 12
+                anchors.top: root.top
+                anchors.topMargin: 18
+                anchors.right: root.right
+                anchors.rightMargin: 32
+                visible: NormalModeModel.quickControlsEnabled
+                opacity: 0.9
+                z: 20
+
+                Image {
+                    source: "qrc:/images/others/wifi.png"
+                    width: 18
+                    height: 18
+                    visible: NormalModeModel.wifiEnabled
+                    fillMode: Image.PreserveAspectFit
+                }
+
+                Image {
+                    source: "qrc:/images/others/bluetooth.svg"
+                    width: 18
+                    height: 18
+                    visible: NormalModeModel.bluetoothEnabled
+                    fillMode: Image.PreserveAspectFit
+                }
+
+                Image {
+                    source: "qrc:/images/others/volume.svg"
+                    width: 18
+                    height: 18
+                    fillMode: Image.PreserveAspectFit
+                }
+
+                Image {
+                    source: "qrc:/images/others/brightness.svg"
+                    width: 18
+                    height: 18
+                    fillMode: Image.PreserveAspectFit
+                }
             }
 
             Component.onCompleted: {

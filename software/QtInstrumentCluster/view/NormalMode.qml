@@ -3,13 +3,12 @@ import NormalModeModel 1.0
 import Style 1.0
 import MainModel 1.0
 import Units 1.0
-
 Item {
-    id: root;
+    id: root
     property real scale: 1.0
     property int menu: NormalModeModel.menu;
-    readonly property real layoutMargin: 16
-    readonly property real layoutGap: 16
+    readonly property real layoutMargin: 24
+    readonly property real layoutGap: 20
     readonly property real topPaneHeight: 64
     readonly property real topPaneY: layoutMargin
     readonly property real topCardWidth: Math.min(root.width - layoutMargin * 2, 520)
@@ -55,8 +54,9 @@ Item {
         y: topPaneY
         width: topCardWidth
         height: topPaneHeight
-        color: "#111625"
-        radius: 20
+        color: Style.backgroundPanel
+        radius: 26
+        opacity: 0.96
         z: -1
     }
 
@@ -66,8 +66,9 @@ Item {
         y: leftPaneY
         width: leftPaneWidth
         height: leftPaneHeight
-        color: "#111625"
-        radius: 20
+        color: Style.backgroundPanel
+        radius: 26
+        opacity: 0.96
         z: -1
     }
 
@@ -77,8 +78,9 @@ Item {
         y: rightPaneY
         width: rightPaneWidth
         height: rightPaneHeight
-        color: "#111625"
-        radius: 20
+        color: Style.backgroundPanel
+        radius: 26
+        opacity: 0.96
         z: -1
     }
 
@@ -88,8 +90,9 @@ Item {
         y: bottomPaneY
         width: rightPaneWidth
         height: menuPaneHeight
-        color: "#111625"
-        radius: 20
+        color: Style.backgroundPanel
+        radius: 26
+        opacity: 0.96
         z: -1
     }
 
@@ -131,6 +134,13 @@ Item {
         Bluetooth {
             activeMode: active;
             selected: menu == NormalModeModel.BluetoothMenu;
+            anchors.fill: parent;
+        }
+
+        Setup {
+            activeMode: active;
+            // Tạm dùng CarStatusMenu làm trang Setup
+            selected: menu == NormalModeModel.CarStatusMenu;
             anchors.fill: parent;
         }
     }

@@ -26,20 +26,20 @@ Item {
 
         TellTalesIndicator {
             source: "qrc:/images/telltales/turn_left.png"
-            activeColor: Style.highlighterGreen
+            activeColor: "#2dff89"
             active: TellTalesModel.turnLeftActive
             indicatorOpacity: TellTalesModel.indicatorOpacity
             blinking: TellTalesModel.turnLeftBlinking
         }
         TellTalesIndicator {
             source: "qrc:/images/telltales/beam.png"
-            activeColor: Style.highlighterGreen
+            activeColor: "#2dff89"
             active: TellTalesModel.beamActive
             indicatorOpacity: TellTalesModel.indicatorOpacity
         }
         TellTalesIndicator {
             source: "qrc:/images/telltales/high-beams.png"
-            activeColor: Style.brightBlue
+            activeColor: "#37a0ff"
             active: TellTalesModel.highBeamsActive
             indicatorOpacity: TellTalesModel.indicatorOpacity
         }
@@ -50,17 +50,11 @@ Item {
         anchors.centerIn: parent
         width: 220
         height: 52
-        radius: 26  // Pill shape
-        
-        // Glassmorphism effect: deep gradient with a subtle, thin glowing border
-        color: "#200a1526"
+        radius: 24
+        color: Style.backgroundPanelSoft
         border.width: 1
-        border.color: "#406a9bc5"
-
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#301b3f66" }
-            GradientStop { position: 1.0; color: "#500a1526" }
-        }
+        border.color: Style.brightBlue
+        opacity: 0.9
 
         Column {
             anchors.centerIn: parent
@@ -97,19 +91,19 @@ Item {
 
         TellTalesIndicator {
             source: "qrc:/images/telltales/parked.png"
-            activeColor: Style.highlighterRed
+            activeColor: "#ff4e5f"
             active: TellTalesModel.parkedActive
             indicatorOpacity: TellTalesModel.indicatorOpacity
         }
         TellTalesIndicator {
             source: "qrc:/images/telltales/airbag.png"
-            activeColor: Style.highlighterRed
+            activeColor: "#ff4e5f"
             active: TellTalesModel.airbagActive
             indicatorOpacity: TellTalesModel.indicatorOpacity
         }
         TellTalesIndicator {
             source: "qrc:/images/telltales/turn_right.png"
-            activeColor: Style.highlighterGreen
+            activeColor: "#2dff89"
             active: TellTalesModel.turnRightActive
             indicatorOpacity: TellTalesModel.indicatorOpacity
             blinking: TellTalesModel.turnRightBlinking

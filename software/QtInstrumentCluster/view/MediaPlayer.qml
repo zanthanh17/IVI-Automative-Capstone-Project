@@ -7,13 +7,14 @@ NormalModeContentItem {
     id: playerRoot
     readonly property int textAreaWidth: 330
 
+
     /* === Song Title === */
     Item {
         id: songTitleViewport
         width: playerRoot.textAreaWidth
         height: 26
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 122
+        y: 124
         clip: true
 
         property real marqueeOffset: 0
@@ -49,7 +50,7 @@ NormalModeContentItem {
             text: MediaPlayerModel.currentSong
             font.pixelSize: 18
             font.bold: true
-            color: Style.lightPeriwinkle
+            color: Style.textPrimary
 
             onTextChanged: songTitleViewport.marqueeOffset = 0
 
@@ -64,7 +65,7 @@ NormalModeContentItem {
         width: playerRoot.textAreaWidth
         height: 20
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 156
+        y: 158
         clip: true
 
         property real marqueeOffset: 0
@@ -99,7 +100,7 @@ NormalModeContentItem {
                : (artistViewport.width - implicitWidth) / 2
             text: MediaPlayerModel.currentArtist
             font.pixelSize: 13
-            color: "#657080"
+            color: Style.textSecondary
 
             onTextChanged: artistViewport.marqueeOffset = 0
 

@@ -1,0 +1,152 @@
+# MapLibre + Vector Tiles + OSRM – Phân tích & Kế hoạch triển khai
+
+## 1. Đánh giá kiến trúc đề xuất
+
+### Kiến trúc hiện tại (AS-IS)
+
+| Lớp | Hiện tại |
+|---|---|
+| **Map rendering** | `QtLocation` osm plugin → Mapbox raster tiles (`dark-v11/tiles/256`) |
+| **Routing** | `RouteModel` + `GeocodeModel` qua OSM service plugin (Nominatim + OSRM public) |
+| **GPS** | [NavigationFeed.qml](file:///d:/User_Space/Capstone%20Project/software/QtInstrumentCluster/models/NavigationFeed.qml) mock GPS + hardware injection |
+| **UI** | [NavigationMapLocation.qml](file:///d:/User_Space/Capstone%20Project/software/QtInstrumentCluster/view/NavigationMapLocation.qml) – `Map {}` + `MapPolyline` + `MapQuickItem` marker |
+
+> [!WARNING]
+> **Vấn đề hiện tại**:
+> - Raster tiles 256px → mờ khi tilt/zoom, không xoay được text
+> - Mapbox token có thể bị rate-limit hoặc hết free tier
+> - OSM routing public server không ổn định, đôi khi trả lỗi
+
+### Kiến trúc đề xuất (TO-BE)
+
+```mermaid
+graph LR
+    A["Qt Dashboard<br/>(QML)"] --> B["MapLibre Native Qt<br/>(QMapLibre)"]
+    B --> C["Vector Tiles<br/>(OpenFreeMap / MapTiler)"]
+    B --> D["Mapbox GL Style<br/>(Dark Theme JSON)"]
+    A --> E["OSRM<br/>(Self-hosted / Public)"]
+    A --> F["NavigationFeed<br/>(GPS Mock/HW)"]
+```
+
+### So sánh chi tiết
+
+| Tiêu chí | Raster (hiện tại) | Vector + MapLibre (đề xuất) |
+|---|---|---|
+| **Chất lượng map** | Mờ khi zoom/tilt, tile boundaries rõ | GPU-rendered, sắc nét mọi zoom, smooth tilt/rotate |
+| **Dark theme** | Fix cứng Mapbox dark-v11 | JSON style tùy chỉnh hoàn toàn (màu đường, building, label) |
+| **Offline** | Cần tải trước raster tiles (dung lượng lớn) | Vector tiles nhẹ hơn ~10x, PMTiles offline support |
+| **Vị trí xe trên map** | ✅ Hoạt động (MapQuickItem) | ✅ Hoạt động tốt hơn (smooth bearing rotation) |
+| **Free / No API key** | ❌ Cần Mapbox token | ✅ OpenFreeMap hoàn toàn free, không cần key |
+| **Routing** | OSM public (không ổn định) | OSRM self-hosted (ổn định, nhanh) hoặc public |
+| **Hiệu năng RPi** | Nhẹ (chỉ decode PNG) | OpenGL ES cần GPU, RPi 4 hỗ trợ tốt |
+
+## 2. Đánh giá tổng quan
+
+> [!TIP]
+> **Kết luận: Kiến trúc đề xuất RẤT TỐT** cho mục tiêu của dự án:
+> - ✅ Map UI đẹp hơn rõ rệt (vector, smooth, dark theme tùy chỉnh)
+> - ✅ Vị trí xe chính xác trên map (giữ nguyên GPS pipeline)
+> - ✅ Free hoàn toàn (OpenFreeMap + OSRM)
+> - ✅ Tương thích Qt 6.9.1 (đã verify)
+
+## 3. Phương án triển khai
+
+### Approach: Dùng MapLibre thông qua QtLocation Plugin
+
+MapLibre Native Qt cung cấp `qt_location_maplibre` plugin cho QtLocation API → **giữ nguyên được 90% code QML hiện tại** (`Map {}`, `MapPolyline`, `MapQuickItem`).
+
+Chỉ cần thay đổi:
+1. **Plugin declaration** – từ `osm` sang `maplibre`
+2. **Style URL** – JSON style thay cho raster host
+3. **Routing** – gọi OSRM HTTP trực tiếp thay cho RouteModel
+
+---
+
+## Proposed Changes
+
+### Component 1: Build System & Dependencies
+
+#### [MODIFY] [QtInstrumentCluster.pro](file:///d:/User_Space/Capstone%20Project/software/QtInstrumentCluster/QtInstrumentCluster.pro)
+
+- Thêm `QMapLibre` library vào `LIBS` và `INCLUDEPATH`
+- Giữ nguyên fallback cho trường hợp chưa cài MapLibre
+
+#### [NEW] [scripts/install-maplibre.ps1](file:///d:/User_Space/Capstone%20Project/software/QtInstrumentCluster/scripts/install-maplibre.ps1)
+
+- Script download và cài đặt pre-built MapLibre Native Qt binaries
+- Hỗ trợ Windows (mingw64) và Linux (aarch64 cho RPi)
+
+---
+
+### Component 2: OSRM Routing Service
+
+#### [NEW] [src/osrmrouteprovider.h](file:///d:/User_Space/Capstone%20Project/software/QtInstrumentCluster/src/osrmrouteprovider.h)
+#### [NEW] [src/osrmrouteprovider.cpp](file:///d:/User_Space/Capstone%20Project/software/QtInstrumentCluster/src/osrmrouteprovider.cpp)
+
+- C++ class gọi OSRM HTTP API (`/route/v1/driving/`)
+- Parse JSON response → decode polyline → emit `routeReady(QVariantList path)`
+- Exposed ra QML qua `qmlRegisterSingletonType`
+- Config: `osrmBaseUrl` property (default: `https://router.project-osrm.org`)
+
+---
+
+### Component 3: Map View QML (Core change)
+
+#### [MODIFY] [NavigationMapLocation.qml](file:///d:/User_Space/Capstone%20Project/software/QtInstrumentCluster/view/NavigationMapLocation.qml)
+
+Thay đổi chính:
+1. **Plugin**: `osm` → `maplibre` với style URL
+2. **Style**: `https://tiles.openfreemap.org/styles/dark` (free, no API key)
+3. **Routing**: Gọi `OsrmRouteProvider.requestRoute()` thay vì `RouteModel`
+4. **Giữ nguyên**: Vehicle marker, polyline segments, navigation guide panel, tất cả bindings tới `NavigationFeed`/`NavigationModel`
+
+```diff
+- Plugin {
+-     id: osmMapPlugin
+-     name: "osm"
+-     PluginParameter { name: "osm.mapping.custom.host"; value: mapboxRasterHost }
+- }
++ Plugin {
++     id: maplibrePlugin
++     name: "maplibre"
++     PluginParameter { name: "maplibre.map.styles.url"; value: "https://tiles.openfreemap.org/styles/dark" }
++ }
+```
+
+---
+
+### Component 4: Registration (main.cpp)
+
+#### [MODIFY] [main.cpp](file:///d:/User_Space/Capstone%20Project/software/QtInstrumentCluster/main.cpp)
+
+- Register `OsrmRouteProvider` singleton vào QML engine
+- Thêm `#include "src/osrmrouteprovider.h"`
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Cần cài đặt MapLibre Native Qt trước khi build**.
+> Script `install-maplibre.ps1` sẽ tự download pre-built binaries.
+> Trên Raspberry Pi cần cài thêm: `sudo apt install libgl1-mesa-dev`
+
+> [!WARNING]
+> **Internet cần thiết** cho lần chạy đầu tiên (download vector tiles).
+> Sau đó tiles được cache tự động. Có thể chuyển sang offline PMTiles sau.
+
+## Verification Plan
+
+### Automated Tests
+1. **Build test**: Chạy [build-and-run.ps1](file:///d:/User_Space/Capstone%20Project/software/QtInstrumentCluster/build-and-run.ps1) để verify compile không lỗi
+2. **OSRM API test**: Script PowerShell gọi OSRM public API endpoint, verify response format
+   ```powershell
+   Invoke-RestMethod "https://router.project-osrm.org/route/v1/driving/108.2196,16.0632;108.2187,16.052?geometries=geojson"
+   ```
+
+### Manual Verification (do USER thực hiện)
+1. Chạy app → verify map hiển thị với dark theme (vector tiles)
+2. Verify xe (marker xanh) di chuyển đúng trên map
+3. Verify polyline route hiển thị đúng
+4. Verify turn-by-turn guide panel hoạt động bình thường
+5. Tilt/zoom map → verify text và đường sắc nét (không mờ như raster)

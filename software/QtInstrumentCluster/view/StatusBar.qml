@@ -19,9 +19,9 @@ Item {
         anchors.topMargin: 32
         anchors.left: parent.left;
         anchors.leftMargin: 38
-        text: "ODO";
-        color: "#657080"
-        font.pixelSize: 12;
+        text: "ODO"
+        color: Style.textSecondary
+        font.pixelSize: 12
     }
 
     Text {
@@ -29,9 +29,9 @@ Item {
         anchors.baseline: odo.baseline;
         anchors.left: odo.right;
         anchors.leftMargin: 4;
-        text: Units.toInt(Units.kilometersToLongDistanceUnit(Math.max(MainModel.odo, 0)));
-        color: Style.lightPeriwinkle;
-        font.pixelSize: 20;
+        text: Units.toInt(Units.kilometersToLongDistanceUnit(Math.max(MainModel.odo, 0)))
+        color: Style.textPrimary
+        font.pixelSize: 20
     }
 
     Text {
@@ -39,9 +39,9 @@ Item {
         anchors.baseline: odo.baseline;
         anchors.left: odoValue.right;
         anchors.leftMargin: 4;
-        text: Units.longDistanceUnit;
-        color: "#657080"
-        font.pixelSize: 12;
+        text: Units.longDistanceUnit
+        color: Style.textSecondary
+        font.pixelSize: 12
     }
 
     Text {
@@ -50,9 +50,9 @@ Item {
         anchors.topMargin: 32
         anchors.right: parent.right
         anchors.rightMargin: 116
-        text: "RANGE";
-        color: "#657080"
-        font.pixelSize: 12;
+        text: "RANGE"
+        color: Style.textSecondary
+        font.pixelSize: 12
     }
 
     Text {
@@ -60,9 +60,9 @@ Item {
         anchors.baseline: range.baseline;
         anchors.left: range.right;
         anchors.leftMargin: 4;
-        text: Units.toInt(Units.kilometersToLongDistanceUnit(Math.max(MainModel.range, 0)));
-        color: Style.lightPeriwinkle;
-        font.pixelSize: 20;
+        text: Units.toInt(Units.kilometersToLongDistanceUnit(Math.max(MainModel.range, 0)))
+        color: Style.textPrimary
+        font.pixelSize: 20
     }
 
     Text {
@@ -70,9 +70,9 @@ Item {
         anchors.baseline: range.baseline;
         anchors.left: rangeValue.right;
         anchors.leftMargin: 4;
-        text: Units.longDistanceUnit;
-        color: "#657080"
-        font.pixelSize: 12;
+        text: Units.longDistanceUnit
+        color: Style.textSecondary
+        font.pixelSize: 12
     }
 
     Image {
@@ -83,7 +83,7 @@ Item {
         sourceSize.width: 26
         sourceSize.height: 26
         fillMode: Image.PreserveAspectFit
-        opacity: 0.72
+        opacity: 0.8
     }
 
     LinearGauge {
@@ -111,11 +111,11 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: root.bottomRowMargin
-        width: 190
-        height: 34
-        radius: 12
-        color: "#2a3247"
-        border.color: "#33435f"
+        width: 200
+        height: 36
+        radius: 18
+        color: Style.backgroundPanelSoft
+        border.color: Style.backgroundPanel
         border.width: 1
 
         readonly property var gears: ["R", "P", "N", "D"]
@@ -133,14 +133,14 @@ Item {
                     property string gearText: modelData
                     width: gearSelector.segmentWidth
                     height: parent.height
-                    radius: 9
-                    color: root.activeGear === gearText ? "#55d9df" : "transparent"
+                    radius: 14
+                    color: root.activeGear === gearText ? Style.brightBlue : "transparent"
                     border.width: 0
 
                     Text {
                         anchors.centerIn: parent
                         text: parent.gearText
-                        color: root.activeGear === parent.gearText ? "#10263a" : "#a3b7d6"
+                        color: root.activeGear === parent.gearText ? Style.backgroundBase : Style.textSecondary
                         font.pixelSize: 16
                         font.bold: true
                     }

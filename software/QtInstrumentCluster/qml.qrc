@@ -40,6 +40,26 @@
         <file>images/weather/cloud.svg</file>
         <file>images/weather/rain.svg</file>
         <file>images/weather/storm.svg</file>
+
+        <!-- Tesla-style weather icons -->
+        <file>images/weather/icons/weather-sunny.png</file>
+        <file>images/weather/icons/weather-sunny-very-few-clouds.png</file>
+        <file>images/weather/icons/weather-few-clouds.png</file>
+        <file>images/weather/icons/weather-overcast.png</file>
+        <file>images/weather/icons/weather-showers.png</file>
+        <file>images/weather/icons/weather-thundershower.png</file>
+        <file>images/weather/icons/weather-storm.png</file>
+        <file>images/weather/icons/weather-snow.png</file>
+        <file>images/weather/icons/weather-sleet.png</file>
+        <file>images/weather/icons/weather-icy.png</file>
+        <file>images/weather/icons/weather-fog.png</file>
+        <file>images/weather/icons/weather-haze.png</file>
+        <file>images/weather/icons/ic_launcher.png</file>
+        <file>images/others/quick controls.svg</file>
+        <file>images/others/volume.svg</file>
+        <file>images/others/brightness.svg</file>
+        <file>images/others/bluetooth.svg</file>
+        <file>images/others/wifi.png</file>
         <file>models/NormalModeModel.qml</file>
         <file>images/albums/ak.png</file>
         <file>images/albums/juno.png</file>
@@ -64,6 +84,7 @@
         <file>view/Menu.qml</file>
         <file>view/NormalMode.qml</file>
         <file>view/NormalModeContentItem.qml</file>
+        <file>view/Setup.qml</file>
         <file>view/StatusBar.qml</file>
         <file>view/TellTales.qml</file>
         <file>view/TellTalesIndicator.qml</file>
