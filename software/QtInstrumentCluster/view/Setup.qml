@@ -71,29 +71,7 @@ NormalModeContentItem {
         anchors.margins: 16
         spacing: 14
 
-        // Title
-        Row {
-            spacing: 10
-            Image {
-                source: "qrc:/images/others/quick controls.svg"
-                width: 24; height: 24
-                fillMode: Image.PreserveAspectFit
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Column {
-                Text {
-                    text: "Quick controls"
-                    color: Style.textPrimary
-                    font.pixelSize: 16
-                    font.bold: true
-                }
-                Text {
-                    text: "Visible on status bar"
-                    color: Style.textSecondary
-                    font.pixelSize: 11
-                }
-            }
-        }
+        
 
         // Wi-Fi & Bluetooth buttons
         Row {
@@ -335,11 +313,12 @@ NormalModeContentItem {
                 Row {
                     anchors.centerIn: parent
                     spacing: 6
-                    Text {
-                        text: "🔄"
-                        font.pixelSize: 14
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
+                    Image {
+                source: "qrc:/images/others/restart.png"
+                width: 16; height: 16
+                fillMode: Image.PreserveAspectFit
+                anchors.verticalCenter: parent.verticalCenter
+            }
                     Text {
                         text: "Reboot"
                         color: "white"
@@ -365,12 +344,12 @@ NormalModeContentItem {
                 Row {
                     anchors.centerIn: parent
                     spacing: 6
-                    Text {
-                        text: "⏻"
-                        font.pixelSize: 14
-                        color: "#FF4444"
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
+                    Image {
+                source: "qrc:/images/others/shutdown.png"
+                width: 16; height: 16
+                fillMode: Image.PreserveAspectFit
+                anchors.verticalCenter: parent.verticalCenter
+            }
                     Text {
                         text: "Shutdown"
                         color: "#FF6666"

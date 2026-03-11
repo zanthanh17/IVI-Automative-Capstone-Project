@@ -12,6 +12,8 @@ Item {
     property bool pageReady: false
     property bool liveRouteReady: false
     property var destination: { "lat": 16.05200, "lon": 108.21870 }
+    property int osrmRetryCount: 0
+    readonly property int osrmMaxRetries: 2
 
     function clamp01(v) {
         return Math.max(0, Math.min(1, v))
@@ -85,6 +87,14 @@ Item {
         pushRoute()
         pushVehicle()
         pushProgress()
+        pushDestination()
+    }
+
+    function pushDestination() {
+        runJsCall("setDestination", {
+                      lat: destination.lat,
+                      lng: destination.lon
+                  })
     }
 
     Component.onCompleted: {
@@ -95,14 +105,37 @@ Item {
     Connections {
         target: OsrmRoute
         function onRouteReady(path) {
+            console.log("[NavWebMap] OSRM route received with", path.length, "points")
+            navWebRoot.osrmRetryCount = 0
             routeLngLat = navWebRoot.geoVariantToLngLatArray(path)
             liveRouteReady = routeLngLat.length > 1
             pushRoute()
         }
         function onRouteFailed(error) {
-            console.warn("OSRM routing failed:", error)
+            console.warn("[NavWebMap] OSRM routing failed:", error)
             liveRouteReady = false
             pushRoute()
+            if (navWebRoot.osrmRetryCount < navWebRoot.osrmMaxRetries) {
+                navWebRoot.osrmRetryCount++
+                osrmRetryTimer.restart()
+            }
+        }
+    }
+
+    Timer {
+        id: osrmRetryTimer
+        interval: 3000
+        repeat: false
+        onTriggered: {
+            console.log("[NavWebMap] Retrying OSRM route request (attempt", navWebRoot.osrmRetryCount + 1, ")")
+            navWebRoot.requestRouteToDestination()
+        }
+    }
+
+    Connections {
+        target: NavigationModel
+        function onRouteProgressChanged() {
+            navWebRoot.pushProgress()
         }
     }
 
@@ -111,12 +144,10 @@ Item {
         function onPositionUpdated() {
             navWebRoot.pushVehicle()
         }
-    }
-
-    Connections {
-        target: NavigationModel
-        function onRouteProgressChanged() {
-            navWebRoot.pushProgress()
+        function onRouteLooped() {
+            console.log("[NavWebMap] Route looped, re-pushing route")
+            navWebRoot.pushRoute()
+            navWebRoot.pushDestination()
         }
     }
 

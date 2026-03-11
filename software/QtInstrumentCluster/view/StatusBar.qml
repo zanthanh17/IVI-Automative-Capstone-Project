@@ -13,77 +13,60 @@ Item {
         return "P"
     }
 
-    Text {
-        id: odo
+    Row {
         anchors.top: parent.top
-        anchors.topMargin: 32
-        anchors.left: parent.left;
-        anchors.leftMargin: 38
-        text: "ODO"
-        color: Style.textSecondary
-        font.pixelSize: 12
+        anchors.topMargin: 72
+        anchors.left: parent.left
+        anchors.leftMargin: 48
+        spacing: 6
+
+        Text {
+            anchors.baseline: odoValueText.baseline
+            text: "ODO"
+            color: Style.textSecondary
+            font.pixelSize: 12
+        }
+        Text {
+            id: odoValueText
+            text: Units.toInt(Units.kilometersToLongDistanceUnit(Math.max(MainModel.odo, 0)))
+            color: Style.textPrimary
+            font.pixelSize: 18
+            font.bold: true
+        }
+        Text {
+            anchors.baseline: odoValueText.baseline
+            text: Units.longDistanceUnit
+            color: Style.textSecondary
+            font.pixelSize: 12
+        }
     }
 
-    Text {
-        id: odoValue
-        anchors.baseline: odo.baseline;
-        anchors.left: odo.right;
-        anchors.leftMargin: 4;
-        text: Units.toInt(Units.kilometersToLongDistanceUnit(Math.max(MainModel.odo, 0)))
-        color: Style.textPrimary
-        font.pixelSize: 20
-    }
-
-    Text {
-        id: odoUnit
-        anchors.baseline: odo.baseline;
-        anchors.left: odoValue.right;
-        anchors.leftMargin: 4;
-        text: Units.longDistanceUnit
-        color: Style.textSecondary
-        font.pixelSize: 12
-    }
-
-    Text {
-        id: range
+    Row {
         anchors.top: parent.top
-        anchors.topMargin: 32
+        anchors.topMargin: 72
         anchors.right: parent.right
-        anchors.rightMargin: 116
-        text: "RANGE"
-        color: Style.textSecondary
-        font.pixelSize: 12
-    }
+        anchors.rightMargin: 48
+        spacing: 6
 
-    Text {
-        id: rangeValue
-        anchors.baseline: range.baseline;
-        anchors.left: range.right;
-        anchors.leftMargin: 4;
-        text: Units.toInt(Units.kilometersToLongDistanceUnit(Math.max(MainModel.range, 0)))
-        color: Style.textPrimary
-        font.pixelSize: 20
-    }
-
-    Text {
-        id: rangeUnit
-        anchors.baseline: range.baseline;
-        anchors.left: rangeValue.right;
-        anchors.leftMargin: 4;
-        text: Units.longDistanceUnit
-        color: Style.textSecondary
-        font.pixelSize: 12
-    }
-
-    Image {
-        id: teslaLogo
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.verticalCenter: odoValue.verticalCenter
-        source: "qrc:/images/Tesla_Logo.png"
-        sourceSize.width: 26
-        sourceSize.height: 26
-        fillMode: Image.PreserveAspectFit
-        opacity: 0.8
+        Text {
+            anchors.baseline: rangeValueText.baseline
+            text: "RANGE"
+            color: Style.textSecondary
+            font.pixelSize: 12
+        }
+        Text {
+            id: rangeValueText
+            text: Units.toInt(Units.kilometersToLongDistanceUnit(Math.max(MainModel.range, 0)))
+            color: Style.textPrimary
+            font.pixelSize: 18
+            font.bold: true
+        }
+        Text {
+            anchors.baseline: rangeValueText.baseline
+            text: Units.longDistanceUnit
+            color: Style.textSecondary
+            font.pixelSize: 12
+        }
     }
 
     LinearGauge {

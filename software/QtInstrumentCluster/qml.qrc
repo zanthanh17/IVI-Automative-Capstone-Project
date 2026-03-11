@@ -42,6 +42,7 @@
         <file>images/weather/storm.svg</file>
 
         <!-- Tesla-style weather icons -->
+        <file>images/background/bg_car2.png</file>
         <file>images/weather/icons/weather-sunny.png</file>
         <file>images/weather/icons/weather-sunny-very-few-clouds.png</file>
         <file>images/weather/icons/weather-few-clouds.png</file>
@@ -61,6 +62,8 @@
         <file>images/others/bluetooth.svg</file>
         <file>images/others/wifi.png</file>
         <file>images/others/power.png</file>
+        <file>images/others/shutdown.png</file>
+        <file>images/others/restart.png</file>
         <file>models/NormalModeModel.qml</file>
         <file>images/albums/ak.png</file>
         <file>images/albums/juno.png</file>

@@ -49,7 +49,7 @@ void OsrmRouteProvider::requestRoute(double fromLat, double fromLon,
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("geometries"), QStringLiteral("geojson"));
     query.addQueryItem(QStringLiteral("overview"), QStringLiteral("full"));
-    query.addQueryItem(QStringLiteral("steps"), QStringLiteral("false"));
+    query.addQueryItem(QStringLiteral("steps"), QStringLiteral("true"));
     url.setQuery(query);
 
     qDebug() << "[OsrmRouteProvider] Requesting route:" << url.toString();

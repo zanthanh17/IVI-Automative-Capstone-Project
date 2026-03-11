@@ -1,502 +1,595 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MapLibre Navigation</title>
-  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
-  <style>
-    html, body, #map {
-      margin: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #00091a;
-      font-family: Inter, Arial, sans-serif;
-    }
-
-    #vehicle-pin {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 34px;
-      height: 34px;
-      margin-left: -17px;
-      margin-top: -17px;
-      border-radius: 50%;
-      background: rgba(34, 148, 244, 0.85);
-      border: 1px solid #8bd0ff;
-      box-sizing: border-box;
-      pointer-events: none;
-      z-index: 4;
-      box-shadow: 0 0 12px rgba(80, 180, 255, 0.3);
-    }
-
-    #vehicle-arrow {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 0;
-      height: 0;
-      margin-left: -6px;
-      margin-top: -9px;
-      border-left: 6px solid transparent;
-      border-right: 6px solid transparent;
-      border-bottom: 14px solid #f3fbff;
-      transform-origin: 50% 75%;
-      filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.25));
-    }
-  </style>
-</head>
-<body>
-  <div id="map"></div>
-  <div id="vehicle-pin">
-    <div id="vehicle-arrow"></div>
-  </div>
-
-  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <script>
-    (function () {
-      "use strict";
-
-      const DEFAULT_CENTER = [108.2200, 16.0620];
-      const DEFAULT_ZOOM = 16.8;
-      const DEFAULT_PITCH = 55;
-      const EPS = 1e-6;
-      const SNAP_BACKTRACK_TOLERANCE_METERS = 15.0;
-      const MAX_MERCATOR_LAT = 85.05112878;
-      const RASTER_DARK_STYLE = {
-        version: 8,
-        sources: {
-          cartoDark: {
-            type: "raster",
-            tiles: [
-              "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
-            ],
-            tileSize: 256,
-            maxzoom: 20,
-            attribution: "Map tiles: CARTO | Data: OpenStreetMap contributors"
-          }
-        },
-        layers: [
-          {
-            id: "carto-dark-raster",
-            type: "raster",
-            source: "cartoDark",
-            minzoom: 0,
-            maxzoom: 22
-          }
-        ]
-      };
-
-      let map = null;
-      let mapReady = false;
-      let routeCoords = [];
-      let routeProgress = 0;
-      let latestSplit = null;
-      let lastAlongMeters = 0;
-      let vehicleState = {
-        lat: DEFAULT_CENTER[1],
-        lng: DEFAULT_CENTER[0],
-        heading: 0
-      };
-
-      function clamp01(v) {
-        if (v < 0) return 0;
-        if (v > 1) return 1;
-        return v;
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>MapLibre Navigation</title>
+    <link
+      href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body,
+      #map {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #00091a;
+        font-family: Inter, Arial, sans-serif;
       }
 
-      function isValidLngLat(point) {
-        return Array.isArray(point)
-          && point.length >= 2
-          && Number.isFinite(point[0])
-          && Number.isFinite(point[1]);
+      #vehicle-pin {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 34px;
+        height: 34px;
+        margin-left: -17px;
+        margin-top: -17px;
+        border-radius: 50%;
+        background: rgba(34, 148, 244, 0.85);
+        border: 1px solid #8bd0ff;
+        box-sizing: border-box;
+        pointer-events: none;
+        z-index: 4;
+        box-shadow: 0 0 12px rgba(80, 180, 255, 0.3);
       }
 
-      function pushUniquePoint(target, point, eps) {
-        if (!isValidLngLat(point)) {
-          return;
-        }
-        if (target.length === 0) {
-          target.push([point[0], point[1]]);
-          return;
-        }
-        const last = target[target.length - 1];
-        if (Math.abs(last[0] - point[0]) > eps || Math.abs(last[1] - point[1]) > eps) {
-          target.push([point[0], point[1]]);
-        }
+      #vehicle-arrow {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 0;
+        height: 0;
+        margin-left: -6px;
+        margin-top: -9px;
+        border-left: 6px solid transparent;
+        border-right: 6px solid transparent;
+        border-bottom: 14px solid #f3fbff;
+        transform-origin: 50% 75%;
+        filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.25));
       }
 
-      function lonLatToMercator(point) {
-        if (!isValidLngLat(point)) {
-          return null;
-        }
-        const lng = point[0];
-        const lat = Math.max(-MAX_MERCATOR_LAT, Math.min(MAX_MERCATOR_LAT, point[1]));
-        const x = (lng * 20037508.34) / 180.0;
-        const y = Math.log(Math.tan(((90 + lat) * Math.PI) / 360.0)) / (Math.PI / 180.0);
-        return [x, (y * 20037508.34) / 180.0];
+      .dest-pin {
+        width: 24px;
+        height: 32px;
+        cursor: pointer;
       }
+      .dest-pin svg {
+        width: 100%;
+        height: 100%;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="vehicle-pin">
+      <div id="vehicle-arrow"></div>
+    </div>
 
-      function buildRouteMetrics(coords) {
-        if (!Array.isArray(coords)) {
-          return { points: [], mercator: [], cumulative: [], total: 0 };
-        }
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <script>
+      (function () {
+        "use strict";
 
-        const rawPoints = [];
-        for (let i = 0; i < coords.length; i += 1) {
-          if (isValidLngLat(coords[i])) {
-            rawPoints.push([Number(coords[i][0]), Number(coords[i][1])]);
-          }
-        }
-        if (rawPoints.length < 2) {
-          return { points: [], mercator: [], cumulative: [], total: 0 };
-        }
-
-        const points = [];
-        const mercator = [];
-        const cumulative = [0];
-        let total = 0;
-
-        for (let i = 0; i < rawPoints.length; i += 1) {
-          const m = lonLatToMercator(rawPoints[i]);
-          if (!m) {
-            continue;
-          }
-
-          if (mercator.length === 0) {
-            points.push(rawPoints[i]);
-            mercator.push(m);
-            continue;
-          }
-
-          const prev = mercator[mercator.length - 1];
-          const segLen = Math.hypot(m[0] - prev[0], m[1] - prev[1]);
-          if (segLen <= EPS) {
-            continue;
-          }
-
-          points.push(rawPoints[i]);
-          mercator.push(m);
-          total += segLen;
-          cumulative.push(total);
-        }
-
-        if (mercator.length < 2 || total <= EPS) {
-          return { points: [], mercator: [], cumulative: [], total: 0 };
-        }
-
-        return {
-          points: points,
-          mercator: mercator,
-          cumulative: cumulative,
-          total: total
+        const DEFAULT_CENTER = [108.22, 16.062];
+        const DEFAULT_ZOOM = 16.8;
+        const DEFAULT_PITCH = 55;
+        const EPS = 1e-6;
+        const SNAP_BACKTRACK_TOLERANCE_METERS = 15.0;
+        const MAX_MERCATOR_LAT = 85.05112878;
+        const RASTER_DARK_STYLE = {
+          version: 8,
+          sources: {
+            cartoDark: {
+              type: "raster",
+              tiles: ["https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"],
+              tileSize: 256,
+              maxzoom: 20,
+              attribution:
+                "Map tiles: CARTO | Data: OpenStreetMap contributors",
+            },
+          },
+          layers: [
+            {
+              id: "carto-dark-raster",
+              type: "raster",
+              source: "cartoDark",
+              minzoom: 0,
+              maxzoom: 22,
+            },
+          ],
         };
-      }
 
-      function projectToSegment(vehicleMercator, a, b) {
-        const dx = b[0] - a[0];
-        const dy = b[1] - a[1];
-        const segLenSq = dx * dx + dy * dy;
-        if (segLenSq <= EPS) {
-          return { t: 0, projected: [a[0], a[1]], distSq: Number.POSITIVE_INFINITY };
-        }
-        const ax = vehicleMercator[0] - a[0];
-        const ay = vehicleMercator[1] - a[1];
-        let t = (ax * dx + ay * dy) / segLenSq;
-        t = Math.max(0, Math.min(1, t));
-        const projected = [a[0] + dx * t, a[1] + dy * t];
-        const distSq = (vehicleMercator[0] - projected[0]) * (vehicleMercator[0] - projected[0])
-                     + (vehicleMercator[1] - projected[1]) * (vehicleMercator[1] - projected[1]);
-        return { t: t, projected: projected, distSq: distSq };
-      }
-
-      function interpolateAlong(metrics, alongMeters) {
-        const points = metrics.points;
-        const cumulative = metrics.cumulative;
-        const total = metrics.total;
-
-        if (!points || points.length < 2 || !cumulative || cumulative.length < 2 || total <= EPS) {
-          return { snapped: null, segIndex: 0 };
-        }
-
-        if (alongMeters <= 0) {
-          return { snapped: [points[0][0], points[0][1]], segIndex: 0 };
-        }
-        if (alongMeters >= total) {
-          const lastIdx = points.length - 1;
-          return { snapped: [points[lastIdx][0], points[lastIdx][1]], segIndex: Math.max(0, lastIdx - 1) };
-        }
-
-        let segIndex = 0;
-        for (let i = 0; i < cumulative.length - 1; i += 1) {
-          if (alongMeters <= cumulative[i + 1]) {
-            segIndex = i;
-            break;
-          }
-        }
-
-        const segStart = cumulative[segIndex];
-        const segEnd = cumulative[segIndex + 1];
-        const segLen = Math.max(EPS, segEnd - segStart);
-        const t = Math.max(0, Math.min(1, (alongMeters - segStart) / segLen));
-        const a = points[segIndex];
-        const b = points[segIndex + 1];
-        return {
-          snapped: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t],
-          segIndex: segIndex
+        let map = null;
+        let mapReady = false;
+        let routeCoords = [];
+        let routeProgress = 0;
+        let latestSplit = null;
+        let lastAlongMeters = 0;
+        let destMarker = null;
+        let vehicleState = {
+          lat: DEFAULT_CENTER[1],
+          lng: DEFAULT_CENTER[0],
+          heading: 0,
         };
-      }
 
-      function splitRouteByVehicle(coords, vehicle, fallbackProgress) {
-        const metrics = buildRouteMetrics(coords);
-        if (metrics.points.length < 2) {
-          return { past: [], future: [], progress: 0, snapped: null, alongMeters: 0 };
+        function clamp01(v) {
+          if (v < 0) return 0;
+          if (v > 1) return 1;
+          return v;
         }
 
-        const fallbackAlong = clamp01(fallbackProgress) * metrics.total;
-        const vehicleMercator = lonLatToMercator(vehicle);
-        let bestAny = null;
-        let bestForward = null;
-        let minAlong = Math.max(0, Math.min(lastAlongMeters, metrics.total));
+        function isValidLngLat(point) {
+          return (
+            Array.isArray(point) &&
+            point.length >= 2 &&
+            Number.isFinite(point[0]) &&
+            Number.isFinite(point[1])
+          );
+        }
 
-        if (vehicleMercator && minAlong > metrics.total * 0.6) {
-          const startPoint = metrics.mercator[0];
-          const distanceToStart = Math.hypot(vehicleMercator[0] - startPoint[0], vehicleMercator[1] - startPoint[1]);
-          if (distanceToStart < 35.0) {
-            minAlong = 0;
+        function pushUniquePoint(target, point, eps) {
+          if (!isValidLngLat(point)) {
+            return;
+          }
+          if (target.length === 0) {
+            target.push([point[0], point[1]]);
+            return;
+          }
+          const last = target[target.length - 1];
+          if (
+            Math.abs(last[0] - point[0]) > eps ||
+            Math.abs(last[1] - point[1]) > eps
+          ) {
+            target.push([point[0], point[1]]);
           }
         }
 
-        if (vehicleMercator) {
-          for (let i = 0; i < metrics.mercator.length - 1; i += 1) {
-            const a = metrics.mercator[i];
-            const b = metrics.mercator[i + 1];
-            const projection = projectToSegment(vehicleMercator, a, b);
-            const segLen = Math.hypot(b[0] - a[0], b[1] - a[1]);
-            const along = metrics.cumulative[i] + segLen * projection.t;
+        function lonLatToMercator(point) {
+          if (!isValidLngLat(point)) {
+            return null;
+          }
+          const lng = point[0];
+          const lat = Math.max(
+            -MAX_MERCATOR_LAT,
+            Math.min(MAX_MERCATOR_LAT, point[1]),
+          );
+          const x = (lng * 20037508.34) / 180.0;
+          const y =
+            Math.log(Math.tan(((90 + lat) * Math.PI) / 360.0)) /
+            (Math.PI / 180.0);
+          return [x, (y * 20037508.34) / 180.0];
+        }
 
-            const candidate = {
-              segIndex: i,
-              along: along,
-              distSq: projection.distSq
-            };
+        function buildRouteMetrics(coords) {
+          if (!Array.isArray(coords)) {
+            return { points: [], mercator: [], cumulative: [], total: 0 };
+          }
 
-            if (!bestAny || candidate.distSq < bestAny.distSq) {
-              bestAny = candidate;
+          const rawPoints = [];
+          for (let i = 0; i < coords.length; i += 1) {
+            if (isValidLngLat(coords[i])) {
+              rawPoints.push([Number(coords[i][0]), Number(coords[i][1])]);
+            }
+          }
+          if (rawPoints.length < 2) {
+            return { points: [], mercator: [], cumulative: [], total: 0 };
+          }
+
+          const points = [];
+          const mercator = [];
+          const cumulative = [0];
+          let total = 0;
+
+          for (let i = 0; i < rawPoints.length; i += 1) {
+            const m = lonLatToMercator(rawPoints[i]);
+            if (!m) {
+              continue;
             }
 
-            if (along + SNAP_BACKTRACK_TOLERANCE_METERS >= minAlong) {
-              if (!bestForward || candidate.distSq < bestForward.distSq) {
-                bestForward = candidate;
+            if (mercator.length === 0) {
+              points.push(rawPoints[i]);
+              mercator.push(m);
+              continue;
+            }
+
+            const prev = mercator[mercator.length - 1];
+            const segLen = Math.hypot(m[0] - prev[0], m[1] - prev[1]);
+            if (segLen <= EPS) {
+              continue;
+            }
+
+            points.push(rawPoints[i]);
+            mercator.push(m);
+            total += segLen;
+            cumulative.push(total);
+          }
+
+          if (mercator.length < 2 || total <= EPS) {
+            return { points: [], mercator: [], cumulative: [], total: 0 };
+          }
+
+          return {
+            points: points,
+            mercator: mercator,
+            cumulative: cumulative,
+            total: total,
+          };
+        }
+
+        function projectToSegment(vehicleMercator, a, b) {
+          const dx = b[0] - a[0];
+          const dy = b[1] - a[1];
+          const segLenSq = dx * dx + dy * dy;
+          if (segLenSq <= EPS) {
+            return {
+              t: 0,
+              projected: [a[0], a[1]],
+              distSq: Number.POSITIVE_INFINITY,
+            };
+          }
+          const ax = vehicleMercator[0] - a[0];
+          const ay = vehicleMercator[1] - a[1];
+          let t = (ax * dx + ay * dy) / segLenSq;
+          t = Math.max(0, Math.min(1, t));
+          const projected = [a[0] + dx * t, a[1] + dy * t];
+          const distSq =
+            (vehicleMercator[0] - projected[0]) *
+              (vehicleMercator[0] - projected[0]) +
+            (vehicleMercator[1] - projected[1]) *
+              (vehicleMercator[1] - projected[1]);
+          return { t: t, projected: projected, distSq: distSq };
+        }
+
+        function interpolateAlong(metrics, alongMeters) {
+          const points = metrics.points;
+          const cumulative = metrics.cumulative;
+          const total = metrics.total;
+
+          if (
+            !points ||
+            points.length < 2 ||
+            !cumulative ||
+            cumulative.length < 2 ||
+            total <= EPS
+          ) {
+            return { snapped: null, segIndex: 0 };
+          }
+
+          if (alongMeters <= 0) {
+            return { snapped: [points[0][0], points[0][1]], segIndex: 0 };
+          }
+          if (alongMeters >= total) {
+            const lastIdx = points.length - 1;
+            return {
+              snapped: [points[lastIdx][0], points[lastIdx][1]],
+              segIndex: Math.max(0, lastIdx - 1),
+            };
+          }
+
+          let segIndex = 0;
+          for (let i = 0; i < cumulative.length - 1; i += 1) {
+            if (alongMeters <= cumulative[i + 1]) {
+              segIndex = i;
+              break;
+            }
+          }
+
+          const segStart = cumulative[segIndex];
+          const segEnd = cumulative[segIndex + 1];
+          const segLen = Math.max(EPS, segEnd - segStart);
+          const t = Math.max(0, Math.min(1, (alongMeters - segStart) / segLen));
+          const a = points[segIndex];
+          const b = points[segIndex + 1];
+          return {
+            snapped: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t],
+            segIndex: segIndex,
+          };
+        }
+
+        function splitRouteByVehicle(coords, vehicle, fallbackProgress) {
+          const metrics = buildRouteMetrics(coords);
+          if (metrics.points.length < 2) {
+            return {
+              past: [],
+              future: [],
+              progress: 0,
+              snapped: null,
+              alongMeters: 0,
+            };
+          }
+
+          const fallbackAlong = clamp01(fallbackProgress) * metrics.total;
+          const vehicleMercator = lonLatToMercator(vehicle);
+          let bestAny = null;
+          let bestForward = null;
+          let minAlong = Math.max(0, Math.min(lastAlongMeters, metrics.total));
+
+          if (vehicleMercator && minAlong > metrics.total * 0.6) {
+            const startPoint = metrics.mercator[0];
+            const distanceToStart = Math.hypot(
+              vehicleMercator[0] - startPoint[0],
+              vehicleMercator[1] - startPoint[1],
+            );
+            if (distanceToStart < 35.0) {
+              minAlong = 0;
+            }
+          }
+
+          if (vehicleMercator) {
+            for (let i = 0; i < metrics.mercator.length - 1; i += 1) {
+              const a = metrics.mercator[i];
+              const b = metrics.mercator[i + 1];
+              const projection = projectToSegment(vehicleMercator, a, b);
+              const segLen = Math.hypot(b[0] - a[0], b[1] - a[1]);
+              const along = metrics.cumulative[i] + segLen * projection.t;
+
+              const candidate = {
+                segIndex: i,
+                along: along,
+                distSq: projection.distSq,
+              };
+
+              if (!bestAny || candidate.distSq < bestAny.distSq) {
+                bestAny = candidate;
+              }
+
+              if (along + SNAP_BACKTRACK_TOLERANCE_METERS >= minAlong) {
+                if (!bestForward || candidate.distSq < bestForward.distSq) {
+                  bestForward = candidate;
+                }
               }
             }
           }
-        }
 
-        const chosen = bestForward || bestAny;
-        let along = chosen ? chosen.along : fallbackAlong;
-        if (!Number.isFinite(along)) {
-          along = fallbackAlong;
-        }
-        // Keep route progress monotonic, so lane never jumps backward around intersections.
-        along = Math.max(along, minAlong);
-        along = Math.max(0, Math.min(metrics.total, along));
-
-        const interp = interpolateAlong(metrics, along);
-        const snapped = interp.snapped;
-        const future = [];
-        const past = [];
-        if (snapped) {
-          pushUniquePoint(past, snapped, EPS);
-        }
-
-        if (snapped) {
-          pushUniquePoint(future, snapped, EPS);
-          for (let i = interp.segIndex + 1; i < metrics.points.length; i += 1) {
-            pushUniquePoint(future, metrics.points[i], EPS);
+          const chosen = bestForward || bestAny;
+          let along = chosen ? chosen.along : fallbackAlong;
+          if (!Number.isFinite(along)) {
+            along = fallbackAlong;
           }
-        } else {
-          for (let i = 0; i < metrics.points.length; i += 1) {
-            pushUniquePoint(future, metrics.points[i], EPS);
+          // Keep route progress monotonic, so lane never jumps backward around intersections.
+          along = Math.max(along, minAlong);
+          along = Math.max(0, Math.min(metrics.total, along));
+
+          const interp = interpolateAlong(metrics, along);
+          const snapped = interp.snapped;
+          const future = [];
+          const past = [];
+          if (snapped) {
+            pushUniquePoint(past, snapped, EPS);
+          }
+
+          if (snapped) {
+            pushUniquePoint(future, snapped, EPS);
+            for (
+              let i = interp.segIndex + 1;
+              i < metrics.points.length;
+              i += 1
+            ) {
+              pushUniquePoint(future, metrics.points[i], EPS);
+            }
+          } else {
+            for (let i = 0; i < metrics.points.length; i += 1) {
+              pushUniquePoint(future, metrics.points[i], EPS);
+            }
+          }
+
+          return {
+            past: past,
+            future: future,
+            progress: metrics.total > EPS ? along / metrics.total : 0,
+            snapped: snapped,
+            alongMeters: along,
+          };
+        }
+
+        function updateArrowRotation() {
+          const arrow = document.getElementById("vehicle-arrow");
+          if (!arrow) {
+            return;
+          }
+          arrow.style.transform = "rotate(0deg)";
+        }
+
+        function ensureRouteLayers() {
+          if (!map || !mapReady) {
+            return;
+          }
+
+          if (!map.getSource("route-future")) {
+            map.addSource("route-future", {
+              type: "geojson",
+              data: {
+                type: "Feature",
+                geometry: { type: "LineString", coordinates: [] },
+              },
+            });
+          }
+
+          if (!map.getLayer("route-future-case")) {
+            map.addLayer({
+              id: "route-future-case",
+              type: "line",
+              source: "route-future",
+              layout: {
+                "line-cap": "round",
+                "line-join": "round",
+              },
+              paint: {
+                "line-color": "#20405d",
+                "line-width": 11,
+                "line-opacity": 0.95,
+              },
+            });
+          }
+
+          if (!map.getLayer("route-future-main")) {
+            map.addLayer({
+              id: "route-future-main",
+              type: "line",
+              source: "route-future",
+              layout: {
+                "line-cap": "round",
+                "line-join": "round",
+              },
+              paint: {
+                "line-color": "#67e5ff",
+                "line-width": 7,
+                "line-opacity": 0.98,
+              },
+            });
           }
         }
 
-        return {
-          past: past,
-          future: future,
-          progress: metrics.total > EPS ? along / metrics.total : 0,
-          snapped: snapped,
-          alongMeters: along
-        };
-      }
+        function updateRouteLayers() {
+          if (!map || !mapReady) {
+            return;
+          }
+          ensureRouteLayers();
 
-      function updateArrowRotation() {
-        const arrow = document.getElementById("vehicle-arrow");
-        if (!arrow) {
-          return;
-        }
-        arrow.style.transform = "rotate(0deg)";
-      }
+          const vehiclePoint = [vehicleState.lng, vehicleState.lat];
+          const split = splitRouteByVehicle(
+            routeCoords,
+            vehiclePoint,
+            routeProgress,
+          );
+          latestSplit = split;
+          routeProgress = split.progress;
+          if (Number.isFinite(split.alongMeters)) {
+            lastAlongMeters = split.alongMeters;
+          }
 
-      function ensureRouteLayers() {
-        if (!map || !mapReady) {
-          return;
-        }
-
-        if (!map.getSource("route-future")) {
-          map.addSource("route-future", {
-            type: "geojson",
-            data: {
+          const futureSource = map.getSource("route-future");
+          if (futureSource) {
+            futureSource.setData({
               type: "Feature",
-              geometry: { type: "LineString", coordinates: [] }
-            }
+              geometry: { type: "LineString", coordinates: split.future },
+            });
+          }
+        }
+
+        function updateCamera() {
+          if (!map || !mapReady) {
+            return;
+          }
+
+          const snapped =
+            latestSplit && isValidLngLat(latestSplit.snapped)
+              ? latestSplit.snapped
+              : [vehicleState.lng, vehicleState.lat];
+
+          map.easeTo({
+            center: snapped,
+            bearing: Number(vehicleState.heading) || 0,
+            pitch: DEFAULT_PITCH,
+            zoom: DEFAULT_ZOOM,
+            duration: 220,
+            essential: true,
           });
         }
 
-        if (!map.getLayer("route-future-case")) {
-          map.addLayer({
-            id: "route-future-case",
-            type: "line",
-            source: "route-future",
-            layout: {
-              "line-cap": "round",
-              "line-join": "round"
-            },
-            paint: {
-              "line-color": "#20405d",
-              "line-width": 11,
-              "line-opacity": 0.95
-            }
-          });
-        }
+        window.setVehicleState = function (payload) {
+          if (!payload) {
+            return;
+          }
 
-        if (!map.getLayer("route-future-main")) {
-          map.addLayer({
-            id: "route-future-main",
-            type: "line",
-            source: "route-future",
-            layout: {
-              "line-cap": "round",
-              "line-join": "round"
-            },
-            paint: {
-              "line-color": "#67e5ff",
-              "line-width": 7,
-              "line-opacity": 0.98
-            }
-          });
-        }
-      }
+          const lat = Number(payload.lat);
+          const lng = Number(payload.lng);
+          const heading = Number(payload.heading);
 
-      function updateRouteLayers() {
-        if (!map || !mapReady) {
-          return;
-        }
-        ensureRouteLayers();
+          if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+            vehicleState.lat = lat;
+            vehicleState.lng = lng;
+          }
+          if (!Number.isNaN(heading)) {
+            vehicleState.heading = heading;
+          }
 
-        const vehiclePoint = [vehicleState.lng, vehicleState.lat];
-        const split = splitRouteByVehicle(routeCoords, vehiclePoint, routeProgress);
-        latestSplit = split;
-        routeProgress = split.progress;
-        if (Number.isFinite(split.alongMeters)) {
-          lastAlongMeters = split.alongMeters;
-        }
+          updateArrowRotation();
+          updateRouteLayers();
+          updateCamera();
+        };
 
-        const futureSource = map.getSource("route-future");
-        if (futureSource) {
-          futureSource.setData({
-            type: "Feature",
-            geometry: { type: "LineString", coordinates: split.future }
-          });
-        }
-      }
-
-      function updateCamera() {
-        if (!map || !mapReady) {
-          return;
-        }
-
-        const snapped = latestSplit && isValidLngLat(latestSplit.snapped)
-          ? latestSplit.snapped
-          : [vehicleState.lng, vehicleState.lat];
-
-        map.easeTo({
-          center: snapped,
-          bearing: Number(vehicleState.heading) || 0,
-          pitch: DEFAULT_PITCH,
-          zoom: DEFAULT_ZOOM,
-          duration: 220,
-          essential: true
-        });
-      }
-
-      window.setVehicleState = function (payload) {
-        if (!payload) {
-          return;
-        }
-
-        const lat = Number(payload.lat);
-        const lng = Number(payload.lng);
-        const heading = Number(payload.heading);
-
-        if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-          vehicleState.lat = lat;
-          vehicleState.lng = lng;
-        }
-        if (!Number.isNaN(heading)) {
-          vehicleState.heading = heading;
-        }
-
-        updateArrowRotation();
-        updateRouteLayers();
-        updateCamera();
-      };
-
-      window.setRoute = function (payload) {
-        const coords = (payload && Array.isArray(payload.coordinates)) ? payload.coordinates : [];
-        routeCoords = coords;
-        lastAlongMeters = 0;
-        latestSplit = null;
-        if (payload && payload.progress !== undefined) {
-          routeProgress = clamp01(Number(payload.progress) || 0);
-        }
-        updateRouteLayers();
-      };
-
-      window.setRouteProgress = function (progressValue) {
-        const nextProgress = clamp01(Number(progressValue) || 0);
-        if (nextProgress <= 0.02) {
+        window.setRoute = function (payload) {
+          const coords =
+            payload && Array.isArray(payload.coordinates)
+              ? payload.coordinates
+              : [];
+          routeCoords = coords;
           lastAlongMeters = 0;
           latestSplit = null;
-        }
-        routeProgress = nextProgress;
-        updateRouteLayers();
-      };
+          if (payload && payload.progress !== undefined) {
+            routeProgress = clamp01(Number(payload.progress) || 0);
+          }
+          updateRouteLayers();
+        };
 
-      map = new maplibregl.Map({
-        container: "map",
-        style: RASTER_DARK_STYLE,
-        center: DEFAULT_CENTER,
-        zoom: DEFAULT_ZOOM,
-        bearing: 0,
-        pitch: DEFAULT_PITCH,
-        antialias: true,
-        maxZoom: 20,
-        attributionControl: true
-      });
+        window.setRouteProgress = function (progressValue) {
+          const nextProgress = clamp01(Number(progressValue) || 0);
+          if (nextProgress <= 0.02) {
+            lastAlongMeters = 0;
+            latestSplit = null;
+          }
+          routeProgress = nextProgress;
+          updateRouteLayers();
+        };
 
-      map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+        window.setDestination = function (payload) {
+          if (!payload || !map) return;
+          const lat = Number(payload.lat);
+          const lng = Number(payload.lng);
+          if (Number.isNaN(lat) || Number.isNaN(lng)) return;
 
-      map.on("load", function () {
-        mapReady = true;
-        ensureRouteLayers();
-        updateRouteLayers();
-        updateArrowRotation();
-        updateCamera();
-      });
-    })();
-  </script>
-</body>
+          if (destMarker) {
+            destMarker.setLngLat([lng, lat]);
+            return;
+          }
+
+          const el = document.createElement("div");
+          el.className = "dest-pin";
+          el.innerHTML =
+            '<svg viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg">' +
+            '<path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 20 12 20s12-11 12-20C24 5.4 18.6 0 12 0z" fill="#ff4444"/>' +
+            '<circle cx="12" cy="12" r="5" fill="#ffffff"/>' +
+            "</svg>";
+
+          destMarker = new maplibregl.Marker({ element: el, anchor: "bottom" })
+            .setLngLat([lng, lat])
+            .addTo(map);
+        };
+
+        map = new maplibregl.Map({
+          container: "map",
+          style: RASTER_DARK_STYLE,
+          center: DEFAULT_CENTER,
+          zoom: DEFAULT_ZOOM,
+          bearing: 0,
+          pitch: DEFAULT_PITCH,
+          antialias: true,
+          maxZoom: 20,
+          attributionControl: true,
+        });
+
+        map.addControl(
+          new maplibregl.NavigationControl({ visualizePitch: true }),
+          "top-right",
+        );
+
+        map.on("load", function () {
+          mapReady = true;
+          ensureRouteLayers();
+          updateRouteLayers();
+          updateArrowRotation();
+          updateCamera();
+        });
+      })();
+    </script>
+  </body>
 </html>

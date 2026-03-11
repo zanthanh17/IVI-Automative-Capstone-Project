@@ -7,19 +7,17 @@ Item {
     id: root
     property real scale: 1.0
     property int menu: NormalModeModel.menu;
-    readonly property real layoutMargin: 24
-    readonly property real layoutGap: 20
-    readonly property real topPaneHeight: 64
-    readonly property real topPaneY: layoutMargin
-    readonly property real topCardWidth: Math.min(root.width - layoutMargin * 2, 520)
+    readonly property real layoutMargin: 16
+    readonly property real layoutGap: 14
+    readonly property real headerHeight: 40
     
     readonly property real leftPaneX: layoutMargin
-    readonly property real leftPaneY: topPaneY + topPaneHeight + layoutGap
-    readonly property real leftPaneWidth: 500
+    readonly property real leftPaneY: layoutMargin + headerHeight + layoutGap
+    readonly property real leftPaneWidth: 504
     readonly property real leftPaneHeight: root.height - leftPaneY - layoutMargin
     
     readonly property real rightPaneX: leftPaneX + leftPaneWidth + layoutGap
-    readonly property real rightPaneY: topPaneY + topPaneHeight + layoutGap
+    readonly property real rightPaneY: leftPaneY
     readonly property real rightPaneWidth: root.width - rightPaneX - layoutMargin
     
     readonly property real menuPaneHeight: 70
@@ -29,7 +27,7 @@ Item {
     
     readonly property real contentTopY: topLine.y + topLine.height + 2
     readonly property real rightContentHeight: rightPaneHeight - (contentTopY - rightPaneY) - layoutGap
-    readonly property real gaugeTopY: leftPaneY + 32
+    readonly property real gaugeTopY: leftPaneY + 96
     readonly property real gaugeInset: 8
     readonly property real vehicleBottomInset: 135
     readonly property real vehiclePanelCenterX: leftPaneX + leftPaneWidth / 2
@@ -48,17 +46,6 @@ Item {
     readonly property real vehicleCenterOffsetX: gaugesMidX - vehiclePanelCenterX
 
     // Card Backgrounds
-    Rectangle {
-        id: topCardBg
-        x: (root.width - width) / 2
-        y: topPaneY
-        width: topCardWidth
-        height: topPaneHeight
-        color: Style.backgroundPanel
-        radius: 26
-        opacity: 0.96
-        z: -1
-    }
 
     Rectangle {
         id: leftCardBg
@@ -66,9 +53,11 @@ Item {
         y: leftPaneY
         width: leftPaneWidth
         height: leftPaneHeight
-        color: Style.backgroundPanel
+        color: "#181b20"
+        border.color: "#303640"
+        border.width: 1
         radius: 26
-        opacity: 0.96
+        opacity: 0.8
         z: -1
     }
 
@@ -78,9 +67,11 @@ Item {
         y: rightPaneY
         width: rightPaneWidth
         height: rightPaneHeight
-        color: Style.backgroundPanel
+        color: "#181b20"
+        border.color: "#303640"
+        border.width: 1
         radius: 26
-        opacity: 0.96
+        opacity: 0.8
         z: -1
     }
 
@@ -90,9 +81,11 @@ Item {
         y: bottomPaneY
         width: rightPaneWidth
         height: menuPaneHeight
-        color: Style.backgroundPanel
+        color: "#181b20"
+        border.color: "#303640"
+        border.width: 1
         radius: 26
-        opacity: 0.96
+        opacity: 0.8
         z: -1
     }
 

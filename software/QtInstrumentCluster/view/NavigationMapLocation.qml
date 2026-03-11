@@ -16,6 +16,8 @@ Item {
     property string destinationSearchText: "Cau Rong, Da Nang, Vietnam"
     property var destinationCoordinate: QtPositioning.coordinate(16.05200, 108.21870)
     property bool liveRouteReady: false
+    property int osrmRetryCount: 0
+    readonly property int osrmMaxRetries: 2
 
     property var routePath: []
     property var pastPath: []
@@ -224,6 +226,17 @@ Item {
         rebuildRouteFromActiveSource()
         applyPreferredMapType()
         requestRouteToDestination()
+        console.log("[NavMap] Route initialized with", routePath.length, "points")
+    }
+
+    Timer {
+        id: osrmRetryTimer
+        interval: 3000
+        repeat: false
+        onTriggered: {
+            console.log("[NavMap] Retrying OSRM route request (attempt", navMapRoot.osrmRetryCount + 1, ")")
+            navMapRoot.requestRouteToDestination()
+        }
     }
 
     Connections {
@@ -232,15 +245,29 @@ Item {
     }
 
     Connections {
+        target: NavigationFeed
+        function onRouteLooped() {
+            console.log("[NavMap] Route looped, rebuilding path")
+            navMapRoot.rebuildRouteFromActiveSource()
+        }
+    }
+
+    Connections {
         target: OsrmRoute
         function onRouteReady(path) {
+            console.log("[NavMap] OSRM route received with", path.length, "points")
+            navMapRoot.osrmRetryCount = 0
             navMapRoot.liveRouteReady = true
             navMapRoot.rebuildRouteFromActiveSource()
         }
         function onRouteFailed(error) {
-            console.warn("OSRM routing failed:", error)
+            console.warn("[NavMap] OSRM routing failed:", error)
             navMapRoot.liveRouteReady = false
             navMapRoot.rebuildRouteFromActiveSource()
+            if (navMapRoot.osrmRetryCount < navMapRoot.osrmMaxRetries) {
+                navMapRoot.osrmRetryCount++
+                osrmRetryTimer.restart()
+            }
         }
     }
 
@@ -283,21 +310,33 @@ Item {
             center: QtPositioning.coordinate(NavigationFeed.currentLatitude, NavigationFeed.currentLongitude)
             onSupportedMapTypesChanged: navMapRoot.applyPreferredMapType()
 
+            /* Full route shadow — always visible as a dim guide line */
             MapPolyline {
-                line.width: 7
-                line.color: "#1e3247"
-                path: navMapRoot.pastPath
+                line.width: 6
+                line.color: "#3366aadd"
+                path: navMapRoot.routePath
                 smooth: true
-                opacity: 0.88
+                opacity: 0.55
             }
 
+            /* Past: already traveled — slightly dimmer */
             MapPolyline {
-                line.width: 11
+                line.width: 7
+                line.color: "#4488bb"
+                path: navMapRoot.pastPath
+                smooth: true
+                opacity: 0.45
+            }
+
+            /* Main segment outer glow */
+            MapPolyline {
+                line.width: 12
                 line.color: "#19395b"
                 path: navMapRoot.mainPath
                 smooth: true
             }
 
+            /* Main segment — bright cyan route ahead */
             MapPolyline {
                 line.width: 7
                 line.color: "#7ef2d0"
@@ -305,6 +344,7 @@ Item {
                 smooth: true
             }
 
+            /* Caution segment — yellow approaching turn */
             MapPolyline {
                 line.width: 7
                 line.color: "#f7df65"
@@ -312,6 +352,7 @@ Item {
                 smooth: true
             }
 
+            /* Final segment — red near destination */
             MapPolyline {
                 line.width: 7
                 line.color: "#ff7665"
@@ -319,6 +360,41 @@ Item {
                 smooth: true
             }
 
+            /* Destination pin marker */
+            MapQuickItem {
+                coordinate: navMapRoot.destinationCoordinate
+                anchorPoint.x: destPin.width / 2
+                anchorPoint.y: destPin.height
+
+                sourceItem: Item {
+                    id: destPin
+                    width: 28
+                    height: 36
+
+                    Canvas {
+                        anchors.fill: parent
+                        onPaint: {
+                            var ctx = getContext("2d")
+                            ctx.reset()
+                            // Pin body
+                            ctx.fillStyle = "#ff4444"
+                            ctx.beginPath()
+                            ctx.arc(14, 12, 12, Math.PI, 0, false)
+                            ctx.lineTo(14, 36)
+                            ctx.lineTo(2, 12)
+                            ctx.closePath()
+                            ctx.fill()
+                            // Inner circle
+                            ctx.fillStyle = "#ffffff"
+                            ctx.beginPath()
+                            ctx.arc(14, 12, 5, 0, Math.PI * 2)
+                            ctx.fill()
+                        }
+                    }
+                }
+            }
+
+            /* Vehicle position marker */
             MapQuickItem {
                 coordinate: QtPositioning.coordinate(NavigationFeed.currentLatitude, NavigationFeed.currentLongitude)
                 anchorPoint.x: marker.width / 2

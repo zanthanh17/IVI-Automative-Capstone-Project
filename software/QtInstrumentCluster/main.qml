@@ -121,11 +121,20 @@ Window {
             id: root
             anchors.fill: parent
             focus: true
-            color: Style.backgroundBase
+            color: "transparent"
+            property date currentDateTime: new Date()
 
             Keys.onPressed: (event) => {
                 window.handleKey(event.key)
                 event.accepted = true
+            }
+
+            Image {
+                id: bgImage
+                anchors.fill: parent
+                source: "qrc:/images/background/bg_car2.png"
+                fillMode: Image.PreserveAspectCrop
+                z: -2
             }
 
             View.NormalMode {
@@ -145,10 +154,106 @@ Window {
                 z: 10
             }
 
-            View.TellTales {
-                x: (root.width - width) / 2
-                y: normalMode.topPaneY + (normalMode.topPaneHeight - height) / 2
-                z: 10
+            Item {
+                id: topBar
+                anchors.top: root.top
+                anchors.topMargin: 16
+                anchors.left: root.left
+                anchors.right: root.right
+                height: 32
+                z: 20
+
+                Timer {
+                    interval: 1000; repeat: true; running: true; triggeredOnStart: true
+                    onTriggered: root.currentDateTime = new Date()
+                }
+
+                Image {
+                    id: topLogo
+                    anchors.left: parent.left
+                    anchors.leftMargin: 32
+                    anchors.verticalCenter: parent.verticalCenter
+                    source: "qrc:/images/Tesla_Logo.png"
+                    sourceSize.width: 32
+                    sourceSize.height: 32
+                    fillMode: Image.PreserveAspectFit
+                    opacity: 0.9
+                }
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 2
+                    
+                    Row {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 6
+                        Text {
+                            text: Qt.formatDateTime(root.currentDateTime, "h:mm")
+                            color: "#ffffff"
+                            font.pixelSize: 28
+                            font.bold: true
+                            font.letterSpacing: 1
+                        }
+                        Text {
+                            anchors.baseline: parent.children[0].baseline
+                            text: Qt.formatDateTime(root.currentDateTime, "ap")
+                            color: "#ffffff"
+                            font.pixelSize: 14
+                            font.bold: true
+                        }
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: Qt.formatDateTime(root.currentDateTime, "dddd | MMMM d, yyyy")
+                        color: "#dcdce0"
+                        font.pixelSize: 12
+                        font.bold: true
+                        font.letterSpacing: 0.5
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: quickStatusRow
+                    anchors.margins: -10
+                    onClicked: NormalModeModel.menu = NormalModeModel.CarStatusMenu
+                }
+
+                Row {
+                    id: quickStatusRow
+                    spacing: 16
+                    anchors.right: parent.right
+                    anchors.rightMargin: 24
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: NormalModeModel.quickControlsEnabled
+                    opacity: 0.9
+
+                    Image {
+                        source: "qrc:/images/others/wifi.png"
+                        width: 24
+                        height: 24
+                        visible: NormalModeModel.wifiEnabled
+                        fillMode: Image.PreserveAspectFit
+                    }
+                    Image {
+                        source: "qrc:/images/others/bluetooth.svg"
+                        width: 24
+                        height: 24
+                        visible: NormalModeModel.bluetoothEnabled
+                        fillMode: Image.PreserveAspectFit
+                    }
+                    Image {
+                        source: "qrc:/images/others/volume.svg"
+                        width: 24
+                        height: 24
+                        fillMode: Image.PreserveAspectFit
+                    }
+                    Image {
+                        source: "qrc:/images/others/brightness.svg"
+                        width: 24
+                        height: 24
+                        fillMode: Image.PreserveAspectFit
+                    }
+                }
             }
 
             View.StatusBar {
@@ -159,47 +264,10 @@ Window {
                 z: 10
             }
 
-            // Quick controls status icons (wifi / bt / volume / brightness)
-            Row {
-                id: quickStatusRow
-                spacing: 12
-                anchors.top: root.top
-                anchors.topMargin: 18
-                anchors.right: root.right
-                anchors.rightMargin: 32
-                visible: NormalModeModel.quickControlsEnabled
-                opacity: 0.9
-                z: 20
-
-                Image {
-                    source: "qrc:/images/others/wifi.png"
-                    width: 18
-                    height: 18
-                    visible: NormalModeModel.wifiEnabled
-                    fillMode: Image.PreserveAspectFit
-                }
-
-                Image {
-                    source: "qrc:/images/others/bluetooth.svg"
-                    width: 18
-                    height: 18
-                    visible: NormalModeModel.bluetoothEnabled
-                    fillMode: Image.PreserveAspectFit
-                }
-
-                Image {
-                    source: "qrc:/images/others/volume.svg"
-                    width: 18
-                    height: 18
-                    fillMode: Image.PreserveAspectFit
-                }
-
-                Image {
-                    source: "qrc:/images/others/brightness.svg"
-                    width: 18
-                    height: 18
-                    fillMode: Image.PreserveAspectFit
-                }
+            View.TellTales {
+                x: normalMode.leftPaneX + (normalMode.leftPaneWidth - width) / 2
+                y: normalMode.leftPaneY + 16
+                z: 11
             }
 
             Component.onCompleted: {
