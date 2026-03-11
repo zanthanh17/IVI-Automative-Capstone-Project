@@ -9,17 +9,9 @@ qtHaveModule(svg) {
 
 qtHaveModule(location):qtHaveModule(positioning) {
     QT += location positioning
-    message("QtLocation/QtPositioning detected: map support enabled")
+    message("QtLocation/QtPositioning detected: Mapbox map support enabled")
 } else {
-    message("QtLocation/QtPositioning not found: build uses Navigation HUD fallback")
-}
-
-qtHaveModule(webengine):qtHaveModule(webchannel) {
-    QT += webengine webchannel
-    DEFINES += HAS_WEBENGINE_MAP
-    message("QtWebEngine detected: WebEngine map support enabled")
-} else {
-    message("QtWebEngine not found: map falls back to QtLocation/HUD")
+    error("QtLocation/QtPositioning are required for Mapbox-only navigation.")
 }
 
 linux: QT += dbus

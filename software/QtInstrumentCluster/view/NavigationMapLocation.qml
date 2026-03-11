@@ -2,6 +2,7 @@ import QtQuick 2.12
 import QtQuick.Controls 2.12
 import QtLocation 5.15
 import QtPositioning 5.15
+import QtGraphicalEffects 1.12
 import NavigationModel 1.0
 import NavigationFeed 1.0
 import OsrmRoute 1.0
@@ -9,11 +10,10 @@ import OsrmRoute 1.0
 Item {
     id: navMapRoot
 
-    /*
-     * CartoDB Dark Matter tiles: free, beautiful dark theme, HiDPI support
-     * No API key required. Perfect for automotive dashboard.
-     */
-    property string darkTileHost: "https://basemaps.cartocdn.com/dark_all/%z/%x/%y@2x.png"
+    property bool hasMapboxToken: (typeof mapboxTokenFromEnv === "string") && mapboxTokenFromEnv.trim().length > 0
+
+    // Fixed Qt5-compatible style for dashboard navigation.
+    property string mapboxStyleUrl: "mapbox://styles/mapbox/navigation-guidance-night-v2"
     property string destinationSearchText: ""
     property var destinationCoordinate: QtPositioning.coordinate()
     property bool searchPanelVisible: false
@@ -29,6 +29,31 @@ Item {
     property var mainPath: []
     property var cautionPath: []
     property var finalPath: []
+
+    readonly property real minZoomLevel: 1.0
+    readonly property real maxZoomLevel: 19.2
+    readonly property real minTilt: 0.0
+    readonly property real maxTilt: 60.0
+    readonly property real defaultZoomLevel: 14.8
+    readonly property real noFixZoomLevel: 2.2
+    readonly property real defaultTilt: 0.0
+    readonly property real zoomStep: 0.7
+    readonly property color mapCardColor: "#132033"
+    readonly property int mapCornerRadius: 22
+    readonly property int overlayInset: 10
+    readonly property int overlayGap: 6
+    readonly property int rightControlWidth: 46
+    readonly property int rightControlReservedWidth: rightControlWidth + overlayInset + overlayGap
+    readonly property int bottomOverlaySafeInset: 36
+
+    property bool followVehicle: true
+    property bool autoHeading: false
+    property bool overviewMode: false
+    property bool centeredOnFirstFix: false
+
+    function clamp(v, minV, maxV) {
+        return Math.max(minV, Math.min(maxV, v))
+    }
 
     function hasVehicleFix() {
         return NavigationFeed.hasPositionFix
@@ -290,37 +315,108 @@ Item {
         }
     }
 
+    function syncCameraToVehicle(forceCenter) {
+        if (!hasVehicleFix()) {
+            return
+        }
+        if (forceCenter || followVehicle) {
+            navMap.center = vehicleCoordinate()
+        }
+        if (autoHeading) {
+            navMap.bearing = NavigationFeed.currentHeadingDeg
+        }
+    }
+
+    function recenterVehicleCamera() {
+        followVehicle = true
+        autoHeading = true
+        overviewMode = false
+        navMap.zoomLevel = clamp(defaultZoomLevel, minZoomLevel, maxZoomLevel)
+        navMap.tilt = clamp(defaultTilt, minTilt, maxTilt)
+        syncCameraToVehicle(true)
+    }
+
+    function showRouteOverview() {
+        if (routePath.length < 2 && !(destinationCoordinate && destinationCoordinate.isValid)) {
+            return
+        }
+        overviewMode = true
+        followVehicle = false
+        autoHeading = false
+        navMap.bearing = 0
+        navMap.tilt = 25
+        if (typeof navMap.fitViewportToMapItems === "function") {
+            navMap.fitViewportToMapItems()
+        }
+        navMap.zoomLevel = clamp(navMap.zoomLevel, minZoomLevel, maxZoomLevel)
+    }
+
+    function zoomBy(delta) {
+        overviewMode = false
+        followVehicle = false
+        navMap.zoomLevel = clamp(navMap.zoomLevel + delta, minZoomLevel, maxZoomLevel)
+    }
+
     function applyPreferredMapType() {
         if (!navMap.supportedMapTypes || navMap.supportedMapTypes.length === 0) {
             return
         }
 
+        // The additional_style_urls style is registered as MapType.CustomMap.
+        // Prefer it if available (must be a classic style — NOT Standard/imports).
         for (var i = 0; i < navMap.supportedMapTypes.length; ++i) {
             var mt = navMap.supportedMapTypes[i]
             if (mt.style === MapType.CustomMap) {
                 navMap.activeMapType = mt
+                console.log("[NavMap] Selected custom map style:", mt.name || "(custom)")
                 return
             }
         }
 
+        // Fallback: any dark / navigation style
         for (var j = 0; j < navMap.supportedMapTypes.length; ++j) {
-            var fallback = navMap.supportedMapTypes[j]
-            var text = ((fallback.name || "") + " " + (fallback.description || "")).toLowerCase()
-            if (text.indexOf("dark") >= 0 || text.indexOf("night") >= 0 || text.indexOf("navigation") >= 0) {
-                navMap.activeMapType = fallback
+            var fb = navMap.supportedMapTypes[j]
+            var text = ((fb.name || "") + " " + (fb.description || "")).toLowerCase()
+            if (text.indexOf("dark") >= 0 || text.indexOf("navigation") >= 0 || text.indexOf("night") >= 0) {
+                navMap.activeMapType = fb
+                console.log("[NavMap] Selected fallback map style:", fb.name || fb.description)
                 return
             }
         }
 
         if (navMap.supportedMapTypes.length > 0) {
             navMap.activeMapType = navMap.supportedMapTypes[0]
+            console.log("[NavMap] Selected first available map style:", navMap.activeMapType.name || navMap.activeMapType.description)
         }
     }
 
+    function logSupportedMapTypes() {
+        if (!navMap.supportedMapTypes || navMap.supportedMapTypes.length === 0) {
+            console.warn("[NavMap] No supported map types reported by mapboxgl plugin.")
+            return
+        }
+        var lines = []
+        for (var i = 0; i < navMap.supportedMapTypes.length; ++i) {
+            var mt = navMap.supportedMapTypes[i]
+            lines.push("#" + i + " style=" + mt.style + " name=\"" + (mt.name || "")
+                       + "\" desc=\"" + (mt.description || "") + "\"")
+        }
+        console.log("[NavMap] Supported map types:", lines.join(" | "))
+    }
+
     Component.onCompleted: {
+        if (!hasMapboxToken) {
+            console.warn("[NavMap] MAPBOX_ACCESS_TOKEN is empty. Mapbox tiles/geocode/route requests will fail.")
+        }
+        console.log("[NavMap] Using map style URL:", mapboxStyleUrl)
+        logSupportedMapTypes()
         rebuildRouteFromActiveSource()
         applyPreferredMapType()
         requestRouteToDestination()
+        syncCameraToVehicle(true)
+        if (!hasVehicleFix()) {
+            console.log("[NavMap] No GPS fix yet. Map keeps provider default center until first valid position.")
+        }
         console.log("[NavMap] Route initialized with", routePath.length, "points")
     }
 
@@ -329,7 +425,7 @@ Item {
         interval: 3000
         repeat: false
         onTriggered: {
-            console.log("[NavMap] Retrying OSRM route request (attempt", navMapRoot.osrmRetryCount + 1, ")")
+            console.log("[NavMap] Retrying route request (attempt", navMapRoot.osrmRetryCount + 1, ")")
             navMapRoot.requestRouteToDestination(true)
         }
     }
@@ -350,15 +446,26 @@ Item {
     Connections {
         target: NavigationFeed
         function onPositionUpdated() {
+            if (!navMapRoot.centeredOnFirstFix && navMapRoot.hasVehicleFix()) {
+                navMap.zoomLevel = navMapRoot.clamp(navMapRoot.defaultZoomLevel,
+                                                    navMapRoot.minZoomLevel,
+                                                    navMapRoot.maxZoomLevel)
+                navMapRoot.syncCameraToVehicle(true)
+                navMapRoot.centeredOnFirstFix = true
+            }
             if (!navMapRoot.liveRouteReady) {
                 navMapRoot.requestRouteToDestination()
             } else {
                 navMapRoot.maybeRerouteIfOffRoute()
             }
+            navMapRoot.syncCameraToVehicle(false)
         }
         function onRouteLooped() {
             console.log("[NavMap] Route looped, rebuilding path")
             navMapRoot.rebuildRouteFromActiveSource()
+            if (navMapRoot.overviewMode) {
+                navMapRoot.showRouteOverview()
+            }
         }
     }
 
@@ -372,13 +479,16 @@ Item {
             navMapRoot.rebuildRouteFromActiveSource()
         }
         function onRouteReady(path) {
-            console.log("[NavMap] OSRM route received with", path.length, "points")
+            console.log("[NavMap] Route received with", path.length, "points")
             navMapRoot.osrmRetryCount = 0
             navMapRoot.liveRouteReady = true
             navMapRoot.rebuildRouteFromActiveSource()
+            if (navMapRoot.overviewMode) {
+                navMapRoot.showRouteOverview()
+            }
         }
         function onRouteFailed(error) {
-            console.warn("[NavMap] OSRM routing failed:", error)
+            console.warn("[NavMap] Route request failed:", error)
             navMapRoot.liveRouteReady = false
             navMapRoot.rebuildRouteFromActiveSource()
             if (navMapRoot.osrmRetryCount < navMapRoot.osrmMaxRetries) {
@@ -389,11 +499,8 @@ Item {
     }
 
     /*
-     * Mapbox GL native plugin — requires access token
-     * Uses navigation-night-v1: a classic dark automotive-friendly style
-     * fully compatible with mapbox-gl-native (Qt5).
-     * Note: Custom styles with Mapbox Standard imports are NOT supported.
-     * Route rendering via OSRM HTTP API (OsrmRouteProvider C++)
+     * Mapbox GL native plugin — requires access token.
+     * Uses a single style URL from env (MAPBOX_STYLE_URL).
      */
     // Token is injected from main.cpp via QML context property: mapboxTokenFromEnv
     // Set before running: export MAPBOX_ACCESS_TOKEN="pk.eyJ1..."
@@ -402,12 +509,21 @@ Item {
         id: darkMapPlugin
         name: "mapboxgl"
         PluginParameter { name: "mapboxgl.access_token"; value: mapboxTokenFromEnv }
-        PluginParameter { name: "mapboxgl.mapping.additional_style_urls"; value: "mapbox://styles/mapbox/navigation-night-v1" }
+        PluginParameter {
+            name: "mapboxgl.mapping.additional_style_urls"
+            value: mapboxStyleUrl
+        }
+    }
+
+    Plugin {
+        id: geocodePlugin
+        name: "mapbox"
+        PluginParameter { name: "mapbox.access_token"; value: mapboxTokenFromEnv }
     }
 
     GeocodeModel {
         id: destinationGeocode
-        plugin: darkMapPlugin
+        plugin: geocodePlugin
         autoUpdate: false
         limit: 6
         onStatusChanged: {
@@ -428,24 +544,72 @@ Item {
     Rectangle {
         id: mapArea
         anchors.fill: parent
-        anchors.leftMargin: 10
-        anchors.rightMargin: 10
-        anchors.topMargin: 8
-        anchors.bottomMargin: 8
+        anchors.margins: 0
         color: "transparent"
-        radius: 16
-        clip: true
+        radius: navMapRoot.mapCornerRadius
+
+        /*
+         * Use layer + OpacityMask for true rounded-corner clipping.
+         * This works even for native OpenGL content like QtLocation Map.
+         */
+        layer.enabled: true
+        layer.effect: OpacityMask {
+            maskSource: Rectangle {
+                width: mapArea.width
+                height: mapArea.height
+                radius: navMapRoot.mapCornerRadius
+            }
+        }
+
+        // Dark base fill behind the map
+        Rectangle {
+            anchors.fill: parent
+            color: navMapRoot.mapCardColor
+            radius: navMapRoot.mapCornerRadius
+        }
 
         Map {
             id: navMap
             anchors.fill: parent
             plugin: darkMapPlugin
             color: "#00091a"
-            zoomLevel: 16.8
-            tilt: 50
-            bearing: NavigationFeed.currentHeadingDeg
-            center: navMapRoot.vehicleCoordinate()
-            onSupportedMapTypesChanged: navMapRoot.applyPreferredMapType()
+            minimumZoomLevel: navMapRoot.minZoomLevel
+            maximumZoomLevel: navMapRoot.maxZoomLevel
+            zoomLevel: navMapRoot.defaultZoomLevel
+            tilt: navMapRoot.defaultTilt
+            bearing: 0
+            onSupportedMapTypesChanged: {
+                navMapRoot.logSupportedMapTypes()
+                navMapRoot.applyPreferredMapType()
+            }
+            onErrorChanged: {
+                if (error !== Map.NoError) {
+                    console.warn("[NavMap] Map render error:", error, errorString)
+                }
+            }
+            Component.onCompleted: {
+                console.log("[NavMap] Map component created. Active type:",
+                            activeMapType ? activeMapType.name : "(none)")
+                if (!navMapRoot.hasVehicleFix()) {
+                    zoomLevel = navMapRoot.clamp(navMapRoot.noFixZoomLevel,
+                                                 navMapRoot.minZoomLevel,
+                                                 navMapRoot.maxZoomLevel)
+                }
+            }
+
+            gesture.enabled: true
+            gesture.acceptedGestures: MapGestureArea.PanGesture
+                                      | MapGestureArea.PinchGesture
+                                      | MapGestureArea.RotationGesture
+                                      | MapGestureArea.FlickGesture
+            gesture.onPanStarted: {
+                navMapRoot.followVehicle = false
+                navMapRoot.overviewMode = false
+            }
+            gesture.onPinchStarted: {
+                navMapRoot.followVehicle = false
+                navMapRoot.overviewMode = false
+            }
 
             /* Full route shadow — always visible as a dim guide line */
             MapPolyline {
@@ -575,38 +739,335 @@ Item {
                 }
             }
         }
+
     }
 
-    /* Floating mini-guide overlay */
-    Row {
-        id: topMiniGuide
-        anchors.left: mapArea.left
-        anchors.leftMargin: 10
-        anchors.top: mapArea.top
-        anchors.topMargin: 10
-        spacing: 8
+    /* Border frame drawn on top of the clipped map */
+    Rectangle {
+        id: mapBorderFrame
+        anchors.fill: mapArea
+        z: 22
+        color: "transparent"
+        radius: navMapRoot.mapCornerRadius
+        border.width: 1.5
+        border.color: "#3a5270"
+    }
 
-        Canvas {
-            width: 28
-            height: 28
-            anchors.verticalCenter: parent.verticalCenter
-            onPaint: navMapRoot.drawArrow(getContext("2d"), NavigationModel.maneuver, "#7ef2d0")
+    /* ── Right-side column: search card + zoom + action buttons ── */
+    Column {
+        id: rightControlColumn
+        anchors.top: mapArea.top
+        anchors.topMargin: navMapRoot.overlayInset
+        anchors.right: mapArea.right
+        anchors.rightMargin: navMapRoot.overlayInset
+        width: navMapRoot.rightControlWidth
+        spacing: navMapRoot.overlayGap
+        z: 50
+
+        // Zoom in / out control
+        Rectangle {
+            id: zoomControl
+            width: parent.width
+            height: 80
+            radius: 10
+            color: "#1e2a3add"
+            border.width: 1
+            border.color: "#415568"
+
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: parent.height / 2 - 1
+                width: parent.width - 12
+                height: 1
+                color: "#415568"
+            }
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: 8
+                color: "#f3f6ff"
+                font.pixelSize: 20
+                font.bold: true
+                text: "+"
+            }
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: parent.height / 2 + 8
+                color: "#f3f6ff"
+                font.pixelSize: 24
+                text: "−"
+            }
+
+            MouseArea {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                height: parent.height / 2
+                onClicked: navMapRoot.zoomBy(navMapRoot.zoomStep)
+            }
+            MouseArea {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: parent.height / 2
+                onClicked: navMapRoot.zoomBy(-navMapRoot.zoomStep)
+            }
         }
 
-        Column {
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 0
+        // Compass / heading button
+        Rectangle {
+            width: parent.width
+            height: parent.width
+            radius: 10
+            color: navMapRoot.autoHeading ? "#1d4f87ee" : "#1e2a3add"
+            border.width: 1
+            border.color: navMapRoot.autoHeading ? "#7fb8f6" : "#415568"
 
-            Text {
-                text: NavigationModel.distanceToTurnText
-                color: "#f0f8ff"
-                font.pixelSize: 16
-                font.bold: true
+            Canvas {
+                anchors.centerIn: parent
+                width: 18
+                height: 18
+                onPaint: {
+                    var ctx = getContext("2d")
+                    ctx.reset()
+                    ctx.strokeStyle = "#f3f6ff"
+                    ctx.fillStyle = "#f3f6ff"
+                    ctx.lineWidth = 1.6
+                    ctx.beginPath()
+                    ctx.arc(9, 9, 7, 0, Math.PI * 2)
+                    ctx.stroke()
+                    ctx.beginPath()
+                    ctx.moveTo(9, 2.5)
+                    ctx.lineTo(11.5, 9.5)
+                    ctx.lineTo(9, 8.2)
+                    ctx.lineTo(6.5, 9.5)
+                    ctx.closePath()
+                    ctx.fill()
+                }
             }
-            Text {
-                text: navMapRoot.maneuverVerb(NavigationModel.maneuver)
-                color: "#99b4cf"
-                font.pixelSize: 10
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    navMapRoot.autoHeading = !navMapRoot.autoHeading
+                    navMapRoot.overviewMode = false
+                    if (navMapRoot.autoHeading) {
+                        navMapRoot.followVehicle = true
+                        navMapRoot.syncCameraToVehicle(true)
+                    } else {
+                        navMap.bearing = 0
+                    }
+                }
+            }
+        }
+
+        // Follow vehicle button
+        Rectangle {
+            width: parent.width
+            height: parent.width
+            radius: 10
+            color: navMapRoot.followVehicle ? "#1d4f87ee" : "#1e2a3add"
+            border.width: 1
+            border.color: navMapRoot.followVehicle ? "#7fb8f6" : "#415568"
+
+            Canvas {
+                anchors.centerIn: parent
+                width: 18
+                height: 18
+                onPaint: {
+                    var ctx = getContext("2d")
+                    ctx.reset()
+                    ctx.fillStyle = "#f3f6ff"
+                    ctx.beginPath()
+                    ctx.moveTo(9, 1.5)
+                    ctx.lineTo(16, 16)
+                    ctx.lineTo(9, 12)
+                    ctx.lineTo(2, 16)
+                    ctx.closePath()
+                    ctx.fill()
+                }
+            }
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    navMapRoot.followVehicle = !navMapRoot.followVehicle
+                    navMapRoot.overviewMode = false
+                    if (navMapRoot.followVehicle) {
+                        navMapRoot.syncCameraToVehicle(true)
+                    }
+                }
+            }
+        }
+
+        // Overview / recenter button
+        Rectangle {
+            width: parent.width
+            height: parent.width
+            radius: 10
+            color: navMapRoot.overviewMode ? "#1d4f87ee" : "#1e2a3add"
+            border.width: 1
+            border.color: navMapRoot.overviewMode ? "#7fb8f6" : "#415568"
+
+            Canvas {
+                anchors.centerIn: parent
+                width: 18
+                height: 18
+                onPaint: {
+                    var ctx = getContext("2d")
+                    ctx.reset()
+                    ctx.strokeStyle = "#f3f6ff"
+                    ctx.lineWidth = 1.6
+                    ctx.beginPath()
+                    ctx.arc(9, 9, 5, 0, Math.PI * 2)
+                    ctx.moveTo(9, 0.8)
+                    ctx.lineTo(9, 3.5)
+                    ctx.moveTo(9, 14.5)
+                    ctx.lineTo(9, 17.2)
+                    ctx.moveTo(0.8, 9)
+                    ctx.lineTo(3.5, 9)
+                    ctx.moveTo(14.5, 9)
+                    ctx.lineTo(17.2, 9)
+                    ctx.stroke()
+                }
+            }
+            MouseArea {
+                anchors.fill: parent
+                onClicked: navMapRoot.recenterVehicleCamera()
+                onPressAndHold: navMapRoot.showRouteOverview()
+            }
+        }
+    }
+
+    /* ── Search card (top, left of right controls) ── */
+    Rectangle {
+        id: destinationSearchCard
+        anchors.top: mapArea.top
+        anchors.topMargin: navMapRoot.overlayInset
+        anchors.left: mapArea.left
+        anchors.leftMargin: navMapRoot.overlayInset
+        anchors.right: rightControlColumn.left
+        anchors.rightMargin: navMapRoot.overlayGap
+        radius: 10
+        color: "#0f1d2dee"
+        border.color: "#2e4a62"
+        border.width: 1
+        z: 50
+
+        Column {
+            anchors.fill: parent
+            anchors.margins: 8
+            spacing: 6
+
+            TextField {
+                id: destinationInput
+                width: parent.width
+                height: 34
+                placeholderText: "Search destination"
+                text: navMapRoot.destinationSearchText
+                color: "#e8f2fb"
+                placeholderTextColor: "#87a1b8"
+                selectByMouse: true
+                font.pixelSize: 12
+                leftPadding: 10
+                onTextChanged: {
+                    navMapRoot.destinationSearchText = text
+                    searchDebounce.restart()
+                }
+                background: Rectangle {
+                    radius: 7
+                    color: "#0a1520"
+                    border.color: "#2e4a62"
+                    border.width: 1
+                }
+            }
+
+            ListView {
+                id: geocodeResults
+                width: parent.width
+                height: navMapRoot.searchPanelVisible ? Math.min(6, destinationGeocode.count) * 40 : 0
+                visible: navMapRoot.searchPanelVisible
+                clip: true
+                spacing: 3
+                model: destinationGeocode
+                delegate: Rectangle {
+                    width: geocodeResults.width
+                    height: 36
+                    radius: 7
+                    color: "#0e1a27"
+                    border.color: "#274057"
+                    border.width: 1
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        anchors.leftMargin: 10
+                        anchors.right: parent.right
+                        anchors.rightMargin: 10
+                        elide: Text.ElideRight
+                        color: "#d8e9f8"
+                        font.pixelSize: 11
+                        text: (locationData.address && locationData.address.text)
+                              ? locationData.address.text
+                              : (locationData.coordinate.latitude.toFixed(5) + ", " + locationData.coordinate.longitude.toFixed(5))
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            navMapRoot.chooseDestinationFromResult(locationData.address, locationData.coordinate)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /* ── Top mini-guide (turn cue) — below search card ── */
+    Rectangle {
+        id: topMiniGuide
+        anchors.left: mapArea.left
+        anchors.leftMargin: navMapRoot.overlayInset
+        anchors.right: rightControlColumn.left
+        anchors.rightMargin: navMapRoot.overlayGap
+        anchors.top: destinationSearchCard.bottom
+        anchors.topMargin: navMapRoot.overlayGap
+        height: 40
+        radius: 10
+        color: "#0f1d2dee"
+        border.width: 1
+        border.color: "#2a4058"
+        z: 44
+
+        Row {
+            anchors.fill: parent
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            anchors.topMargin: 6
+            anchors.bottomMargin: 6
+            spacing: 8
+
+            Canvas {
+                width: 28
+                height: 28
+                anchors.verticalCenter: parent.verticalCenter
+                onPaint: navMapRoot.drawArrow(getContext("2d"), NavigationModel.maneuver, "#7ef2d0")
+            }
+
+            Column {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 0
+
+                Text {
+                    text: NavigationModel.distanceToTurnText
+                    color: "#f0f8ff"
+                    font.pixelSize: 14
+                    font.bold: true
+                }
+                Text {
+                    text: navMapRoot.maneuverVerb(NavigationModel.maneuver)
+                    color: "#99b4cf"
+                    font.pixelSize: 10
+                }
             }
         }
     }
@@ -614,9 +1075,12 @@ Item {
     Row {
         id: alternativesRow
         anchors.left: mapArea.left
-        anchors.leftMargin: 10
+        anchors.leftMargin: navMapRoot.overlayInset
+        anchors.right: rightControlColumn.left
+        anchors.rightMargin: navMapRoot.overlayGap
         anchors.top: topMiniGuide.bottom
-        anchors.topMargin: 8
+        anchors.topMargin: navMapRoot.overlayGap
+        clip: true
         spacing: 6
         z: 30
         visible: OsrmRoute.alternativeRoutes.length > 1
@@ -651,155 +1115,112 @@ Item {
         }
     }
 
-    /* Floating guide panel overlay */
-    Column {
+    Rectangle {
+        id: tokenWarningCard
+        anchors.top: destinationSearchCard.bottom
+        anchors.topMargin: navMapRoot.overlayGap
+        anchors.left: mapArea.left
+        anchors.leftMargin: navMapRoot.overlayInset
+        visible: !navMapRoot.hasMapboxToken
+        width: tokenWarningText.implicitWidth + 16
+        height: tokenWarningText.implicitHeight + 12
+        radius: 8
+        color: "#4a1f2acc"
+        border.color: "#d86f88"
+        border.width: 1
+        z: 40
+
+        Text {
+            id: tokenWarningText
+            anchors.margins: 8
+            anchors.fill: parent
+            color: "#ffdbe5"
+            font.pixelSize: 11
+            text: "MAPBOX_ACCESS_TOKEN missing. Mapbox services are unavailable."
+        }
+    }
+
+    /* ── Guide panel (bottom) ── */
+    Rectangle {
         id: guidePanel
         anchors.left: mapArea.left
         anchors.right: mapArea.right
         anchors.bottom: mapArea.bottom
-        anchors.leftMargin: 10
-        anchors.rightMargin: 10
-        anchors.bottomMargin: 6
-        spacing: 6
-
-        Row {
-            spacing: 8
-
-            Canvas {
-                width: 24
-                height: 24
-                onPaint: navMapRoot.drawArrow(getContext("2d"), NavigationModel.maneuver, "#7ef2d0")
-            }
-
-            Text {
-                text: NavigationModel.nextStreet.length > 0 ? NavigationModel.nextStreet : NavigationModel.currentStreet
-                color: "#f0f8ff"
-                font.pixelSize: 16
-                font.bold: true
-            }
-
-            Item { width: 1; height: 1 }
-
-            Text {
-                text: navMapRoot.maneuverVerb(NavigationModel.maneuver)
-                color: "#a7c0d8"
-                font.pixelSize: 12
-            }
-        }
-
-        Row {
-            spacing: 8
-
-            Text {
-                text: "THEN"
-                color: "#6f8499"
-                font.pixelSize: 10
-                font.bold: true
-            }
-
-            Canvas {
-                width: 20
-                height: 20
-                property int nextManeuver: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
-                                           ? NavigationModel.route[NavigationModel.currentStep + 1].maneuver
-                                           : NavigationModel.Arrive
-                onPaint: navMapRoot.drawArrow(getContext("2d"), nextManeuver, "#7ea8ec")
-            }
-
-            Text {
-                property string nextStreet: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
-                                            ? NavigationModel.route[NavigationModel.currentStep + 1].next
-                                            : "Destination"
-                text: nextStreet
-                color: "#8ea4bb"
-                font.pixelSize: 13
-            }
-
-            Text {
-                property real nextDistance: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
-                                            ? NavigationModel.route[NavigationModel.currentStep + 1].dist
-                                            : 0
-                text: nextDistance > 0 ? ("in " + navMapRoot.formatMeters(nextDistance)) : ""
-                color: "#8ea4bb"
-                font.pixelSize: 12
-            }
-        }
-    }
-
-    Rectangle {
-        id: destinationSearchCard
-        anchors.top: mapArea.top
-        anchors.topMargin: 10
-        anchors.right: mapArea.right
-        anchors.rightMargin: 10
-        width: 340
-        radius: 12
-        color: "#122131dd"
-        border.color: "#2a4058"
+        anchors.leftMargin: navMapRoot.overlayInset
+        anchors.rightMargin: navMapRoot.rightControlReservedWidth
+        anchors.bottomMargin: navMapRoot.overlayInset
+        height: 68
+        radius: 10
+        color: "#0f1d2dee"
         border.width: 1
-        z: 50
+        border.color: "#2a4058"
+        z: 36
 
         Column {
             anchors.fill: parent
             anchors.margins: 8
-            spacing: 6
+            spacing: 4
 
-            TextField {
-                id: destinationInput
-                width: parent.width
-                placeholderText: "Search destination (Mapbox)"
-                text: navMapRoot.destinationSearchText
-                color: "#e8f2fb"
-                placeholderTextColor: "#87a1b8"
-                selectByMouse: true
-                onTextChanged: {
-                    navMapRoot.destinationSearchText = text
-                    searchDebounce.restart()
+            Row {
+                spacing: 8
+
+                Canvas {
+                    width: 24
+                    height: 24
+                    onPaint: navMapRoot.drawArrow(getContext("2d"), NavigationModel.maneuver, "#7ef2d0")
                 }
-                background: Rectangle {
-                    radius: 8
-                    color: "#0f1b28"
-                    border.color: "#34506c"
-                    border.width: 1
+
+                Text {
+                    width: guidePanel.width - 170
+                    elide: Text.ElideRight
+                    text: NavigationModel.nextStreet.length > 0 ? NavigationModel.nextStreet : NavigationModel.currentStreet
+                    color: "#f0f8ff"
+                    font.pixelSize: 16
+                    font.bold: true
+                }
+
+                Text {
+                    text: navMapRoot.maneuverVerb(NavigationModel.maneuver)
+                    color: "#a7c0d8"
+                    font.pixelSize: 12
                 }
             }
 
-            ListView {
-                id: geocodeResults
-                width: parent.width
-                height: navMapRoot.searchPanelVisible ? Math.min(6, destinationGeocode.count) * 42 : 0
-                visible: navMapRoot.searchPanelVisible
-                clip: true
-                spacing: 4
-                model: destinationGeocode
-                delegate: Rectangle {
-                    width: geocodeResults.width
-                    height: 38
-                    radius: 8
-                    color: "#0e1a27"
-                    border.color: "#274057"
-                    border.width: 1
+            Row {
+                spacing: 8
 
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.left: parent.left
-                        anchors.leftMargin: 10
-                        anchors.right: parent.right
-                        anchors.rightMargin: 10
-                        elide: Text.ElideRight
-                        color: "#d8e9f8"
-                        font.pixelSize: 12
-                        text: (locationData.address && locationData.address.text)
-                              ? locationData.address.text
-                              : (locationData.coordinate.latitude.toFixed(5) + ", " + locationData.coordinate.longitude.toFixed(5))
-                    }
+                Text {
+                    text: "THEN"
+                    color: "#6f8499"
+                    font.pixelSize: 10
+                    font.bold: true
+                }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            navMapRoot.chooseDestinationFromResult(locationData.address, locationData.coordinate)
-                        }
-                    }
+                Canvas {
+                    width: 20
+                    height: 20
+                    property int nextManeuver: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
+                                               ? NavigationModel.route[NavigationModel.currentStep + 1].maneuver
+                                               : NavigationModel.Arrive
+                    onPaint: navMapRoot.drawArrow(getContext("2d"), nextManeuver, "#7ea8ec")
+                }
+
+                Text {
+                    property string nextStreet: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
+                                                ? NavigationModel.route[NavigationModel.currentStep + 1].next
+                                                : "Destination"
+                    text: nextStreet
+                    color: "#8ea4bb"
+                    font.pixelSize: 13
+                }
+
+                Text {
+                    property real nextDistance: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
+                                                ? NavigationModel.route[NavigationModel.currentStep + 1].dist
+                                                : 0
+                    text: nextDistance > 0 ? ("in " + navMapRoot.formatMeters(nextDistance)) : ""
+                    color: "#8ea4bb"
+                    font.pixelSize: 12
                 }
             }
         }

@@ -33,7 +33,6 @@ BASE_PACKAGES=(
     qttools5-dev-tools
     qttranslations5-l10n
     libqt5dbus5
-    libqt5webchannel5-dev
     qml-module-qtqml
     qml-module-qtqml-models2
     qml-module-qtqml-workerscript2
@@ -58,12 +57,6 @@ MAP_OPTIONAL_PACKAGES=(
     libqt5location5-plugin-mapboxgl
 )
 
-WEB_OPTIONAL_PACKAGES=(
-    qtwebengine5-dev
-    qml-module-qtwebengine
-    qml-module-qtwebchannel
-)
-
 collect_available_packages() {
     local -n input_ref=$1
     local -n available_ref=$2
@@ -82,14 +75,11 @@ collect_available_packages() {
 
 AVAILABLE_MAP_PACKAGES=()
 MISSING_MAP_PACKAGES=()
-AVAILABLE_WEB_PACKAGES=()
-MISSING_WEB_PACKAGES=()
 
 collect_available_packages MAP_OPTIONAL_PACKAGES AVAILABLE_MAP_PACKAGES MISSING_MAP_PACKAGES
-collect_available_packages WEB_OPTIONAL_PACKAGES AVAILABLE_WEB_PACKAGES MISSING_WEB_PACKAGES
 
 echo "[INFO] Installing Qt5 toolchain and runtime dependencies..."
-sudo apt install -y "${BASE_PACKAGES[@]}" "${AVAILABLE_MAP_PACKAGES[@]}" "${AVAILABLE_WEB_PACKAGES[@]}"
+sudo apt install -y "${BASE_PACKAGES[@]}" "${AVAILABLE_MAP_PACKAGES[@]}"
 
 if ((${#AVAILABLE_MAP_PACKAGES[@]} > 0)); then
     echo "[INFO] Installed Qt5 map packages: ${AVAILABLE_MAP_PACKAGES[*]}"
@@ -98,17 +88,7 @@ fi
 if ((${#MISSING_MAP_PACKAGES[@]} > 0)); then
     echo "[WARN] Some Qt5 map packages are not available in this apt repo:"
     echo "       ${MISSING_MAP_PACKAGES[*]}"
-    echo "       Navigation map may fall back to HUD."
-fi
-
-if ((${#AVAILABLE_WEB_PACKAGES[@]} > 0)); then
-    echo "[INFO] Installed Qt5 WebEngine packages: ${AVAILABLE_WEB_PACKAGES[*]}"
-fi
-
-if ((${#MISSING_WEB_PACKAGES[@]} > 0)); then
-    echo "[WARN] Some Qt5 WebEngine packages are not available in this apt repo:"
-    echo "       ${MISSING_WEB_PACKAGES[*]}"
-    echo "       WebEngine navigation view may be unavailable."
+    echo "       Mapbox navigation requires this stack; install missing packages or use a repo that provides them."
 fi
 
 echo "[INFO] Adding user '${USER}' to dialout group for serial access..."

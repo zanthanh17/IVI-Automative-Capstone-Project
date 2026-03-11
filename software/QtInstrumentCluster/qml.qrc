@@ -85,9 +85,7 @@
         <file>view/MediaPlayer.qml</file>
         <file>view/Bluetooth.qml</file>
         <file>view/Navigation.qml</file>
-        <file>view/NavigationMapWebEngine.qml</file>
         <file>view/NavigationMapLocation.qml</file>
-        <file>view/NavigationHudFallback.qml</file>
         <file>view/Menu.qml</file>
         <file>view/NormalMode.qml</file>
         <file>view/NormalModeContentItem.qml</file>
@@ -99,6 +97,5 @@
         <file>fonts/Inter-Regular.ttf</file>
         <file>fonts/Inter-SemiBold.ttf</file>
         <file>fonts/Inter-Bold.ttf</file>
-        <file>web/maplibre_navigation.html</file>
     </qresource>
 </RCC>

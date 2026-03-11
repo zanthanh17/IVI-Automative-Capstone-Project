@@ -64,8 +64,7 @@ After setup, re-login (or run `newgrp dialout`), then:
 `verify_pi_env.sh` performs a preflight check:
 - Qt6 toolchain/runtime packages
 - Qt Location plugin availability
-- optional Qt WebEngine packages
-- tile/OSRM network reachability
+- Mapbox API network reachability
 - serial permission (`dialout`) and device node presence
 
 If you use UART from STM32, verify serial devices:
@@ -83,11 +82,13 @@ QT_QPA_PLATFORM=eglfs ./scripts/pi/run_pi.sh
 
 ### Navigation map behavior
 
-- Navigation page now tries this order at runtime:
-  1. Qt WebEngine + MapLibre GL JS (`web/maplibre_navigation.html`) + OSRM route provider
-  2. QtLocation map (`NavigationMapLocation.qml`)
-  3. Turn-by-turn HUD fallback (`NavigationHudFallback.qml`)
-- This keeps the app usable even when a given Pi image misses some Qt map modules.
+- Navigation page is now **Mapbox-only** via QtLocation `mapboxgl` plugin (`NavigationMapLocation.qml`).
+- WebEngine map fallback has been removed.
+- Required env vars:
+  - `MAPBOX_ACCESS_TOKEN`
+  - `MAPBOX_STYLE_URL` (optional; default is fixed `mapbox://styles/mapbox/navigation-guidance-night-v2`)
+- Dashboard map controls use icon buttons (zoom in/out, compass heading, follow toggle, recenter; long-press recenter for route overview).
+- Map attribution may still include OpenStreetMap because Mapbox style sources include OSM-derived data and attribution is mandatory by license.
 
 ### Bluetooth Audio + Dashboard Controls (Phone -> Pi)
 
@@ -136,7 +137,7 @@ dpkg -l | grep -E 'qt6-location-dev|qt6-positioning-dev|qml6-module-qtpositionin
 apt-cache search qt6 | grep -E 'location|positioning'
 ```
 
-- If packages are unavailable in your repo, project now auto-builds without `QT += location positioning` and uses Navigation HUD fallback.
+- If packages are unavailable in your repo, Mapbox navigation cannot run on this image.
 - If packages are available, install them then rebuild:
 
 ```bash
@@ -147,7 +148,7 @@ sudo apt install -y qt6-location-dev qt6-positioning-dev qml6-module-qtpositioni
 ```
 
 `qml6-module-qtlocation` may be unavailable on Raspberry Pi OS Bookworm repositories.
-In that case, use `verify_pi_env.sh` to confirm module/plugin presence and keep HUD fallback enabled.
+In that case, use `verify_pi_env.sh` to confirm module/plugin presence and switch to a repo/image that provides Qt Location modules.
 
 If Pi build shows `Project ERROR: Unknown module(s) in QT: svg`:
 
@@ -185,4 +186,6 @@ chmod +x scripts/pi/*.sh
 Notes:
 - Qt5 build output is isolated in `build-pi-qt5/` (does not overwrite Qt6 build output).
 - If both Qt5 and Qt6 are installed, `build_pi_qt5.sh` explicitly resolves a Qt5 qmake.
-- Put `MAPBOX_ACCESS_TOKEN` in `.env` (or export in shell) to enable Mapbox routing on Qt5.
+- Put `MAPBOX_ACCESS_TOKEN` in `.env` (or export in shell) for Mapbox map + routing + geocode on Qt5.
+- `MAPBOX_STYLE_URL` is optional; Qt5 flow defaults to `mapbox://styles/mapbox/navigation-guidance-night-v2`.
+- Qt5 flow is Mapbox-only (no WebEngine fallback).

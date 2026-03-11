@@ -5,14 +5,19 @@ QtObject {
     id: navigationFeed
 
     // Source switch: keep the same signal pipeline and swap only producer.
-    property bool useMockGps: false
+    // Demo mode default: force GPS fix in Da Nang so navigation map always renders.
+    // Set this to false when using real GNSS hardware.
+    property bool useMockGps: true
     property bool running: true
     property bool loopMockRoute: true
 
     property int tickMs: 200
-    property real mockSpeedKmh: 44.0
+    property real mockSpeedKmh: 0.0
 
-    readonly property var mockRoute: []
+    // Hardcoded current vehicle position in Da Nang, Vietnam (stationary).
+    readonly property var mockRoute: [
+        { lat: 16.061911, lon: 108.219773 } // Nguyen Van Linh, Da Nang
+    ]
 
     readonly property real mockRouteLengthMeters: routeLengthMeters()
 

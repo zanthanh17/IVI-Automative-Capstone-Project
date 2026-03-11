@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 BUILD_DIR="${PROJECT_DIR}/build-pi-qt5"
+ENV_FILE="${PROJECT_DIR}/.env"
 
 FAIL_COUNT=0
 WARN_COUNT=0
@@ -28,6 +29,20 @@ is_installed_pkg() {
 }
 
 echo "[INFO] Verifying Raspberry Pi environment for Qt5 build..."
+
+if [[ -f "${ENV_FILE}" ]]; then
+    echo "[INFO] Loading environment from ${ENV_FILE}"
+    set -a
+    # shellcheck disable=SC1090
+    source "${ENV_FILE}"
+    set +a
+fi
+
+MAPBOX_STYLE_URL="${MAPBOX_STYLE_URL:-mapbox://styles/mapbox/navigation-guidance-night-v2}"
+MAPBOX_STYLE_PATH=""
+if [[ "${MAPBOX_STYLE_URL}" == mapbox://styles/* ]]; then
+    MAPBOX_STYLE_PATH="${MAPBOX_STYLE_URL#mapbox://styles/}"
+fi
 
 QMAKE_CMD=()
 QT_VERSION=""
@@ -79,7 +94,7 @@ if command -v dpkg-query >/dev/null 2>&1; then
         fi
     done
 
-    MAP_PKGS=(qtlocation5-dev qtpositioning5-dev qml-module-qtlocation qml-module-qtpositioning)
+    MAP_PKGS=(qtlocation5-dev qtpositioning5-dev qml-module-qtlocation qml-module-qtpositioning libqt5location5-plugin-mapboxgl)
     MAP_INSTALLED=0
     for pkg in "${MAP_PKGS[@]}"; do
         if is_installed_pkg "${pkg}"; then
@@ -89,20 +104,7 @@ if command -v dpkg-query >/dev/null 2>&1; then
     if ((MAP_INSTALLED == ${#MAP_PKGS[@]})); then
         ok "Qt5 location stack installed (${MAP_PKGS[*]})"
     else
-        warn "Qt5 location stack incomplete (${MAP_INSTALLED}/${#MAP_PKGS[@]})."
-    fi
-
-    WEB_PKGS=(qtwebengine5-dev qml-module-qtwebengine qml-module-qtwebchannel)
-    WEB_INSTALLED=0
-    for pkg in "${WEB_PKGS[@]}"; do
-        if is_installed_pkg "${pkg}"; then
-            WEB_INSTALLED=$((WEB_INSTALLED + 1))
-        fi
-    done
-    if ((WEB_INSTALLED > 0)); then
-        ok "Qt5 WebEngine packages detected (${WEB_INSTALLED}/${#WEB_PKGS[@]})"
-    else
-        warn "Qt5 WebEngine packages not installed. WebEngine view may be unavailable."
+        fail "Qt5 Mapbox location stack incomplete (${MAP_INSTALLED}/${#MAP_PKGS[@]})."
     fi
 else
     warn "dpkg-query not found; skipping package checks."
@@ -129,27 +131,57 @@ fi
 if [[ -n "${QML_LOCATION_MODULE_PATH}" ]]; then
     ok "Found QtLocation QML module: ${QML_LOCATION_MODULE_PATH}"
 else
-    warn "QtLocation QML module not found."
+    fail "QtLocation QML module not found."
 fi
 
 if [[ -n "${QML_POSITIONING_MODULE_PATH}" ]]; then
     ok "Found QtPositioning QML module: ${QML_POSITIONING_MODULE_PATH}"
 else
-    warn "QtPositioning QML module not found."
+    fail "QtPositioning QML module not found."
 fi
 
 MAPBOX_PLUGIN_PATH="$(find /usr/lib /lib -type f -iname '*qtgeoservices*mapboxgl*' 2>/dev/null | head -n 1 || true)"
 if [[ -n "${MAPBOX_PLUGIN_PATH}" ]]; then
     ok "Found Mapbox GL geoservices plugin: ${MAPBOX_PLUGIN_PATH}"
 else
-    warn "Mapbox GL geoservices plugin not found. QtLocation mapboxgl plugin may be unavailable."
+    fail "Mapbox GL geoservices plugin not found."
 fi
 
 if command -v curl >/dev/null 2>&1; then
-    if curl -fsS --max-time 12 "https://basemaps.cartocdn.com/dark_all/0/0/0.png" -o /dev/null; then
-        ok "Tile server reachable."
+    if curl -fsS --max-time 12 "https://api.mapbox.com/" -o /dev/null; then
+        ok "Mapbox API host reachable."
     else
-        warn "Cannot reach tile server. Map may be blank."
+        fail "Cannot reach api.mapbox.com. Mapbox map will be blank."
+    fi
+
+    if [[ -n "${MAPBOX_ACCESS_TOKEN:-}" ]]; then
+        if [[ "${MAPBOX_ACCESS_TOKEN}" == pk.* ]]; then
+            ok "MAPBOX_ACCESS_TOKEN format looks valid for client-side use (pk.*)."
+        elif [[ "${MAPBOX_ACCESS_TOKEN}" == sk.* ]]; then
+            warn "MAPBOX_ACCESS_TOKEN starts with sk.* (secret token). Use a public pk.* token on dashboard client."
+        else
+            warn "MAPBOX_ACCESS_TOKEN format is unusual. Expected pk.* for Qt client app."
+        fi
+
+        if [[ -n "${MAPBOX_STYLE_PATH}" ]]; then
+            STYLE_API_URL="https://api.mapbox.com/styles/v1/${MAPBOX_STYLE_PATH}?access_token=${MAPBOX_ACCESS_TOKEN}"
+            if curl -fsS --max-time 12 \
+                "${STYLE_API_URL}" \
+                -o /dev/null; then
+                ok "Mapbox style API reachable for MAPBOX_STYLE_URL=${MAPBOX_STYLE_URL}."
+
+                STYLE_JSON="$(curl -fsS --max-time 12 "${STYLE_API_URL}" || true)"
+                if [[ -n "${STYLE_JSON}" && "${STYLE_JSON}" == *"\"imports\""* ]]; then
+                    warn "MAPBOX_STYLE_URL appears to use style imports. Qt5 mapboxgl may render blank with imported styles."
+                fi
+            else
+                fail "MAPBOX_ACCESS_TOKEN cannot access MAPBOX_STYLE_URL=${MAPBOX_STYLE_URL}."
+            fi
+        else
+            warn "MAPBOX_STYLE_URL should use mapbox://styles/<username>/<style_id> format. Current: ${MAPBOX_STYLE_URL}"
+        fi
+    else
+        fail "MAPBOX_ACCESS_TOKEN is not set. Mapbox-only navigation cannot run."
     fi
 else
     warn "curl not found; skipping network checks."
