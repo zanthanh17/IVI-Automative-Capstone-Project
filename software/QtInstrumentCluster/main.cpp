@@ -117,6 +117,18 @@ int main(int argc, char *argv[])
     QString mapboxToken = qEnvironmentVariable("MAPBOX_ACCESS_TOKEN", "");
     engine.rootContext()->setContextProperty("mapboxTokenFromEnv", mapboxToken);
 
+    // Use Mapbox Directions when token is present; otherwise fallback to OSRM demo server.
+    OsrmRouteProvider *routeProvider = OsrmRouteProvider::instance();
+    if (!mapboxToken.trimmed().isEmpty()) {
+        routeProvider->setProvider(QStringLiteral("mapbox"));
+        routeProvider->setBaseUrl(QStringLiteral("https://api.mapbox.com"));
+        routeProvider->setAccessToken(mapboxToken);
+        routeProvider->setProfile(QStringLiteral("mapbox/driving-traffic"));
+    } else {
+        routeProvider->setProvider(QStringLiteral("osrm"));
+        routeProvider->setBaseUrl(QStringLiteral("https://router.project-osrm.org"));
+    }
+
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
                      &app, [url](QObject *obj, const QUrl &objUrl) {

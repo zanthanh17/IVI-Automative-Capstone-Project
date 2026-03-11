@@ -11,7 +11,7 @@ Item {
     property var mockRouteLngLat: []
     property bool pageReady: false
     property bool liveRouteReady: false
-    property var destination: { "lat": 16.05200, "lon": 108.21870 }
+    property var destination: null
     property int osrmRetryCount: 0
     readonly property int osrmMaxRetries: 2
 
@@ -49,6 +49,18 @@ Item {
         return mockRouteLngLat
     }
 
+    function hasValidDestination() {
+        return destination
+                && Number.isFinite(destination.lat)
+                && Number.isFinite(destination.lon)
+    }
+
+    function hasVehicleFix() {
+        return NavigationFeed.hasPositionFix
+                && Number.isFinite(NavigationFeed.currentLatitude)
+                && Number.isFinite(NavigationFeed.currentLongitude)
+    }
+
     function runJsCall(functionName, payload) {
         if (!pageReady) {
             return
@@ -78,6 +90,10 @@ Item {
     }
 
     function requestRouteToDestination() {
+        if (!hasVehicleFix() || !hasValidDestination()) {
+            return
+        }
+
         var fromLat = NavigationFeed.currentLatitude
         var fromLon = NavigationFeed.currentLongitude
         OsrmRoute.requestRoute(fromLat, fromLon, destination.lat, destination.lon)
@@ -91,6 +107,9 @@ Item {
     }
 
     function pushDestination() {
+        if (!hasValidDestination()) {
+            return
+        }
         runJsCall("setDestination", {
                       lat: destination.lat,
                       lng: destination.lon
@@ -99,6 +118,10 @@ Item {
 
     Component.onCompleted: {
         mockRouteLngLat = buildMockRouteLngLat()
+        if (NavigationFeed.mockRoute.length > 0) {
+            var last = NavigationFeed.mockRoute[NavigationFeed.mockRoute.length - 1]
+            destination = { "lat": last.lat, "lon": last.lon }
+        }
         requestRouteToDestination()
     }
 
@@ -143,6 +166,9 @@ Item {
         target: NavigationFeed
         function onPositionUpdated() {
             navWebRoot.pushVehicle()
+            if (!navWebRoot.liveRouteReady) {
+                navWebRoot.requestRouteToDestination()
+            }
         }
         function onRouteLooped() {
             console.log("[NavWebMap] Route looped, re-pushing route")

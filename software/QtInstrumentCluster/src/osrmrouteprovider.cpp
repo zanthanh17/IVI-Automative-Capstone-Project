@@ -6,6 +6,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 #include <QDebug>
+#include <QVariantMap>
 
 OsrmRouteProvider::OsrmRouteProvider(QObject *parent)
     : QObject(parent)
@@ -29,6 +30,69 @@ void OsrmRouteProvider::setBaseUrl(const QString &url)
     emit baseUrlChanged();
 }
 
+void OsrmRouteProvider::setProvider(const QString &provider)
+{
+    const QString normalized = provider.trimmed().toLower();
+    if (normalized.isEmpty() || m_provider == normalized)
+        return;
+    m_provider = normalized;
+    emit providerChanged();
+}
+
+void OsrmRouteProvider::setAccessToken(const QString &token)
+{
+    if (m_accessToken == token)
+        return;
+    m_accessToken = token;
+    emit accessTokenChanged();
+}
+
+void OsrmRouteProvider::setProfile(const QString &profile)
+{
+    if (m_profile == profile || profile.trimmed().isEmpty())
+        return;
+    m_profile = profile.trimmed();
+    emit profileChanged();
+}
+
+bool OsrmRouteProvider::isMapboxProvider() const
+{
+    return m_provider == QStringLiteral("mapbox");
+}
+
+QUrl OsrmRouteProvider::buildRequestUrl(double fromLat, double fromLon, double toLat, double toLon) const
+{
+    const QString coords = QStringLiteral("%1,%2;%3,%4")
+                               .arg(fromLon, 0, 'f', 6)
+                               .arg(fromLat, 0, 'f', 6)
+                               .arg(toLon, 0, 'f', 6)
+                               .arg(toLat, 0, 'f', 6);
+
+    QUrl url;
+    QUrlQuery query;
+
+    if (isMapboxProvider()) {
+        url = QUrl(m_baseUrl + QStringLiteral("/directions/v5/") + m_profile + QStringLiteral("/") + coords);
+        query.addQueryItem(QStringLiteral("geometries"), QStringLiteral("geojson"));
+        query.addQueryItem(QStringLiteral("overview"), QStringLiteral("full"));
+        query.addQueryItem(QStringLiteral("steps"), QStringLiteral("true"));
+        query.addQueryItem(QStringLiteral("alternatives"), QStringLiteral("true"));
+        query.addQueryItem(QStringLiteral("annotations"),
+                           QStringLiteral("duration,distance,speed,congestion_numeric,maxspeed"));
+        query.addQueryItem(QStringLiteral("voice_instructions"), QStringLiteral("true"));
+        query.addQueryItem(QStringLiteral("banner_instructions"), QStringLiteral("true"));
+        query.addQueryItem(QStringLiteral("access_token"), m_accessToken);
+    } else {
+        url = QUrl(m_baseUrl + QStringLiteral("/route/v1/driving/") + coords);
+        query.addQueryItem(QStringLiteral("geometries"), QStringLiteral("geojson"));
+        query.addQueryItem(QStringLiteral("overview"), QStringLiteral("full"));
+        query.addQueryItem(QStringLiteral("steps"), QStringLiteral("true"));
+    }
+
+    url.setQuery(query);
+    return url;
+}
+
 void OsrmRouteProvider::requestRoute(double fromLat, double fromLon,
                                       double toLat, double toLon)
 {
@@ -37,20 +101,12 @@ void OsrmRouteProvider::requestRoute(double fromLat, double fromLon,
         return;
     }
 
-    // OSRM expects coordinates as longitude,latitude
-    // Format: /route/v1/driving/lon1,lat1;lon2,lat2?geometries=geojson&overview=full
-    QString coords = QStringLiteral("%1,%2;%3,%4")
-                         .arg(fromLon, 0, 'f', 6)
-                         .arg(fromLat, 0, 'f', 6)
-                         .arg(toLon, 0, 'f', 6)
-                         .arg(toLat, 0, 'f', 6);
+    if (isMapboxProvider() && m_accessToken.trimmed().isEmpty()) {
+        emit routeFailed(QStringLiteral("Mapbox provider selected but MAPBOX_ACCESS_TOKEN is missing"));
+        return;
+    }
 
-    QUrl url(m_baseUrl + QStringLiteral("/route/v1/driving/") + coords);
-    QUrlQuery query;
-    query.addQueryItem(QStringLiteral("geometries"), QStringLiteral("geojson"));
-    query.addQueryItem(QStringLiteral("overview"), QStringLiteral("full"));
-    query.addQueryItem(QStringLiteral("steps"), QStringLiteral("true"));
-    url.setQuery(query);
+    const QUrl url = buildRequestUrl(fromLat, fromLon, toLat, toLon);
 
     qDebug() << "[OsrmRouteProvider] Requesting route:" << url.toString();
 
@@ -63,6 +119,47 @@ void OsrmRouteProvider::requestRoute(double fromLat, double fromLon,
     m_nam.get(req);
 }
 
+bool OsrmRouteProvider::selectRoute(int index)
+{
+    if (index < 0 || index >= m_alternativeRoutes.size()) {
+        return false;
+    }
+    applyRouteAtIndex(index, true);
+    return true;
+}
+
+void OsrmRouteProvider::applyRouteAtIndex(int index, bool emitRouteReadySignal)
+{
+    if (index < 0 || index >= m_alternativeRoutes.size()) {
+        return;
+    }
+
+    const QVariantMap route = m_alternativeRoutes.at(index).toMap();
+    const QVariantList path = route.value(QStringLiteral("path")).toList();
+    const double distance = route.value(QStringLiteral("distanceMeters")).toDouble();
+    const double duration = route.value(QStringLiteral("durationSeconds")).toDouble();
+
+    const bool pathChanged = (m_routePath != path);
+    const bool metricsChanged = !qFuzzyCompare(m_distanceMeters + 1.0, distance + 1.0)
+                                || !qFuzzyCompare(m_durationSeconds + 1.0, duration + 1.0);
+    const bool indexChanged = (m_selectedRouteIndex != index);
+
+    m_routePath = path;
+    m_distanceMeters = distance;
+    m_durationSeconds = duration;
+    m_selectedRouteIndex = index;
+
+    if (indexChanged) {
+        emit selectedRouteChanged();
+    }
+    if (pathChanged || metricsChanged) {
+        emit routePathChanged();
+    }
+    if (emitRouteReadySignal) {
+        emit routeReady(m_routePath);
+    }
+}
+
 void OsrmRouteProvider::handleReply(QNetworkReply *reply)
 {
     reply->deleteLater();
@@ -71,7 +168,8 @@ void OsrmRouteProvider::handleReply(QNetworkReply *reply)
     emit busyChanged();
 
     if (reply->error() != QNetworkReply::NoError) {
-        QString err = QStringLiteral("OSRM network error: ") + reply->errorString();
+        const QString service = isMapboxProvider() ? QStringLiteral("Mapbox") : QStringLiteral("OSRM");
+        QString err = service + QStringLiteral(" network error: ") + reply->errorString();
         qWarning() << "[OsrmRouteProvider]" << err;
         emit routeFailed(err);
         return;
@@ -91,7 +189,12 @@ void OsrmRouteProvider::handleReply(QNetworkReply *reply)
     QJsonObject root = doc.object();
     QString code = root.value(QStringLiteral("code")).toString();
     if (code != QStringLiteral("Ok")) {
-        QString err = QStringLiteral("OSRM returned code: ") + code;
+        const QString message = root.value(QStringLiteral("message")).toString();
+        const QString service = isMapboxProvider() ? QStringLiteral("Mapbox") : QStringLiteral("OSRM");
+        QString err = service + QStringLiteral(" returned code: ") + code;
+        if (!message.isEmpty()) {
+            err += QStringLiteral(" (") + message + QStringLiteral(")");
+        }
         qWarning() << "[OsrmRouteProvider]" << err;
         emit routeFailed(err);
         return;
@@ -103,21 +206,33 @@ void OsrmRouteProvider::handleReply(QNetworkReply *reply)
         return;
     }
 
-    QJsonObject firstRoute = routes.first().toObject();
-    m_distanceMeters = firstRoute.value(QStringLiteral("distance")).toDouble();
-    m_durationSeconds = firstRoute.value(QStringLiteral("duration")).toDouble();
+    QVariantList alternatives;
+    alternatives.reserve(routes.size());
 
-    QJsonObject geometry = firstRoute.value(QStringLiteral("geometry")).toObject();
-    QJsonArray coordinates = geometry.value(QStringLiteral("coordinates")).toArray();
+    for (const QJsonValue &routeVal : routes) {
+        const QJsonObject routeObj = routeVal.toObject();
+        const QJsonObject geometry = routeObj.value(QStringLiteral("geometry")).toObject();
+        const QJsonArray coordinates = geometry.value(QStringLiteral("coordinates")).toArray();
 
-    m_routePath = parseGeoJsonCoordinates(coordinates);
+        QVariantMap item;
+        item.insert(QStringLiteral("distanceMeters"), routeObj.value(QStringLiteral("distance")).toDouble());
+        item.insert(QStringLiteral("durationSeconds"), routeObj.value(QStringLiteral("duration")).toDouble());
+        item.insert(QStringLiteral("path"), parseGeoJsonCoordinates(coordinates));
+        alternatives.append(item);
+    }
+
+    m_alternativeRoutes = alternatives;
+    emit alternativeRoutesChanged();
+
+    const int defaultIndex = 0;
+    applyRouteAtIndex(defaultIndex, false);
 
     qDebug() << "[OsrmRouteProvider] Route received:"
              << m_routePath.size() << "points,"
              << m_distanceMeters << "m,"
-             << m_durationSeconds << "s";
+             << m_durationSeconds << "s,"
+             << "alternatives:" << m_alternativeRoutes.size();
 
-    emit routePathChanged();
     emit routeReady(m_routePath);
 }
 

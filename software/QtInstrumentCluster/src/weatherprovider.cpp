@@ -1,22 +1,15 @@
 #include "weatherprovider.h"
 
 #include <QDateTime>
+#include <QUrlQuery>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QUrl>
+#include <QtGlobal>
 
 #include <cmath>
-
-namespace {
-const char kWeatherApiUrl[] =
-    "https://api.open-meteo.com/v1/forecast"
-    "?latitude=16.0544"
-    "&longitude=108.2022"
-    "&current=temperature_2m,weather_code"
-    "&timezone=Asia%2FHo_Chi_Minh";
-}
 
 WeatherProvider *WeatherProvider::instance()
 {
@@ -27,6 +20,22 @@ WeatherProvider *WeatherProvider::instance()
 WeatherProvider::WeatherProvider(QObject *parent)
     : QObject(parent)
 {
+    bool latOk = false;
+    bool lonOk = false;
+    const QString latEnv = qEnvironmentVariable("WEATHER_LATITUDE");
+    const QString lonEnv = qEnvironmentVariable("WEATHER_LONGITUDE");
+    m_latitude = latEnv.toDouble(&latOk);
+    m_longitude = lonEnv.toDouble(&lonOk);
+    if (!latOk || !lonOk) {
+        m_latitude = std::numeric_limits<double>::quiet_NaN();
+        m_longitude = std::numeric_limits<double>::quiet_NaN();
+    }
+
+    const QString cityEnv = qEnvironmentVariable("WEATHER_CITY");
+    if (!cityEnv.trimmed().isEmpty()) {
+        m_cityName = cityEnv.trimmed();
+    }
+
     connect(&m_networkManager, &QNetworkAccessManager::finished,
             this, &WeatherProvider::onReplyFinished);
 
@@ -78,15 +87,33 @@ QString WeatherProvider::errorString() const
     return m_errorString;
 }
 
+bool WeatherProvider::hasConfiguredLocation() const
+{
+    return std::isfinite(m_latitude) && std::isfinite(m_longitude);
+}
+
 void WeatherProvider::refresh()
 {
     if (m_loading) {
         return;
     }
 
+    if (!hasConfiguredLocation()) {
+        setErrorString(QStringLiteral("Missing WEATHER_LATITUDE/WEATHER_LONGITUDE"));
+        return;
+    }
+
     setLoading(true);
 
-    QNetworkRequest request(QUrl(QString::fromLatin1(kWeatherApiUrl)));
+    QUrl url(QStringLiteral("https://api.open-meteo.com/v1/forecast"));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("latitude"), QString::number(m_latitude, 'f', 6));
+    query.addQueryItem(QStringLiteral("longitude"), QString::number(m_longitude, 'f', 6));
+    query.addQueryItem(QStringLiteral("current"), QStringLiteral("temperature_2m,weather_code"));
+    query.addQueryItem(QStringLiteral("timezone"), QStringLiteral("auto"));
+    url.setQuery(query);
+
+    QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::UserAgentHeader,
                       QStringLiteral("QtInstrumentCluster/1.0"));
     request.setTransferTimeout(8000);

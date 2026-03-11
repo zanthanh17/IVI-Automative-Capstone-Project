@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QNetworkAccessManager>
 #include <QTimer>
+#include <limits>
 
 class QNetworkReply;
 
@@ -44,6 +45,7 @@ private slots:
 
 private:
     explicit WeatherProvider(QObject *parent = nullptr);
+    bool hasConfiguredLocation() const;
     void applyWeatherCode(int weatherCode);
     void setLoading(bool loading);
     void setErrorString(const QString &error);
@@ -51,7 +53,9 @@ private:
     QNetworkAccessManager m_networkManager;
     QTimer m_refreshTimer;
 
-    QString m_cityName = QStringLiteral("Da Nang, Vietnam");
+    double m_latitude = std::numeric_limits<double>::quiet_NaN();
+    double m_longitude = std::numeric_limits<double>::quiet_NaN();
+    QString m_cityName = QStringLiteral("Unknown location");
     QString m_detailText = QStringLiteral("Outdoor Temperature");
     int m_temperature = 0;
     QString m_conditionText = QStringLiteral("--");

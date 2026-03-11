@@ -164,3 +164,25 @@ sudo apt install -y qt6-svg-dev
 ./scripts/pi/build_pi.sh
 ```
 
+## Raspberry Pi (Native Qt5)
+
+Use this flow when your target image uses Qt5 runtime/toolchain.
+
+From `software/QtInstrumentCluster`:
+
+```bash
+chmod +x scripts/pi/*.sh
+# Optional: remove Qt6 stack then install Qt5 stack
+./scripts/pi/migrate_qt6_to_qt5.sh
+
+# Or install Qt5 directly (without removing Qt6):
+./scripts/pi/setup_pi_native_qt5.sh
+./scripts/pi/build_pi_qt5.sh
+./scripts/pi/verify_pi_qt5.sh
+./scripts/pi/run_pi_qt5.sh
+```
+
+Notes:
+- Qt5 build output is isolated in `build-pi-qt5/` (does not overwrite Qt6 build output).
+- If both Qt5 and Qt6 are installed, `build_pi_qt5.sh` explicitly resolves a Qt5 qmake.
+- Put `MAPBOX_ACCESS_TOKEN` in `.env` (or export in shell) to enable Mapbox routing on Qt5.

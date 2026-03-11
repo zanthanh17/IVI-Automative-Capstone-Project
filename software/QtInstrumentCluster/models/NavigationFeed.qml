@@ -5,34 +5,21 @@ QtObject {
     id: navigationFeed
 
     // Source switch: keep the same signal pipeline and swap only producer.
-    property bool useMockGps: true
+    property bool useMockGps: false
     property bool running: true
     property bool loopMockRoute: true
 
     property int tickMs: 200
     property real mockSpeedKmh: 44.0
 
-    readonly property var mockRoute: [
-        { lat: 16.06320, lon: 108.21960 },
-        { lat: 16.06290, lon: 108.22140 },
-        { lat: 16.06230, lon: 108.22310 },
-        { lat: 16.06140, lon: 108.22460 },
-        { lat: 16.06020, lon: 108.22570 },
-        { lat: 16.05880, lon: 108.22630 },
-        { lat: 16.05730, lon: 108.22620 },
-        { lat: 16.05590, lon: 108.22550 },
-        { lat: 16.05460, lon: 108.22420 },
-        { lat: 16.05380, lon: 108.22270 },
-        { lat: 16.05340, lon: 108.22120 },
-        { lat: 16.05290, lon: 108.21980 },
-        { lat: 16.05200, lon: 108.21870 }
-    ]
+    readonly property var mockRoute: []
 
     readonly property real mockRouteLengthMeters: routeLengthMeters()
 
+    property bool hasPositionFix: false
     property real mockTraveledMeters: 0
-    property real currentLatitude: mockRoute.length > 0 ? mockRoute[0].lat : 0
-    property real currentLongitude: mockRoute.length > 0 ? mockRoute[0].lon : 0
+    property real currentLatitude: 0
+    property real currentLongitude: 0
     property real currentHeadingDeg: 0
     property real currentSpeedKmh: 0
 
@@ -49,6 +36,9 @@ QtObject {
     }
 
     function resetMockRoute() {
+        if (mockRoute.length === 0) {
+            return
+        }
         mockTraveledMeters = 0
         var startPoint = pointOnRoute(0)
         publishPosition(startPoint.lat, startPoint.lon, mockSpeedKmh, startPoint.heading, Date.now())
@@ -62,6 +52,11 @@ QtObject {
     }
 
     function publishPosition(latitude, longitude, speedKmh, headingDeg, timestampMs) {
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            return
+        }
+
+        hasPositionFix = true
         currentLatitude = latitude
         currentLongitude = longitude
         currentSpeedKmh = speedKmh

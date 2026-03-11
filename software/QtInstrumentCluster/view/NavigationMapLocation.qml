@@ -1,4 +1,5 @@
 import QtQuick 2.12
+import QtQuick.Controls 2.12
 import QtLocation 5.15
 import QtPositioning 5.15
 import NavigationModel 1.0
@@ -13,11 +14,15 @@ Item {
      * No API key required. Perfect for automotive dashboard.
      */
     property string darkTileHost: "https://basemaps.cartocdn.com/dark_all/%z/%x/%y@2x.png"
-    property string destinationSearchText: "Cau Rong, Da Nang, Vietnam"
-    property var destinationCoordinate: QtPositioning.coordinate(16.05200, 108.21870)
+    property string destinationSearchText: ""
+    property var destinationCoordinate: QtPositioning.coordinate()
+    property bool searchPanelVisible: false
     property bool liveRouteReady: false
     property int osrmRetryCount: 0
     readonly property int osrmMaxRetries: 2
+    property real rerouteThresholdMeters: 45
+    property int rerouteCooldownMs: 8000
+    property double lastRouteRequestMs: 0
 
     property var routePath: []
     property var pastPath: []
@@ -25,11 +30,62 @@ Item {
     property var cautionPath: []
     property var finalPath: []
 
+    function hasVehicleFix() {
+        return NavigationFeed.hasPositionFix
+               && Number.isFinite(NavigationFeed.currentLatitude)
+               && Number.isFinite(NavigationFeed.currentLongitude)
+    }
+
+    function vehicleCoordinate() {
+        if (!hasVehicleFix()) {
+            return QtPositioning.coordinate()
+        }
+        return QtPositioning.coordinate(NavigationFeed.currentLatitude, NavigationFeed.currentLongitude)
+    }
+
     function formatMeters(meters) {
         if (meters >= 1000) {
             return (meters / 1000).toFixed(1) + " km"
         }
         return Math.round(Math.max(0, meters)) + " m"
+    }
+
+    function formatDurationSeconds(seconds) {
+        var mins = Math.max(1, Math.round(seconds / 60))
+        if (mins >= 60) {
+            var h = Math.floor(mins / 60)
+            var m = mins % 60
+            return h + "h " + m + "m"
+        }
+        return mins + " min"
+    }
+
+    function triggerDestinationSearch() {
+        var q = destinationSearchText.trim()
+        if (q.length < 3) {
+            searchPanelVisible = false
+            return
+        }
+        destinationGeocode.query = q
+        destinationGeocode.update()
+    }
+
+    function chooseDestinationFromResult(resultAddress, resultCoordinate) {
+        if (!resultCoordinate || !resultCoordinate.isValid) {
+            return
+        }
+
+        destinationCoordinate = resultCoordinate
+        if (resultAddress && resultAddress.text) {
+            destinationSearchText = resultAddress.text
+        } else {
+            destinationSearchText = resultCoordinate.latitude.toFixed(5) + ", " + resultCoordinate.longitude.toFixed(5)
+        }
+
+        searchPanelVisible = false
+        liveRouteReady = false
+        osrmRetryCount = 0
+        requestRouteToDestination()
     }
 
     function buildRoutePath() {
@@ -66,16 +122,55 @@ Item {
         updateSegmentedPath()
     }
 
-    function requestRouteToDestination() {
-        var origin = QtPositioning.coordinate(NavigationFeed.currentLatitude, NavigationFeed.currentLongitude)
+    function requestRouteToDestination(force) {
+        force = !!force
+        var origin = vehicleCoordinate()
         if (!origin.isValid || !destinationCoordinate || !destinationCoordinate.isValid) {
             return
         }
+        if (OsrmRoute.busy) {
+            return
+        }
+        var now = Date.now()
+        if (!force && (now - lastRouteRequestMs) < rerouteCooldownMs) {
+            return
+        }
+        lastRouteRequestMs = now
 
         OsrmRoute.requestRoute(
             origin.latitude, origin.longitude,
             destinationCoordinate.latitude, destinationCoordinate.longitude
         )
+    }
+
+    function nearestDistanceToRouteMeters(coord) {
+        if (!coord || !coord.isValid || routePath.length === 0) {
+            return Number.POSITIVE_INFINITY
+        }
+        var min = Number.POSITIVE_INFINITY
+        for (var i = 0; i < routePath.length; ++i) {
+            var p = routePath[i]
+            if (!p || !p.isValid) {
+                continue
+            }
+            var d = coord.distanceTo(p)
+            if (d < min) {
+                min = d
+            }
+        }
+        return min
+    }
+
+    function maybeRerouteIfOffRoute() {
+        if (!liveRouteReady || !hasVehicleFix() || !destinationCoordinate || !destinationCoordinate.isValid) {
+            return
+        }
+        var current = vehicleCoordinate()
+        var offRouteMeters = nearestDistanceToRouteMeters(current)
+        if (offRouteMeters > rerouteThresholdMeters) {
+            console.log("[NavMap] Off-route detected:", Math.round(offRouteMeters), "m. Requesting reroute.")
+            requestRouteToDestination(true)
+        }
     }
 
     function subPath(startIndex, endIndex) {
@@ -235,8 +330,16 @@ Item {
         repeat: false
         onTriggered: {
             console.log("[NavMap] Retrying OSRM route request (attempt", navMapRoot.osrmRetryCount + 1, ")")
-            navMapRoot.requestRouteToDestination()
+            navMapRoot.requestRouteToDestination(true)
         }
+    }
+
+    Timer {
+        id: rerouteMonitor
+        interval: 2000
+        repeat: true
+        running: navMapRoot.liveRouteReady
+        onTriggered: navMapRoot.maybeRerouteIfOffRoute()
     }
 
     Connections {
@@ -246,6 +349,13 @@ Item {
 
     Connections {
         target: NavigationFeed
+        function onPositionUpdated() {
+            if (!navMapRoot.liveRouteReady) {
+                navMapRoot.requestRouteToDestination()
+            } else {
+                navMapRoot.maybeRerouteIfOffRoute()
+            }
+        }
         function onRouteLooped() {
             console.log("[NavMap] Route looped, rebuilding path")
             navMapRoot.rebuildRouteFromActiveSource()
@@ -254,6 +364,13 @@ Item {
 
     Connections {
         target: OsrmRoute
+        function onAlternativeRoutesChanged() {
+            // Property binding handles UI refresh; this keeps debug visibility.
+            console.log("[NavMap] Alternatives available:", OsrmRoute.alternativeRoutes.length)
+        }
+        function onSelectedRouteChanged() {
+            navMapRoot.rebuildRouteFromActiveSource()
+        }
         function onRouteReady(path) {
             console.log("[NavMap] OSRM route received with", path.length, "points")
             navMapRoot.osrmRetryCount = 0
@@ -288,6 +405,25 @@ Item {
         PluginParameter { name: "mapboxgl.mapping.additional_style_urls"; value: "mapbox://styles/mapbox/navigation-night-v1" }
     }
 
+    GeocodeModel {
+        id: destinationGeocode
+        plugin: darkMapPlugin
+        autoUpdate: false
+        limit: 6
+        onStatusChanged: {
+            if (status === GeocodeModel.Ready) {
+                navMapRoot.searchPanelVisible = count > 0
+            }
+        }
+    }
+
+    Timer {
+        id: searchDebounce
+        interval: 350
+        repeat: false
+        onTriggered: navMapRoot.triggerDestinationSearch()
+    }
+
     /* Invisible container – same size as other menu pages content area */
     Rectangle {
         id: mapArea
@@ -308,7 +444,7 @@ Item {
             zoomLevel: 16.8
             tilt: 50
             bearing: NavigationFeed.currentHeadingDeg
-            center: QtPositioning.coordinate(NavigationFeed.currentLatitude, NavigationFeed.currentLongitude)
+            center: navMapRoot.vehicleCoordinate()
             onSupportedMapTypesChanged: navMapRoot.applyPreferredMapType()
 
             /* Full route shadow — always visible as a dim guide line */
@@ -363,6 +499,7 @@ Item {
 
             /* Destination pin marker */
             MapQuickItem {
+                visible: navMapRoot.destinationCoordinate && navMapRoot.destinationCoordinate.isValid
                 coordinate: navMapRoot.destinationCoordinate
                 anchorPoint.x: destPin.width / 2
                 anchorPoint.y: destPin.height
@@ -397,7 +534,8 @@ Item {
 
             /* Vehicle position marker */
             MapQuickItem {
-                coordinate: QtPositioning.coordinate(NavigationFeed.currentLatitude, NavigationFeed.currentLongitude)
+                visible: navMapRoot.hasVehicleFix()
+                coordinate: navMapRoot.vehicleCoordinate()
                 anchorPoint.x: marker.width / 2
                 anchorPoint.y: marker.height / 2
 
@@ -469,6 +607,46 @@ Item {
                 text: navMapRoot.maneuverVerb(NavigationModel.maneuver)
                 color: "#99b4cf"
                 font.pixelSize: 10
+            }
+        }
+    }
+
+    Row {
+        id: alternativesRow
+        anchors.left: mapArea.left
+        anchors.leftMargin: 10
+        anchors.top: topMiniGuide.bottom
+        anchors.topMargin: 8
+        spacing: 6
+        z: 30
+        visible: OsrmRoute.alternativeRoutes.length > 1
+
+        Repeater {
+            model: OsrmRoute.alternativeRoutes
+            delegate: Rectangle {
+                property int routeIdx: index
+                property bool selected: OsrmRoute.selectedRouteIndex === routeIdx
+                width: 110
+                height: 34
+                radius: 8
+                color: selected ? "#1f4060ee" : "#122131dd"
+                border.width: 1
+                border.color: selected ? "#6bc7ff" : "#35506c"
+
+                Text {
+                    anchors.centerIn: parent
+                    color: selected ? "#dff6ff" : "#aac2d8"
+                    font.pixelSize: 11
+                    text: navMapRoot.formatMeters(modelData.distanceMeters) + " · " +
+                          navMapRoot.formatDurationSeconds(modelData.durationSeconds)
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        OsrmRoute.selectRoute(routeIdx)
+                    }
+                }
             }
         }
     }
@@ -547,6 +725,83 @@ Item {
             }
         }
     }
+
+    Rectangle {
+        id: destinationSearchCard
+        anchors.top: mapArea.top
+        anchors.topMargin: 10
+        anchors.right: mapArea.right
+        anchors.rightMargin: 10
+        width: 340
+        radius: 12
+        color: "#122131dd"
+        border.color: "#2a4058"
+        border.width: 1
+        z: 50
+
+        Column {
+            anchors.fill: parent
+            anchors.margins: 8
+            spacing: 6
+
+            TextField {
+                id: destinationInput
+                width: parent.width
+                placeholderText: "Search destination (Mapbox)"
+                text: navMapRoot.destinationSearchText
+                color: "#e8f2fb"
+                placeholderTextColor: "#87a1b8"
+                selectByMouse: true
+                onTextChanged: {
+                    navMapRoot.destinationSearchText = text
+                    searchDebounce.restart()
+                }
+                background: Rectangle {
+                    radius: 8
+                    color: "#0f1b28"
+                    border.color: "#34506c"
+                    border.width: 1
+                }
+            }
+
+            ListView {
+                id: geocodeResults
+                width: parent.width
+                height: navMapRoot.searchPanelVisible ? Math.min(6, destinationGeocode.count) * 42 : 0
+                visible: navMapRoot.searchPanelVisible
+                clip: true
+                spacing: 4
+                model: destinationGeocode
+                delegate: Rectangle {
+                    width: geocodeResults.width
+                    height: 38
+                    radius: 8
+                    color: "#0e1a27"
+                    border.color: "#274057"
+                    border.width: 1
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        anchors.leftMargin: 10
+                        anchors.right: parent.right
+                        anchors.rightMargin: 10
+                        elide: Text.ElideRight
+                        color: "#d8e9f8"
+                        font.pixelSize: 12
+                        text: (locationData.address && locationData.address.text)
+                              ? locationData.address.text
+                              : (locationData.coordinate.latitude.toFixed(5) + ", " + locationData.coordinate.longitude.toFixed(5))
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            navMapRoot.chooseDestinationFromResult(locationData.address, locationData.coordinate)
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
-
-
