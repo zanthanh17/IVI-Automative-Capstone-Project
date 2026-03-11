@@ -57,6 +57,14 @@ MAP_OPTIONAL_PACKAGES=(
     libqt5location5-plugin-mapboxgl
 )
 
+VKB_OPTIONAL_PACKAGES=(
+    qml-module-qtquick-virtualkeyboard
+    qtvirtualkeyboard-plugin
+    qml-module-qt-labs-folderlistmodel
+    qml-module-qt-labs-settings
+    qml-module-qt-labs-platform
+)
+
 collect_available_packages() {
     local -n input_ref=$1
     local -n available_ref=$2
@@ -75,11 +83,14 @@ collect_available_packages() {
 
 AVAILABLE_MAP_PACKAGES=()
 MISSING_MAP_PACKAGES=()
+AVAILABLE_VKB_PACKAGES=()
+MISSING_VKB_PACKAGES=()
 
 collect_available_packages MAP_OPTIONAL_PACKAGES AVAILABLE_MAP_PACKAGES MISSING_MAP_PACKAGES
+collect_available_packages VKB_OPTIONAL_PACKAGES AVAILABLE_VKB_PACKAGES MISSING_VKB_PACKAGES
 
 echo "[INFO] Installing Qt5 toolchain and runtime dependencies..."
-sudo apt install -y "${BASE_PACKAGES[@]}" "${AVAILABLE_MAP_PACKAGES[@]}"
+sudo apt install -y "${BASE_PACKAGES[@]}" "${AVAILABLE_MAP_PACKAGES[@]}" "${AVAILABLE_VKB_PACKAGES[@]}"
 
 if ((${#AVAILABLE_MAP_PACKAGES[@]} > 0)); then
     echo "[INFO] Installed Qt5 map packages: ${AVAILABLE_MAP_PACKAGES[*]}"
@@ -89,6 +100,16 @@ if ((${#MISSING_MAP_PACKAGES[@]} > 0)); then
     echo "[WARN] Some Qt5 map packages are not available in this apt repo:"
     echo "       ${MISSING_MAP_PACKAGES[*]}"
     echo "       Mapbox navigation requires this stack; install missing packages or use a repo that provides them."
+fi
+
+if ((${#AVAILABLE_VKB_PACKAGES[@]} > 0)); then
+    echo "[INFO] Installed Qt5 virtual keyboard packages: ${AVAILABLE_VKB_PACKAGES[*]}"
+fi
+
+if ((${#MISSING_VKB_PACKAGES[@]} > 0)); then
+    echo "[WARN] Some Qt5 virtual keyboard packages are not available in this apt repo:"
+    echo "       ${MISSING_VKB_PACKAGES[*]}"
+    echo "       On-screen Vietnamese keyboard needs qml-module-qtquick-virtualkeyboard and qml-module-qt-labs-folderlistmodel."
 fi
 
 echo "[INFO] Adding user '${USER}' to dialout group for serial access..."

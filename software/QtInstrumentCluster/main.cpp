@@ -32,6 +32,14 @@ int main(int argc, char *argv[])
     /* Disable QSG texture atlas to avoid GL_STACK_OVERFLOW (501) on Intel GPUs */
     qputenv("QSG_NO_ATLAS_TEXTURES", "1");
 
+    // Ensure Qt uses the on-screen virtual keyboard input method.
+    if (qEnvironmentVariableIsEmpty("QT_IM_MODULE")) {
+        qputenv("QT_IM_MODULE", "qtvirtualkeyboard");
+    }
+
+    const QString virtualKeyboardLocale = qEnvironmentVariable("QT_VIRTUALKEYBOARD_LOCALE", "vi_VN");
+    qputenv("QT_VIRTUALKEYBOARD_LOCALE", virtualKeyboardLocale.toUtf8());
+
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 
     QGuiApplication app(argc, argv);
@@ -107,6 +115,7 @@ int main(int argc, char *argv[])
     QString mapboxToken = qEnvironmentVariable("MAPBOX_ACCESS_TOKEN", "");
     engine.rootContext()->setContextProperty("mapboxTokenFromEnv", mapboxToken);
     engine.rootContext()->setContextProperty("mapboxTokenConfigured", !mapboxToken.trimmed().isEmpty());
+    engine.rootContext()->setContextProperty("virtualKeyboardLocaleFromEnv", virtualKeyboardLocale);
 
     // Use fixed Qt5-compatible style to avoid Mapbox Standard/import incompatibilities.
     const QString mapboxStyleUrl = QStringLiteral("mapbox://styles/mapbox/navigation-guidance-night-v2");

@@ -28,6 +28,8 @@ if [[ -f "${ENV_FILE}" ]]; then
 fi
 
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+export QT_IM_MODULE="${QT_IM_MODULE:-qtvirtualkeyboard}"
+export QT_VIRTUALKEYBOARD_LOCALE="${QT_VIRTUALKEYBOARD_LOCALE:-vi_VN}"
 
 # Root sessions often use /run/user/0 with wrong permissions (0755).
 # Force a private runtime dir to satisfy Qt's 0700 requirement.
@@ -38,6 +40,8 @@ if [[ "$(id -u)" -eq 0 ]]; then
 fi
 
 echo "[INFO] QT_QPA_PLATFORM=${QT_QPA_PLATFORM}"
+echo "[INFO] QT_IM_MODULE=${QT_IM_MODULE}"
+echo "[INFO] QT_VIRTUALKEYBOARD_LOCALE=${QT_VIRTUALKEYBOARD_LOCALE}"
 echo "[INFO] XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-"(not set)"}"
 if [[ -n "${MAPBOX_ACCESS_TOKEN:-}" ]]; then
     echo "[INFO] MAPBOX_ACCESS_TOKEN is set (Mapbox map + routing enabled)."

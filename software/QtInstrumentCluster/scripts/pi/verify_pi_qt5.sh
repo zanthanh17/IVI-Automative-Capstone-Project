@@ -84,6 +84,8 @@ if command -v dpkg-query >/dev/null 2>&1; then
         qml-module-qtqml-workerscript2
         qml-module-qtquick2
         qml-module-qtquick-controls2
+        qml-module-qtquick-virtualkeyboard
+        qml-module-qt-labs-folderlistmodel
     )
 
     for pkg in "${REQUIRED_PKGS[@]}"; do
@@ -110,14 +112,26 @@ else
     warn "dpkg-query not found; skipping package checks."
 fi
 
+if command -v dpkg-query >/dev/null 2>&1; then
+    if is_installed_pkg qtvirtualkeyboard-plugin; then
+        ok "Package installed: qtvirtualkeyboard-plugin"
+    else
+        warn "Package qtvirtualkeyboard-plugin not installed (may still work if plugin is bundled in qml-module-qtquick-virtualkeyboard)."
+    fi
+fi
+
 QML_LOCATION_MODULE_PATH=""
 QML_POSITIONING_MODULE_PATH=""
+QML_VIRTUALKEYBOARD_MODULE_PATH=""
+QML_FOLDERLISTMODEL_MODULE_PATH=""
 
 if ((${#QMAKE_CMD[@]} > 0)); then
     QML_INSTALL_DIR="$("${QMAKE_CMD[@]}" -query QT_INSTALL_QML 2>/dev/null || true)"
     if [[ -n "${QML_INSTALL_DIR}" && -d "${QML_INSTALL_DIR}" ]]; then
         [[ -f "${QML_INSTALL_DIR}/QtLocation/qmldir" ]] && QML_LOCATION_MODULE_PATH="${QML_INSTALL_DIR}/QtLocation/qmldir"
         [[ -f "${QML_INSTALL_DIR}/QtPositioning/qmldir" ]] && QML_POSITIONING_MODULE_PATH="${QML_INSTALL_DIR}/QtPositioning/qmldir"
+        [[ -f "${QML_INSTALL_DIR}/QtQuick/VirtualKeyboard/qmldir" ]] && QML_VIRTUALKEYBOARD_MODULE_PATH="${QML_INSTALL_DIR}/QtQuick/VirtualKeyboard/qmldir"
+        [[ -f "${QML_INSTALL_DIR}/Qt/labs/folderlistmodel/qmldir" ]] && QML_FOLDERLISTMODEL_MODULE_PATH="${QML_INSTALL_DIR}/Qt/labs/folderlistmodel/qmldir"
     fi
 fi
 
@@ -126,6 +140,12 @@ if [[ -z "${QML_LOCATION_MODULE_PATH}" ]]; then
 fi
 if [[ -z "${QML_POSITIONING_MODULE_PATH}" ]]; then
     QML_POSITIONING_MODULE_PATH="$(find /usr/lib /usr/local/lib -type f -path '*/qt5/qml/QtPositioning/qmldir' 2>/dev/null | head -n 1 || true)"
+fi
+if [[ -z "${QML_VIRTUALKEYBOARD_MODULE_PATH}" ]]; then
+    QML_VIRTUALKEYBOARD_MODULE_PATH="$(find /usr/lib /usr/local/lib -type f -path '*/qt5/qml/QtQuick/VirtualKeyboard/qmldir' 2>/dev/null | head -n 1 || true)"
+fi
+if [[ -z "${QML_FOLDERLISTMODEL_MODULE_PATH}" ]]; then
+    QML_FOLDERLISTMODEL_MODULE_PATH="$(find /usr/lib /usr/local/lib -type f -path '*/qt5/qml/Qt/labs/folderlistmodel/qmldir' 2>/dev/null | head -n 1 || true)"
 fi
 
 if [[ -n "${QML_LOCATION_MODULE_PATH}" ]]; then
@@ -138,6 +158,18 @@ if [[ -n "${QML_POSITIONING_MODULE_PATH}" ]]; then
     ok "Found QtPositioning QML module: ${QML_POSITIONING_MODULE_PATH}"
 else
     fail "QtPositioning QML module not found."
+fi
+
+if [[ -n "${QML_VIRTUALKEYBOARD_MODULE_PATH}" ]]; then
+    ok "Found Qt Virtual Keyboard QML module: ${QML_VIRTUALKEYBOARD_MODULE_PATH}"
+else
+    fail "Qt Quick Virtual Keyboard QML module not found."
+fi
+
+if [[ -n "${QML_FOLDERLISTMODEL_MODULE_PATH}" ]]; then
+    ok "Found Qt.labs.folderlistmodel QML module: ${QML_FOLDERLISTMODEL_MODULE_PATH}"
+else
+    fail "Qt.labs.folderlistmodel QML module not found (required by Qt Virtual Keyboard)."
 fi
 
 MAPBOX_PLUGIN_PATH="$(find /usr/lib /lib -type f -iname '*qtgeoservices*mapboxgl*' 2>/dev/null | head -n 1 || true)"

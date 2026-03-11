@@ -17,6 +17,9 @@ Window {
     readonly property real designWidth: 1024
     readonly property real designHeight: 600
     readonly property real sceneScale: Math.min(width / designWidth, height / designHeight)
+    readonly property string virtualKeyboardLocale: (virtualKeyboardLocaleFromEnv && virtualKeyboardLocaleFromEnv.length > 0)
+                                                  ? virtualKeyboardLocaleFromEnv
+                                                  : "vi_VN"
 
     /*
      * Kết nối SerialReceiver signals → QML Models
@@ -283,6 +286,25 @@ Window {
                 } else {
                     console.log("[QML] No hardware detected, waiting for connection...")
                 }
+            }
+        }
+    }
+
+    Loader {
+        id: virtualKeyboardLoader
+        anchors.fill: parent
+        z: 1000
+        source: "qrc:/view/VirtualKeyboardOverlay.qml"
+
+        onLoaded: {
+            if (item && item.keyboardLocale !== undefined) {
+                item.keyboardLocale = window.virtualKeyboardLocale
+            }
+        }
+
+        onStatusChanged: {
+            if (status === Loader.Error) {
+                console.warn("[QML] Qt Virtual Keyboard module is not installed. Text boxes will use hardware keyboard only.")
             }
         }
     }

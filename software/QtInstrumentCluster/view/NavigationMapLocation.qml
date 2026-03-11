@@ -17,6 +17,13 @@ Item {
     property string destinationSearchText: ""
     property var destinationCoordinate: QtPositioning.coordinate()
     property bool searchPanelVisible: false
+    property bool enableVietnameseTelex: true
+    property bool biasSearchToCurrentCity: true
+    property string preferredSearchCity: "Da Nang"
+    property string preferredSearchCityLocal: "Đà Nẵng"
+    property string preferredSearchCountry: "Vietnam"
+    property real preferredSearchLat: 16.061911
+    property real preferredSearchLon: 108.219773
     property bool liveRouteReady: false
     property int osrmRetryCount: 0
     readonly property int osrmMaxRetries: 2
@@ -85,13 +92,210 @@ Item {
         return mins + " min"
     }
 
+    function hasAnyVietnameseMark(word) {
+        return /[ăâêôơưđáàảãạắằẳẵặấầẩẫậéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/i.test(word)
+    }
+
+    function applyBaseTelex(word) {
+        var out = word
+        out = out.replace(/([dD])[dD]/g, function(_, d) { return d === "D" ? "Đ" : "đ" })
+        out = out.replace(/([aA])[aA]/g, function(_, a) { return a === "A" ? "Â" : "â" })
+        out = out.replace(/([aA])[wW]/g, function(_, a) { return a === "A" ? "Ă" : "ă" })
+        out = out.replace(/([eE])[eE]/g, function(_, e) { return e === "E" ? "Ê" : "ê" })
+        out = out.replace(/([oO])[oO]/g, function(_, o) { return o === "O" ? "Ô" : "ô" })
+        out = out.replace(/([oO])[wW]/g, function(_, o) { return o === "O" ? "Ơ" : "ơ" })
+        out = out.replace(/([uU])[wW]/g, function(_, u) { return u === "U" ? "Ư" : "ư" })
+        return out
+    }
+
+    function toneIndexFromKey(toneKey) {
+        var k = toneKey.toLowerCase()
+        if (k === "s") return 1
+        if (k === "f") return 2
+        if (k === "r") return 3
+        if (k === "x") return 4
+        if (k === "j") return 5
+        return 0
+    }
+
+    function vowelToneForms(ch) {
+        var forms = {
+            "a": "aáàảãạ", "ă": "ăắằẳẵặ", "â": "âấầẩẫậ",
+            "e": "eéèẻẽẹ", "ê": "êếềểễệ",
+            "i": "iíìỉĩị",
+            "o": "oóòỏõọ", "ô": "ôốồổỗộ", "ơ": "ơớờởỡợ",
+            "u": "uúùủũụ", "ư": "ưứừửữự",
+            "y": "yýỳỷỹỵ",
+            "A": "AÁÀẢÃẠ", "Ă": "ĂẮẰẲẴẶ", "Â": "ÂẤẦẨẪẬ",
+            "E": "EÉÈẺẼẸ", "Ê": "ÊẾỀỂỄỆ",
+            "I": "IÍÌỈĨỊ",
+            "O": "OÓÒỎÕỌ", "Ô": "ÔỐỒỔỖỘ", "Ơ": "ƠỚỜỞỠỢ",
+            "U": "UÚÙỦŨỤ", "Ư": "ƯỨỪỬỮỰ",
+            "Y": "YÝỲỶỸỴ"
+        }
+        return forms[ch] || ""
+    }
+
+    function isVowelWithToneSupport(ch) {
+        return vowelToneForms(ch).length === 6
+    }
+
+    function chooseVietnameseTonePosition(word, vowelPositions) {
+        if (vowelPositions.length === 0) {
+            return -1
+        }
+        if (vowelPositions.length === 1) {
+            return vowelPositions[0]
+        }
+        if (vowelPositions.length >= 3) {
+            return vowelPositions[1]
+        }
+
+        var i0 = vowelPositions[0]
+        var i1 = vowelPositions[1]
+        var c0 = word.charAt(i0).toLowerCase()
+        var c1 = word.charAt(i1).toLowerCase()
+        var endsWithSecondVowel = (i1 === word.length - 1)
+
+        if (endsWithSecondVowel) {
+            if ((c0 === "o" && (c1 === "a" || c1 === "e")) || (c0 === "u" && c1 === "y")) {
+                return i0
+            }
+            if (c0 === "u" && c1 === "e") {
+                return i1
+            }
+            return i0
+        }
+
+        return i1
+    }
+
+    function applyToneToVietnameseWord(word, toneKey) {
+        var toneIdx = toneIndexFromKey(toneKey)
+        if (toneIdx <= 0) {
+            return word
+        }
+
+        var vowelPositions = []
+        for (var i = 0; i < word.length; ++i) {
+            if (isVowelWithToneSupport(word.charAt(i))) {
+                vowelPositions.push(i)
+            }
+        }
+
+        var tonePos = chooseVietnameseTonePosition(word, vowelPositions)
+        if (tonePos < 0) {
+            return word
+        }
+
+        var target = word.charAt(tonePos)
+        var forms = vowelToneForms(target)
+        if (forms.length !== 6) {
+            return word
+        }
+
+        var toned = forms.charAt(toneIdx)
+        return word.slice(0, tonePos) + toned + word.slice(tonePos + 1)
+    }
+
+    function looksLikeVietnameseSyllable(word) {
+        if (hasAnyVietnameseMark(word)) {
+            return true
+        }
+        if (/(dd|[aeo]w|aa|ee|oo|uw)/i.test(word)) {
+            return true
+        }
+        if (/(qu|gi|ng|nh|th|tr|ph|kh|ch)/i.test(word)) {
+            return true
+        }
+        return /[aeiouy]{2,}/i.test(word)
+    }
+
+    function convertTelexWord(word) {
+        if (!enableVietnameseTelex || word.length < 2) {
+            return word
+        }
+
+        var original = word
+        var base = applyBaseTelex(word)
+        var toneKey = ""
+        var body = base
+
+        if (/[sfrxjSFRXJ]$/.test(base)) {
+            toneKey = base.charAt(base.length - 1)
+            body = base.slice(0, -1)
+        } else if (/[tT][tT]$/.test(base) && hasAnyVietnameseMark(base)) {
+            // Convenience fallback for users typing "...tt" expecting "nặng".
+            toneKey = "j"
+            body = base.slice(0, -1)
+        }
+
+        if (toneKey.length === 0) {
+            return base
+        }
+
+        if (!looksLikeVietnameseSyllable(original) && !looksLikeVietnameseSyllable(body)) {
+            return original
+        }
+
+        return applyToneToVietnameseWord(body, toneKey)
+    }
+
+    function normalizeVietnameseTelexInput(rawText) {
+        if (!enableVietnameseTelex || rawText.length === 0) {
+            return rawText
+        }
+
+        var m = rawText.match(/([A-Za-zĐđĂăÂâÊêÔôƠơƯư]+)$/)
+        if (!m || m.length < 2) {
+            return rawText
+        }
+
+        var tailWord = m[1]
+        var converted = convertTelexWord(tailWord)
+        if (converted === tailWord) {
+            return rawText
+        }
+        return rawText.slice(0, rawText.length - tailWord.length) + converted
+    }
+
+    function effectiveSearchCenter() {
+        var c = vehicleCoordinate()
+        if (c && c.isValid) {
+            return c
+        }
+        return QtPositioning.coordinate(preferredSearchLat, preferredSearchLon)
+    }
+
+    function containsPreferredCity(textLower) {
+        return textLower.indexOf("da nang") >= 0
+               || textLower.indexOf("danang") >= 0
+               || textLower.indexOf("đà nẵng") >= 0
+    }
+
+    function buildCityBiasedQuery(rawQuery) {
+        var q = rawQuery.trim()
+        if (!biasSearchToCurrentCity || q.length === 0) {
+            return q
+        }
+
+        var lower = q.toLowerCase()
+        if (containsPreferredCity(lower)
+                || lower.indexOf("vietnam") >= 0
+                || lower.indexOf("việt nam") >= 0) {
+            return q
+        }
+
+        return q + ", " + preferredSearchCityLocal + ", " + preferredSearchCountry
+    }
+
     function triggerDestinationSearch() {
         var q = destinationSearchText.trim()
         if (q.length < 3) {
             searchPanelVisible = false
             return
         }
-        destinationGeocode.query = q
+        destinationGeocode.query = buildCityBiasedQuery(q)
         destinationGeocode.update()
     }
 
@@ -519,6 +723,13 @@ Item {
         id: geocodePlugin
         name: "mapbox"
         PluginParameter { name: "mapbox.access_token"; value: mapboxTokenFromEnv }
+        PluginParameter {
+            name: "mapbox.geocoding.proximity"
+            value: {
+                var c = navMapRoot.effectiveSearchCenter()
+                return c.longitude + "," + c.latitude
+            }
+        }
     }
 
     GeocodeModel {
@@ -962,14 +1173,20 @@ Item {
                 id: destinationInput
                 width: parent.width
                 height: 34
-                placeholderText: "Search destination"
+                placeholderText: "Search destination (Da Nang)"
                 text: navMapRoot.destinationSearchText
                 color: "#e8f2fb"
                 placeholderTextColor: "#87a1b8"
                 selectByMouse: true
                 font.pixelSize: 12
                 leftPadding: 10
-                onTextChanged: {
+                onTextEdited: {
+                    var normalized = navMapRoot.normalizeVietnameseTelexInput(text)
+                    if (normalized !== text) {
+                        var oldCursor = cursorPosition
+                        text = normalized
+                        cursorPosition = Math.min(text.length, oldCursor)
+                    }
                     navMapRoot.destinationSearchText = text
                     searchDebounce.restart()
                 }

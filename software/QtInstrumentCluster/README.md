@@ -189,3 +189,7 @@ Notes:
 - Put `MAPBOX_ACCESS_TOKEN` in `.env` (or export in shell) for Mapbox map + routing + geocode on Qt5.
 - `MAPBOX_STYLE_URL` is optional; Qt5 flow defaults to `mapbox://styles/mapbox/navigation-guidance-night-v2`.
 - Qt5 flow is Mapbox-only (no WebEngine fallback).
+- Qt Virtual Keyboard is enabled for text boxes (`QT_IM_MODULE=qtvirtualkeyboard`), default keyboard locale is Vietnamese (`QT_VIRTUALKEYBOARD_LOCALE=vi_VN`).
+- If keyboard logs `module "Qt.labs.folderlistmodel" is not installed`, install:
+  `sudo apt install -y qml-module-qt-labs-folderlistmodel qml-module-qt-labs-settings qml-module-qt-labs-platform`
+- Destination search now applies Vietnamese Telex normalization in the search box and biases geocoding to Da Nang when city is not explicitly provided.
