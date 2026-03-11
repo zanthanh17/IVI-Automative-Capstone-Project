@@ -4,12 +4,11 @@
 #include <QFontDatabase>
 #include <QFont>
 #include <QQuickWindow>
-#include <QSGRendererInterface>
 #include <QLocale>
 #include <QTranslator>
 
 #ifdef HAS_WEBENGINE_MAP
-#include <QtWebEngineQuick/qtwebenginequickglobal.h>
+#include <QtWebEngine/qtwebengineglobal.h>
 #endif
 
 #include "src/externalmediacontroller.h"
@@ -26,13 +25,23 @@ int main(int argc, char *argv[])
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
 
-    qputenv("QTWEBENGINEPROCESS_PATH", "/usr/lib/qt6/libexec/QtWebEngineProcess");
+    qputenv("QTWEBENGINEPROCESS_PATH", "/usr/lib/x86_64-linux-gnu/qt5/libexec/QtWebEngineProcess");
+
+    /*
+     * Mapbox GL plugin requires the basic render loop (single-threaded).
+     * Without this, the plugin warns "Threaded rendering is not optimal"
+     * and QSGTextureAtlas allocation can fail (code=501).
+     */
+    qputenv("QSG_RENDER_LOOP", "basic");
+
+    /* Disable QSG texture atlas to avoid GL_STACK_OVERFLOW (501) on Intel GPUs */
+    qputenv("QSG_NO_ATLAS_TEXTURES", "1");
+
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
-    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGLRhi);
 
 
 #ifdef HAS_WEBENGINE_MAP
-    QtWebEngineQuick::initialize();
+    QtWebEngine::initialize();
 #endif
 
     QGuiApplication app(argc, argv);
@@ -102,6 +111,11 @@ int main(int argc, char *argv[])
 
     engine.rootContext()->setContextProperty(
         "serialReceiver", MainModel::instance()->serialReceiver());
+
+    // Mapbox access token: read from environment variable MAPBOX_ACCESS_TOKEN
+    // Set before running: export MAPBOX_ACCESS_TOKEN="pk.eyJ1..."
+    QString mapboxToken = qEnvironmentVariable("MAPBOX_ACCESS_TOKEN", "");
+    engine.rootContext()->setContextProperty("mapboxTokenFromEnv", mapboxToken);
 
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,

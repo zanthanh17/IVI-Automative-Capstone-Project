@@ -1,4 +1,4 @@
-QT += quick serialport multimedia network positioning
+QT += quick serialport multimedia network positioning location
 
 qtHaveModule(svg) {
     QT += svg
@@ -14,8 +14,8 @@ qtHaveModule(location):qtHaveModule(positioning) {
     message("QtLocation/QtPositioning not found: build uses Navigation HUD fallback")
 }
 
-qtHaveModule(webenginequick):qtHaveModule(webchannel) {
-    QT += webenginequick webchannel
+qtHaveModule(webengine):qtHaveModule(webchannel) {
+    QT += webengine webchannel
     DEFINES += HAS_WEBENGINE_MAP
     message("QtWebEngine detected: WebEngine map support enabled")
 } else {

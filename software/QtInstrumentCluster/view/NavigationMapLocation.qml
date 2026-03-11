@@ -1,6 +1,6 @@
 import QtQuick 2.12
-import QtLocation 6.2
-import QtPositioning 6.2
+import QtLocation 5.15
+import QtPositioning 5.15
 import NavigationModel 1.0
 import NavigationFeed 1.0
 import OsrmRoute 1.0
@@ -272,19 +272,20 @@ Item {
     }
 
     /*
-     * OSM plugin with CartoDB Dark Matter tiles
-     * Free, no API key, beautiful dark theme with HiDPI @2x tiles
-     * Routing via OSRM HTTP API (OsrmRouteProvider C++)
+     * Mapbox GL native plugin — requires access token
+     * Uses navigation-night-v1: a classic dark automotive-friendly style
+     * fully compatible with mapbox-gl-native (Qt5).
+     * Note: Custom styles with Mapbox Standard imports are NOT supported.
+     * Route rendering via OSRM HTTP API (OsrmRouteProvider C++)
      */
+    // Token is injected from main.cpp via QML context property: mapboxTokenFromEnv
+    // Set before running: export MAPBOX_ACCESS_TOKEN="pk.eyJ1..."
+
     Plugin {
         id: darkMapPlugin
-        name: "osm"
-        PluginParameter { name: "osm.useragent"; value: "QtInstrumentCluster/1.0" }
-        PluginParameter { name: "osm.mapping.providersrepository.disabled"; value: true }
-        PluginParameter { name: "osm.mapping.highdpi_tiles"; value: true }
-        PluginParameter { name: "osm.mapping.custom.host"; value: navMapRoot.darkTileHost }
-        PluginParameter { name: "osm.mapping.custom.mapcopyright"; value: "CartoDB" }
-        PluginParameter { name: "osm.mapping.custom.datacopyright"; value: "OpenStreetMap contributors" }
+        name: "mapboxgl"
+        PluginParameter { name: "mapboxgl.access_token"; value: mapboxTokenFromEnv }
+        PluginParameter { name: "mapboxgl.mapping.additional_style_urls"; value: "mapbox://styles/mapbox/navigation-night-v1" }
     }
 
     /* Invisible container – same size as other menu pages content area */

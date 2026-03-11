@@ -1,13 +1,13 @@
 #include "externalmediacontroller.h"
 
-#include <QAudioOutput>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QMediaMetaData>
+#include <QMediaContent>
 #include <QMediaPlayer>
+#include <QMediaMetaData>
 #include <QMetaType>
 #include <QProcess>
 #include <QStandardPaths>
@@ -63,10 +63,10 @@ const QDBusArgument &operator>>(const QDBusArgument &argument, DBusManagedObject
 
 QString trackArtistFromVariant(const QVariant &artistValue)
 {
-    if (artistValue.metaType().id() == QMetaType::QStringList) {
+    if (artistValue.type() == QVariant::StringList) {
         return artistValue.toStringList().join(", ");
     }
-    if (artistValue.metaType().id() == QMetaType::QVariantList) {
+    if (artistValue.type() == QVariant::List) {
         QStringList artists;
         const QVariantList values = artistValue.toList();
         for (const QVariant &value : values) {
@@ -94,7 +94,6 @@ ExternalMediaController *ExternalMediaController::instance()
 ExternalMediaController::ExternalMediaController(QObject *parent)
     : QObject(parent)
     , m_player(new QMediaPlayer(this))
-    , m_audioOutput(new QAudioOutput(this))
     , m_probeProcess(new QProcess(this))
     , m_probeTimer(new QTimer(this))
     , m_index(-1)
@@ -105,16 +104,15 @@ ExternalMediaController::ExternalMediaController(QObject *parent)
     , m_linuxPlayerPath()
     , m_linuxPlayerPathConnected()
 {
-    m_audioOutput->setVolume(1.0);
-    m_player->setAudioOutput(m_audioOutput);
+    m_player->setVolume(100);
 
-    connect(m_player, &QMediaPlayer::playbackStateChanged, this, &ExternalMediaController::playingChanged);
+    connect(m_player, &QMediaPlayer::stateChanged, this, &ExternalMediaController::playingChanged);
     connect(m_player, &QMediaPlayer::mediaStatusChanged, this, [this](QMediaPlayer::MediaStatus status) {
         if (status == QMediaPlayer::EndOfMedia) {
             next();
         }
     });
-    connect(m_player, &QMediaPlayer::metaDataChanged, this, [this]() {
+    connect(m_player, QOverload<>::of(&QMediaPlayer::metaDataChanged), this, [this]() {
         emitTrackMetaChanged();
     });
 
@@ -160,7 +158,7 @@ bool ExternalMediaController::playing() const
         return m_systemPlaying;
     }
     if (!m_tracks.isEmpty()) {
-        return m_player->playbackState() == QMediaPlayer::PlayingState;
+        return m_player->state() == QMediaPlayer::PlayingState;
     }
     return m_proxyPlaying;
 }
@@ -176,7 +174,7 @@ QString ExternalMediaController::currentSong() const
         return m_systemSong;
     }
 
-    const QString metaTitle = m_player->metaData().value(QMediaMetaData::Title).toString();
+    const QString metaTitle = m_player->metaData(QMediaMetaData::Title).toString();
     if (!metaTitle.isEmpty()) {
         return metaTitle;
     }
@@ -192,7 +190,7 @@ QString ExternalMediaController::currentArtist() const
         return m_systemArtist;
     }
 
-    const QString metaArtist = m_player->metaData().value(QMediaMetaData::ContributingArtist).toStringList().join(", ");
+    const QString metaArtist = m_player->metaData(QMediaMetaData::ContributingArtist).toStringList().join(", ");
     if (!metaArtist.isEmpty()) {
         return metaArtist;
     }
@@ -294,7 +292,7 @@ void ExternalMediaController::loadTrack(int index, bool autoPlay)
         bounded += m_tracks.size();
     }
     m_index = bounded;
-    m_player->setSource(QUrl::fromLocalFile(m_tracks[m_index]));
+    m_player->setMedia(QMediaContent(QUrl::fromLocalFile(m_tracks[m_index])));
     emitTrackMetaChanged();
     if (autoPlay) {
         m_player->play();

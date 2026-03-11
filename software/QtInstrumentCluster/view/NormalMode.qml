@@ -25,7 +25,7 @@ Item {
     
     readonly property real bottomPaneY: root.height - layoutMargin - menuPaneHeight
     
-    readonly property real contentTopY: topLine.y + topLine.height + 2
+    readonly property real contentTopY: rightPaneY + 2
     readonly property real rightContentHeight: rightPaneHeight - (contentTopY - rightPaneY) - layoutGap
     readonly property real gaugeTopY: leftPaneY + 96
     readonly property real gaugeInset: 8
@@ -207,7 +207,7 @@ Item {
 
     Menu {
         id: normalMenu;
-        opacity: topLine.opacity;
+        opacity: 1.0;
         anchors.horizontalCenter: undefined
         x: rightPaneX + (rightPaneWidth - width) / 2
         y: bottomPaneY + (menuPaneHeight - height) / 2

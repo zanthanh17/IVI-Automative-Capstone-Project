@@ -24,6 +24,7 @@ BaseGauge {
             color: Style.lightPeriwinkle;
             font.pixelSize: 12;
             font.bold: false;
+            font.family: "Sarabun";
             opacity: {
                 var distance = Math.abs(animatedValue/interval - index);
                 var alphaResult = 1.5 - (distance / 1.25);
@@ -32,7 +33,7 @@ BaseGauge {
             Behavior on opacity { NumberAnimation { duration: 150; } }
             transform: Scale {
                 origin.x: transformOriginX - entry.x
-                origin.y: 340 - entry.y
+                origin.y: 425 - entry.y
                 xScale: root.scale
                 yScale: root.scale
             }
@@ -50,10 +51,11 @@ BaseGauge {
         color: Style.lightPeriwinkle;
         font.pixelSize: 64;
         font.bold: true;
+        font.family: "Sarabun";
         transform: [
             Scale {
                 origin.x: transformOriginX - textValue.x
-                origin.y: 340 - textValue.y
+                origin.y: 425 - textValue.y
                 xScale: root.scale
                 yScale: root.scale
             },
@@ -77,9 +79,10 @@ BaseGauge {
         color: Style.lightPeriwinkle;
         font.pixelSize: 16;
         font.bold: false;
+        font.family: "Sarabun";
         transform: Scale {
             origin.x: transformOriginX - label.x
-            origin.y: 340 - label.y
+            origin.y: 425 - label.y
             xScale: root.scale
             yScale: root.scale
         }

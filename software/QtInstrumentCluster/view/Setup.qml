@@ -24,7 +24,7 @@ NormalModeContentItem {
 
     Connections {
         target: BluetoothManager
-        onPoweredChanged: {
+        function onPoweredChanged() {
             NormalModeModel.bluetoothEnabled = BluetoothManager.powered
             if (SystemSettings.bluetoothEnabled !== BluetoothManager.powered)
                 SystemSettings.bluetoothEnabled = BluetoothManager.powered
@@ -33,19 +33,19 @@ NormalModeContentItem {
 
     Connections {
         target: SystemSettings
-        onWifiEnabledChanged: {
+        function onWifiEnabledChanged() {
             NormalModeModel.wifiEnabled = SystemSettings.wifiEnabled
         }
-        onBluetoothEnabledChanged: {
+        function onBluetoothEnabledChanged() {
             NormalModeModel.bluetoothEnabled = SystemSettings.bluetoothEnabled
         }
-        onVolumeLevelChanged: {
+        function onVolumeLevelChanged() {
             NormalModeModel.volumeLevel = SystemSettings.volumeLevel
         }
-        onBrightnessLevelChanged: {
+        function onBrightnessLevelChanged() {
             NormalModeModel.brightnessLevel = SystemSettings.brightnessLevel
         }
-        onWifiConnectionResult: {
+        function onWifiConnectionResult(success, message) {
             if (success) {
                 console.log("[Setup] Wi-Fi connected:", message)
                 setupRoot.wifiErrorMessage = ""
@@ -129,8 +129,10 @@ NormalModeContentItem {
                     anchors.centerIn: parent
                     spacing: 8
                     Image {
-                        source: "qrc:/images/others/bluetooth.svg"
+                        source: "qrc:/images/others/bluetooth.png"
                         width: 18; height: 18
+                        sourceSize.width: 18
+                        sourceSize.height: 18
                         fillMode: Image.PreserveAspectFit
                         anchors.verticalCenter: parent.verticalCenter
                     }
@@ -168,8 +170,10 @@ NormalModeContentItem {
             width: parent.width
 
             Image {
-                source: "qrc:/images/others/volume.svg"
+                source: "qrc:/images/others/volume.png"
                 width: 22; height: 22
+                sourceSize.width: 22
+                sourceSize.height: 22
                 fillMode: Image.PreserveAspectFit
                 anchors.verticalCenter: parent.verticalCenter
             }
@@ -225,8 +229,10 @@ NormalModeContentItem {
             width: parent.width
 
             Image {
-                source: "qrc:/images/others/brightness.svg"
+                source: "qrc:/images/others/brightness.png"
                 width: 22; height: 22
+                sourceSize.width: 22
+                sourceSize.height: 22
                 fillMode: Image.PreserveAspectFit
                 anchors.verticalCenter: parent.verticalCenter
             }

@@ -61,6 +61,9 @@
         <file>images/others/brightness.svg</file>
         <file>images/others/bluetooth.svg</file>
         <file>images/others/wifi.png</file>
+        <file>images/others/bluetooth.png</file>
+        <file>images/others/volume.png</file>
+        <file>images/others/brightness.png</file>
         <file>images/others/power.png</file>
         <file>images/others/shutdown.png</file>
         <file>images/others/restart.png</file>

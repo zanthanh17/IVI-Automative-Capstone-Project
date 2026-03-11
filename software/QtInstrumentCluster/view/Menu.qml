@@ -1,4 +1,5 @@
 import QtQuick 2.12
+import QtGraphicalEffects 1.12
 import Style 1.0
 import NormalModeModel 1.0
 
@@ -25,63 +26,31 @@ Row {
             Image {
                 id: menuIconSource
                 source: model.image
+                width: 24
+                height: 24
+                sourceSize.width: 24
+                sourceSize.height: 24
+                fillMode: Image.PreserveAspectFit
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.top: parent.top
                 anchors.topMargin: 2
                 visible: false
-                onStatusChanged: menuIcon.requestPaint()
+                layer.enabled: true
             }
 
-            Canvas {
+            ColorOverlay {
                 id: menuIcon
-                anchors.fill: menuIconSource
-                smooth: true
-                antialiasing: true
+                width: menuIconSource.width
+                height: menuIconSource.height
+                anchors.horizontalCenter: menuIconSource.horizontalCenter
+                anchors.top: menuIconSource.top
+                source: menuIconSource
+                color: parent.active ? Style.iconActiveBlue : Style.iconInactiveBlue
+                opacity: parent.active ? Style.iconActiveOpacity : Style.iconInactiveOpacity
+                visible: true
 
-                property color iconColor: parent.active ? Style.iconActiveBlue : Style.iconInactiveBlue
-                property real iconOpacity: parent.active ? Style.iconActiveOpacity : Style.iconInactiveOpacity
-                property color glowColor: parent.active ? Style.iconActiveBlue : Style.iconInactiveBlue
-                property real glowOpacity: parent.active ? Style.iconActiveShadowOpacity : Style.iconInactiveShadowOpacity
-                property real glowBlur: parent.active ? 8 : 4
-
-                onIconColorChanged: requestPaint()
-                onIconOpacityChanged: requestPaint()
-                onGlowColorChanged: requestPaint()
-                onGlowOpacityChanged: requestPaint()
-                onGlowBlurChanged: requestPaint()
-
-                Behavior on iconOpacity { NumberAnimation { duration: 200 } }
-                Behavior on iconColor { ColorAnimation { duration: 200 } }
-                Behavior on glowOpacity { NumberAnimation { duration: 200 } }
-
-                onPaint: {
-                    var ctx = getContext("2d")
-                    ctx.reset()
-
-                    if (menuIconSource.status !== Image.Ready) {
-                        return
-                    }
-
-                    var w = width
-                    var h = height
-
-                    ctx.save()
-                    ctx.globalAlpha = glowOpacity
-                    ctx.shadowColor = glowColor
-                    ctx.shadowBlur = glowBlur
-                    ctx.shadowOffsetX = 0
-                    ctx.shadowOffsetY = 0
-                    ctx.drawImage(menuIconSource, 0, 0, w, h)
-                    ctx.restore()
-
-                    ctx.save()
-                    ctx.globalAlpha = iconOpacity
-                    ctx.drawImage(menuIconSource, 0, 0, w, h)
-                    ctx.globalCompositeOperation = "source-atop"
-                    ctx.fillStyle = iconColor
-                    ctx.fillRect(0, 0, w, h)
-                    ctx.restore()
-                }
+                Behavior on opacity { NumberAnimation { duration: 200 } }
+                Behavior on color { ColorAnimation { duration: 200 } }
             }
 
             Rectangle {

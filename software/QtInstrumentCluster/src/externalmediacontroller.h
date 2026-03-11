@@ -9,7 +9,6 @@
 #endif
 
 class QMediaPlayer;
-class QAudioOutput;
 class QProcess;
 class QTimer;
 
@@ -81,7 +80,6 @@ private slots:
 
 private:
     QMediaPlayer *m_player;
-    QAudioOutput *m_audioOutput;
     QProcess *m_probeProcess;
     QTimer *m_probeTimer;
     QStringList m_tracks;

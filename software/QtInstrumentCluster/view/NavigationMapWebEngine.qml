@@ -1,5 +1,5 @@
 import QtQuick 2.12
-import QtWebEngine
+import QtWebEngine 1.10
 import NavigationModel 1.0
 import NavigationFeed 1.0
 import OsrmRoute 1.0

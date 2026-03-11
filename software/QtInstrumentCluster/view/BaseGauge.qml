@@ -44,7 +44,7 @@ Item {
             },
             Scale {
                 origin.x: transformOriginX - bg.x
-                origin.y: 340 - bg.y
+                origin.y: 425 - bg.y
                 xScale: root.scale
                 yScale: root.scale
             }
@@ -67,7 +67,7 @@ Item {
             },
             Scale {
                 origin.x: transformOriginX - highlight.x
-                origin.y: 340 - highlight.y - 0.5
+                origin.y: 425 - highlight.y - 0.5
                 xScale: root.scale
                 yScale: root.scale
             },
@@ -93,7 +93,7 @@ Item {
             },
             Scale {
                 origin.x: transformOriginX - needle.x
-                origin.y: 340 - needle.y
+                origin.y: 425 - needle.y
                 xScale: root.scale
                 yScale: root.scale
             }

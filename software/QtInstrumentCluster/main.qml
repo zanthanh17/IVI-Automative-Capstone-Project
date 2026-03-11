@@ -235,22 +235,28 @@ Window {
                         fillMode: Image.PreserveAspectFit
                     }
                     Image {
-                        source: "qrc:/images/others/bluetooth.svg"
+                        source: "qrc:/images/others/bluetooth.png"
                         width: 24
                         height: 24
+                        sourceSize.width: 24
+                        sourceSize.height: 24
                         visible: NormalModeModel.bluetoothEnabled
                         fillMode: Image.PreserveAspectFit
                     }
                     Image {
-                        source: "qrc:/images/others/volume.svg"
+                        source: "qrc:/images/others/volume.png"
                         width: 24
                         height: 24
+                        sourceSize.width: 24
+                        sourceSize.height: 24
                         fillMode: Image.PreserveAspectFit
                     }
                     Image {
-                        source: "qrc:/images/others/brightness.svg"
+                        source: "qrc:/images/others/brightness.png"
                         width: 24
                         height: 24
+                        sourceSize.width: 24
+                        sourceSize.height: 24
                         fillMode: Image.PreserveAspectFit
                     }
                 }

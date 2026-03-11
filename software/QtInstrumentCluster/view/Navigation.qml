@@ -5,8 +5,8 @@ NormalModeContentItem {
 
     property int loadStage: 0
     property var stageSources: [
-        "qrc:/view/NavigationMapWebEngine.qml",
         "qrc:/view/NavigationMapLocation.qml",
+        "qrc:/view/NavigationMapWebEngine.qml",
         "qrc:/view/NavigationHudFallback.qml"
     ]
 
