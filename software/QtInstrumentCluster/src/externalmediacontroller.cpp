@@ -28,6 +28,11 @@ namespace {
 using DBusProperties = QVariantMap;
 using DBusInterfaceMap = QMap<QString, DBusProperties>;
 using DBusManagedObjects = QMap<QDBusObjectPath, DBusInterfaceMap>;
+const QVector<int> kBluetoothConnectProbeBurst = {0, 300, 900, 1800, 3200};
+const QVector<int> kBluetoothDisconnectProbeBurst = {0, 250, 700};
+const QVector<int> kCommandProbeBurst = {0, 220, 650, 1350, 2400};
+const QVector<int> kTrackSyncProbeBurst = {180, 520, 1100, 2100};
+const QVector<int> kInvalidatedTrackProbeBurst = {260, 700, 1400, 2600};
 
 const QDBusArgument &operator>>(const QDBusArgument &argument, DBusInterfaceMap &map)
 {
@@ -130,6 +135,9 @@ ExternalMediaController::ExternalMediaController(QObject *parent)
     , m_systemPlaying(false)
     , m_linuxPlayerPath()
     , m_linuxPlayerPathConnected()
+#if defined(Q_OS_LINUX)
+    , m_linuxProbeGeneration(0)
+#endif
 {
     m_player->setVolume(100);
 
@@ -623,8 +631,13 @@ bool ExternalMediaController::sendSystemCommand(const QString &command)
     }
 
     const QDBusMessage reply = player.call(method);
-    probeSystemSession();
-    return reply.type() != QDBusMessage::ErrorMessage;
+    const bool ok = reply.type() != QDBusMessage::ErrorMessage;
+    if (ok) {
+        scheduleProbeBurst(kCommandProbeBurst);
+    } else {
+        probeSystemSession();
+    }
+    return ok;
 #else
     Q_UNUSED(command)
     return false;
@@ -730,14 +743,11 @@ void ExternalMediaController::rescan()
 void ExternalMediaController::handleBluetoothDeviceConnectionChanged(const QString &address, bool connected)
 {
     Q_UNUSED(address)
-    probeSystemSession();
-
 #if defined(Q_OS_LINUX)
-    const int retryDelayMs = connected ? 450 : 250;
-    const int secondRetryDelayMs = connected ? 1400 : 700;
-    QTimer::singleShot(retryDelayMs, this, &ExternalMediaController::probeSystemSession);
-    QTimer::singleShot(secondRetryDelayMs, this, &ExternalMediaController::probeSystemSession);
+    scheduleProbeBurst(connected ? kBluetoothConnectProbeBurst
+                                 : kBluetoothDisconnectProbeBurst);
 #else
+    probeSystemSession();
     Q_UNUSED(connected)
 #endif
 }
@@ -783,6 +793,23 @@ void ExternalMediaController::connectPlayerSignals()
     }
 }
 
+void ExternalMediaController::scheduleProbeBurst(const QVector<int> &delaysMs)
+{
+    if (delaysMs.isEmpty()) {
+        return;
+    }
+
+    const quint64 generation = ++m_linuxProbeGeneration;
+    for (const int delayMs : delaysMs) {
+        QTimer::singleShot(qMax(0, delayMs), this, [this, generation]() {
+            if (generation != m_linuxProbeGeneration) {
+                return;
+            }
+            probeSystemSession();
+        });
+    }
+}
+
 void ExternalMediaController::subscribeBluezSignals()
 {
     /* Subscribe to BlueZ ObjectManager signals for reactive Bluetooth detection.
@@ -820,10 +847,9 @@ void ExternalMediaController::onBluezInterfacesAdded(
         qDebug() << "[ExternalMedia] BlueZ media interface added:" << path
                  << "player:" << hasMediaPlayer
                  << "control:" << hasMediaControl;
-        probeSystemSession();
-        if (hasMediaControl && !hasMediaPlayer) {
-            QTimer::singleShot(400, this, &ExternalMediaController::probeSystemSession);
-        }
+        scheduleProbeBurst(hasMediaControl && !hasMediaPlayer
+                           ? kBluetoothConnectProbeBurst
+                           : kTrackSyncProbeBurst);
     }
 }
 
@@ -841,8 +867,7 @@ void ExternalMediaController::onBluezInterfacesRemoved(
         qDebug() << "[ExternalMedia] BlueZ media interface removed:" << path
                  << "player:" << hasMediaPlayer
                  << "control:" << hasMediaControl;
-        probeSystemSession();
-        QTimer::singleShot(300, this, &ExternalMediaController::probeSystemSession);
+        scheduleProbeBurst(kBluetoothDisconnectProbeBurst);
     }
 }
 
@@ -895,6 +920,12 @@ void ExternalMediaController::onPlayerPropertiesChanged(
 
         if (m_systemSong != title) { m_systemSong = title; emit currentSongChanged(); changed = true; }
         if (m_systemArtist != artist) { m_systemArtist = artist; emit currentArtistChanged(); changed = true; }
+
+        if (title.isEmpty() || artist.isEmpty()) {
+            scheduleProbeBurst(kInvalidatedTrackProbeBurst);
+        } else {
+            scheduleProbeBurst(kTrackSyncProbeBurst);
+        }
     }
 
     // ---------- Track INVALIDATED (iPhone/AVRCP sends Track in invalidated list) ----------
@@ -904,6 +935,7 @@ void ExternalMediaController::onPlayerPropertiesChanged(
         invalidated.contains(QStringLiteral("Status"))) {
 
         qDebug() << "[ExternalMedia] Invalidated properties detected, re-fetching via GetAll...";
+        scheduleProbeBurst(kInvalidatedTrackProbeBurst);
 
         QDBusInterface propsIface(QStringLiteral("org.bluez"),
                                   m_linuxPlayerPath,
@@ -963,11 +995,6 @@ void ExternalMediaController::onPlayerPropertiesChanged(
                     if (m_systemArtist != artist) { m_systemArtist = artist; emit currentArtistChanged(); changed = true; }
                 } else {
                     qDebug() << "[ExternalMedia] GetAll did not contain Track property";
-                    // Track was invalidated and not yet available — schedule a delayed retry
-                    QTimer::singleShot(500, this, [this]() {
-                        qDebug() << "[ExternalMedia] Delayed Track re-fetch...";
-                        probeSystemSession();
-                    });
                 }
             } else {
                 qDebug() << "[ExternalMedia] GetAll failed:" << reply.errorMessage();
