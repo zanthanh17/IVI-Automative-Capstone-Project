@@ -82,6 +82,7 @@
         <file>images/media/pause.svg</file>
         <file>images/media/skip-next.svg</file>
         <file>images/media/skip-previous.svg</file>
+        <file>images/media/spotify.svg</file>
         <file>models/NormalModeModel.qml</file>
         <file>images/albums/ak.png</file>
         <file>images/albums/juno.png</file>

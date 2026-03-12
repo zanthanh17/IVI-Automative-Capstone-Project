@@ -1,16 +1,31 @@
 import QtQuick 2.12
+import Style 1.0
 import Weather 1.0
 
 NormalModeContentItem {
     id: weatherRoot
 
     property string cityName: Weather.cityName
+    property string detailText: Weather.detailText
     property int currentTemp: Weather.temperature
     property string conditionText: Weather.conditionText
     property string iconType: Weather.iconType
     property string lastUpdated: Weather.lastUpdated
     property bool loading: Weather.loading
     property string weatherError: Weather.errorString
+    readonly property color accentColor: accentColorForType(iconType)
+    readonly property bool offline: weatherError.length > 0
+    readonly property string resolvedCityName: cityName.length > 0 ? cityName : "Unknown location"
+    readonly property string resolvedCondition: loading
+                                               ? "Refreshing weather"
+                                               : (conditionText.length > 0 ? conditionText : "--")
+    readonly property string resolvedDetail: offline
+                                            ? weatherError
+                                            : (detailText.length > 0 ? detailText : "Outdoor conditions unavailable")
+    readonly property string statusLabel: offline ? "Weather offline"
+                                                  : (loading
+                                                     ? "Refreshing"
+                                                     : (lastUpdated.length > 0 ? ("Updated " + lastUpdated) : "Live weather"))
 
     function iconSourceForType(type) {
         if (type === "sun") {
@@ -28,160 +43,270 @@ NormalModeContentItem {
         return "qrc:/images/weather/partly.svg"
     }
 
+    function accentColorForType(type) {
+        if (type === "sun") {
+            return "#ffcb57"
+        }
+        if (type === "cloud") {
+            return "#b2c8e2"
+        }
+        if (type === "rain") {
+            return "#72cbff"
+        }
+        if (type === "storm") {
+            return "#ff9a63"
+        }
+        return "#f2c76b"
+    }
+
     Component.onCompleted: {
         Weather.refresh()
     }
 
-    Rectangle {
-        id: weatherCard
-        width: 318
-        height: 156
-        radius: 14
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: 138
-        color: "#0b1523"
-        border.width: 1
-        border.color: "#224a73"
-        clip: true
+    Item {
+        anchors.fill: parent
+        anchors.margins: 20
 
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#163755" }
-            GradientStop { position: 0.46; color: "#0f263d" }
-            GradientStop { position: 1.0; color: "#09131f" }
+        Rectangle {
+            width: Math.min(184, locationText.implicitWidth + 28)
+            height: 30
+            radius: 15
+            color: Qt.rgba(0.05, 0.07, 0.10, 0.30)
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.12)
+
+            Row {
+                anchors.centerIn: parent
+                spacing: 6
+
+                Image {
+                    source: "qrc:/images/weather/location.svg"
+                    width: 12
+                    height: 12
+                    fillMode: Image.PreserveAspectFit
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Text {
+                    id: locationText
+                    width: Math.min(144, implicitWidth)
+                    text: weatherRoot.resolvedCityName
+                    color: Style.textPrimary
+                    font.pixelSize: 12
+                    font.bold: true
+                    elide: Text.ElideRight
+                }
+            }
         }
 
         Rectangle {
-            anchors.fill: parent
-            anchors.margins: 1
-            radius: weatherCard.radius - 1
-            color: "#18060d17"
-        }
-
-        Rectangle {
-            anchors.left: parent.left
             anchors.right: parent.right
-            anchors.top: parent.top
-            height: 44
-            color: "transparent"
-
-            gradient: Gradient {
-                GradientStop { position: 0.0; color: "#1f4c75" }
-                GradientStop { position: 1.0; color: "#001f3d00" }
-            }
-        }
-
-        Row {
-            anchors.left: parent.left
-            anchors.leftMargin: 12
-            anchors.top: parent.top
-            anchors.topMargin: 11
-            spacing: 6
-
-            Image {
-                source: "qrc:/images/weather/location.svg"
-                width: 14
-                height: 14
-                fillMode: Image.PreserveAspectFit
-                anchors.verticalCenter: parent.verticalCenter
-            }
+            width: Math.min(154, statusText.implicitWidth + 24)
+            height: 30
+            radius: 15
+            color: Qt.rgba(0.05, 0.07, 0.10, 0.30)
+            border.width: 1
+            border.color: offline ? Qt.rgba(1, 0.5, 0.44, 0.36)
+                                  : Qt.rgba(weatherRoot.accentColor.r, weatherRoot.accentColor.g, weatherRoot.accentColor.b, 0.26)
 
             Text {
-                text: weatherRoot.cityName
-                color: "#d6ebff"
-                font.pixelSize: 14
-                font.family: "Sarabun"
-            }
-        }
-
-        Text {
-            anchors.left: parent.left
-            anchors.leftMargin: 12
-            anchors.top: parent.top
-            anchors.topMargin: 30
-            text: weatherRoot.lastUpdated.length > 0 ? ("Updated " + weatherRoot.lastUpdated) : ""
-            color: "#8198af"
-            font.pixelSize: 9
-            font.family: "Sarabun"
-        }
-
-        Row {
-            anchors.left: parent.left
-            anchors.leftMargin: 12
-            anchors.top: parent.top
-            anchors.topMargin: 42
-            spacing: 2
-
-            Text {
-                text: weatherRoot.loading ? "--" : weatherRoot.currentTemp
-                color: "#f5fbff"
-                font.pixelSize: 50
+                id: statusText
+                anchors.centerIn: parent
+                width: parent.width - 18
+                horizontalAlignment: Text.AlignHCenter
+                text: weatherRoot.statusLabel
+                color: offline ? "#ff9d90" : weatherRoot.accentColor
+                font.pixelSize: 11
                 font.bold: true
-                font.family: "Sarabun"
+                elide: Text.ElideRight
             }
-
-            Text {
-                text: "\u00B0C"
-                color: "#f5fbff"
-                font.pixelSize: 28
-                font.bold: true
-                font.family: "Sarabun"
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.verticalCenterOffset: 8
-                opacity: weatherRoot.loading ? 0.35 : 1.0
-            }
-        }
-
-        Text {
-            anchors.left: parent.left
-            anchors.leftMargin: 12
-            anchors.top: parent.top
-            anchors.topMargin: 116
-            text: weatherRoot.conditionText
-            color: "#9eb7cf"
-            font.pixelSize: 14
-            font.family: "Sarabun"
-        }
-
-        Text {
-            anchors.right: parent.right
-            anchors.rightMargin: 12
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: 8
-            visible: weatherRoot.weatherError.length > 0
-            text: "Weather offline"
-            color: "#ef9a9a"
-            font.pixelSize: 9
-            font.family: "Sarabun"
         }
 
         Item {
-            id: weatherIcon
-            width: 108
-            height: 108
+            id: contentArea
+            anchors.left: parent.left
             anchors.right: parent.right
-            anchors.rightMargin: 6
             anchors.top: parent.top
-            anchors.topMargin: 8
+            anchors.bottom: footer.top
+            anchors.topMargin: 26
+            anchors.bottomMargin: 18
 
-            Image {
-                visible: weatherRoot.iconType === "partly"
-                source: "qrc:/images/weather/sun.svg"
-                width: 52
-                height: 52
-                x: 42
-                y: 8
-                fillMode: Image.PreserveAspectFit
+            Rectangle {
+                id: auraGlow
+                width: 248
+                height: 248
+                radius: 124
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenterOffset: -8
+                color: Qt.rgba(weatherRoot.accentColor.r, weatherRoot.accentColor.g, weatherRoot.accentColor.b, offline ? 0.05 : 0.10)
+                opacity: 0.92
+                scale: 1.0
+
+                SequentialAnimation on scale {
+                    running: weatherRoot.selected && weatherRoot.visible && !weatherRoot.loading
+                    loops: Animation.Infinite
+                    NumberAnimation { to: 1.05; duration: 2400; easing.type: Easing.InOutQuad }
+                    NumberAnimation { to: 0.97; duration: 2400; easing.type: Easing.InOutQuad }
+                }
+
+                SequentialAnimation on opacity {
+                    running: weatherRoot.selected && weatherRoot.visible && !weatherRoot.loading
+                    loops: Animation.Infinite
+                    NumberAnimation { to: 0.76; duration: 2400; easing.type: Easing.InOutQuad }
+                    NumberAnimation { to: 0.96; duration: 2400; easing.type: Easing.InOutQuad }
+                }
             }
 
-            Image {
-                source: weatherRoot.iconType === "partly"
-                        ? "qrc:/images/weather/cloud.svg"
-                        : weatherRoot.iconSourceForType(weatherRoot.iconType)
-                width: weatherRoot.iconType === "sun" ? 76 : 86
-                height: weatherRoot.iconType === "sun" ? 76 : 86
-                x: weatherRoot.iconType === "partly" ? 12 : 10
-                y: weatherRoot.iconType === "partly" ? 24 : 14
-                fillMode: Image.PreserveAspectFit
+            Rectangle {
+                width: 182
+                height: 182
+                radius: 91
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenterOffset: -8
+                color: Qt.rgba(0.02, 0.04, 0.06, 0.24)
+                border.width: 1
+                border.color: Qt.rgba(weatherRoot.accentColor.r, weatherRoot.accentColor.g, weatherRoot.accentColor.b, 0.20)
+            }
+
+            Rectangle {
+                width: 134
+                height: 134
+                radius: 67
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenterOffset: -8
+                color: Qt.rgba(0.01, 0.03, 0.05, 0.22)
+                border.width: 1
+                border.color: Qt.rgba(1, 1, 1, 0.08)
+            }
+
+            Item {
+                width: 120
+                height: 120
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenterOffset: -8
+
+                Image {
+                    visible: weatherRoot.iconType === "partly"
+                    source: "qrc:/images/weather/sun.svg"
+                    width: 42
+                    height: 42
+                    x: 62
+                    y: 6
+                    fillMode: Image.PreserveAspectFit
+                }
+
+                Image {
+                    source: weatherRoot.iconType === "partly"
+                            ? "qrc:/images/weather/cloud.svg"
+                            : weatherRoot.iconSourceForType(weatherRoot.iconType)
+                    width: weatherRoot.iconType === "sun" ? 56 : 82
+                    height: weatherRoot.iconType === "sun" ? 56 : 82
+                    x: weatherRoot.iconType === "partly" ? 14 : 18
+                    y: weatherRoot.iconType === "partly" ? 30 : 20
+                    fillMode: Image.PreserveAspectFit
+                }
+            }
+
+            Column {
+                width: parent.width - 178
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenterOffset: 18
+                spacing: 6
+
+                Text {
+                    text: "OUTSIDE"
+                    color: Qt.rgba(1, 1, 1, 0.56)
+                    font.pixelSize: 11
+                    font.bold: true
+                }
+
+                Row {
+                    spacing: 4
+
+                    Text {
+                        text: weatherRoot.loading ? "--" : weatherRoot.currentTemp
+                        color: Style.textPrimary
+                        font.pixelSize: 76
+                        font.bold: true
+                    }
+
+                    Text {
+                        text: "\u00B0C"
+                        color: Style.textPrimary
+                        font.pixelSize: 32
+                        font.bold: true
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.verticalCenterOffset: -10
+                        opacity: weatherRoot.loading ? 0.40 : 1.0
+                    }
+                }
+
+                Text {
+                    width: parent.width
+                    text: weatherRoot.resolvedCondition
+                    color: "#d9e8f5"
+                    font.pixelSize: 22
+                    font.bold: true
+                    elide: Text.ElideRight
+                }
+
+                Text {
+                    width: parent.width
+                    text: weatherRoot.resolvedDetail
+                    color: "#92a8bc"
+                    font.pixelSize: 14
+                    elide: Text.ElideRight
+                }
+            }
+        }
+
+        Rectangle {
+            id: footerLine
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: footer.top
+            anchors.bottomMargin: 12
+            height: 1
+            color: Qt.rgba(1, 1, 1, 0.08)
+        }
+
+        Row {
+            id: footer
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            spacing: 8
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: offline ? "Offline weather" : "Open-Meteo"
+                color: offline ? "#ff9d90" : weatherRoot.accentColor
+                font.pixelSize: 12
+                font.bold: true
+            }
+
+            Rectangle {
+                width: 4
+                height: 4
+                radius: 2
+                color: "#5d7084"
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Text {
+                width: parent.width - 116
+                anchors.verticalCenter: parent.verticalCenter
+                text: offline
+                      ? weatherRoot.weatherError
+                      : (weatherRoot.lastUpdated.length > 0 ? ("Updated " + weatherRoot.lastUpdated) : "Awaiting refresh")
+                color: "#8ea4b9"
+                font.pixelSize: 12
+                elide: Text.ElideRight
             }
         }
     }
