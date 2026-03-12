@@ -4,7 +4,7 @@ import QtQuick 2.15
 QtObject {
     id: normalmodemodel
 
-    enum Menu { MediaPlayerMenu, NavigationMenu, WeatherMenu, BluetoothMenu, CarStatusMenu, MenuCount }
+    enum Menu { MediaPlayerMenu, NavigationMenu, WeatherMenu, CarStatusMenu, MenuCount }
     property int menu: NormalModeModel.MediaPlayerMenu
 
     // Quick-controls / system settings (mirrors of SystemSettingsController properties)
@@ -24,9 +24,6 @@ QtObject {
             menu = NormalModeModel.WeatherMenu
         }
         else if (menu === NormalModeModel.WeatherMenu) {
-            menu = NormalModeModel.BluetoothMenu
-        }
-        else if (menu === NormalModeModel.BluetoothMenu) {
             menu = NormalModeModel.CarStatusMenu
         }
         else if (menu === NormalModeModel.CarStatusMenu) {
@@ -44,11 +41,8 @@ QtObject {
         else if (menu === NormalModeModel.WeatherMenu) {
             menu = NormalModeModel.NavigationMenu
         }
-        else if (menu === NormalModeModel.BluetoothMenu) {
-            menu = NormalModeModel.WeatherMenu
-        }
         else if (menu === NormalModeModel.CarStatusMenu) {
-            menu = NormalModeModel.BluetoothMenu
+            menu = NormalModeModel.WeatherMenu
         }
     }
 }

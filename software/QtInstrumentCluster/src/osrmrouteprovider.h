@@ -26,6 +26,7 @@ class OsrmRouteProvider : public QObject
     Q_PROPERTY(QString profile READ profile WRITE setProfile NOTIFY profileChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QVariantList routePath READ routePath NOTIFY routePathChanged)
+    Q_PROPERTY(QVariantList routeSteps READ routeSteps NOTIFY routeStepsChanged)
     Q_PROPERTY(QVariantList alternativeRoutes READ alternativeRoutes NOTIFY alternativeRoutesChanged)
     Q_PROPERTY(int selectedRouteIndex READ selectedRouteIndex NOTIFY selectedRouteChanged)
     Q_PROPERTY(double distanceMeters READ distanceMeters NOTIFY routePathChanged)
@@ -46,6 +47,7 @@ public:
     bool busy() const { return m_busy; }
 
     QVariantList routePath() const { return m_routePath; }
+    QVariantList routeSteps() const { return m_routeSteps; }
     QVariantList alternativeRoutes() const { return m_alternativeRoutes; }
     int selectedRouteIndex() const { return m_selectedRouteIndex; }
     double distanceMeters() const { return m_distanceMeters; }
@@ -66,6 +68,7 @@ signals:
     void profileChanged();
     void busyChanged();
     void routePathChanged();
+    void routeStepsChanged();
     void alternativeRoutesChanged();
     void selectedRouteChanged();
     void routeReady(const QVariantList &path);
@@ -79,6 +82,8 @@ private:
 
     void handleReply(QNetworkReply *reply);
     QVariantList parseGeoJsonCoordinates(const QJsonArray &coordinates) const;
+    QVariantList parseRouteSteps(const QJsonArray &legs) const;
+    int parseManeuverType(const QString &modifier, const QString &type) const;
 
     QNetworkAccessManager m_nam;
     QString m_baseUrl;
@@ -89,6 +94,7 @@ private:
     QVariantList m_alternativeRoutes;
     int m_selectedRouteIndex = -1;
     QVariantList m_routePath;
+    QVariantList m_routeSteps;
     double m_distanceMeters = 0;
     double m_durationSeconds = 0;
 };

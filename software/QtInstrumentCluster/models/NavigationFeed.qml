@@ -14,12 +14,12 @@ QtObject {
     property int tickMs: 200
     property real mockSpeedKmh: 0.0
 
-    // Hardcoded current vehicle position in Da Nang, Vietnam (stationary).
-    readonly property var mockRoute: [
+    // Default fallback vehicle position in Da Nang, Vietnam (stationary).
+    property var mockRoute: [
         { lat: 16.061911, lon: 108.219773 } // Nguyen Van Linh, Da Nang
     ]
 
-    readonly property real mockRouteLengthMeters: routeLengthMeters()
+    property real mockRouteLengthMeters: 0
 
     property bool hasPositionFix: false
     property real mockTraveledMeters: 0
@@ -41,12 +41,26 @@ QtObject {
     }
 
     function resetMockRoute() {
-        if (mockRoute.length === 0) {
+        if (!mockRoute || mockRoute.length === 0) {
             return
         }
         mockTraveledMeters = 0
         var startPoint = pointOnRoute(0)
         publishPosition(startPoint.lat, startPoint.lon, mockSpeedKmh, startPoint.heading, Date.now())
+    }
+
+    function setRouteFromCoordinates(coordList) {
+        if (!coordList || coordList.length === 0) return
+        var newlyMapped = []
+        for (var i = 0; i < coordList.length; ++i) {
+            var c = coordList[i]
+            if (c && c.isValid) {
+                newlyMapped.push({ lat: c.latitude, lon: c.longitude })
+            }
+        }
+        mockRoute = newlyMapped
+        mockRouteLengthMeters = routeLengthMeters()
+        resetMockRoute()
     }
 
     function injectHardwarePosition(latitude, longitude, speedKmh, headingDeg, timestampMs) {
@@ -174,6 +188,7 @@ QtObject {
     }
 
     Component.onCompleted: {
+        mockRouteLengthMeters = routeLengthMeters()
         sourceChanged(useMockGps ? "mock" : "hardware")
         if (useMockGps) {
             resetMockRoute()

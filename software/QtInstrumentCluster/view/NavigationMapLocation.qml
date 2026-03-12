@@ -25,6 +25,7 @@ Item {
     property real preferredSearchLat: 16.061911
     property real preferredSearchLon: 108.219773
     property bool liveRouteReady: false
+    property bool navigationActive: false
     property int osrmRetryCount: 0
     readonly property int osrmMaxRetries: 2
     property real rerouteThresholdMeters: 45
@@ -313,6 +314,7 @@ Item {
 
         searchPanelVisible = false
         liveRouteReady = false
+        navigationActive = false
         osrmRetryCount = 0
         requestRouteToDestination()
     }
@@ -457,66 +459,13 @@ Item {
         return "arrive"
     }
 
-    function drawArrow(ctx, maneuver, color) {
-        ctx.reset()
-        ctx.lineWidth = 2.8
-        ctx.strokeStyle = color
-        ctx.fillStyle = color
-        ctx.lineCap = "round"
-        ctx.lineJoin = "round"
-
-        if (maneuver === NavigationModel.TurnRight) {
-            ctx.beginPath()
-            ctx.moveTo(4, 24)
-            ctx.lineTo(4, 10)
-            ctx.lineTo(20, 10)
-            ctx.stroke()
-            ctx.beginPath()
-            ctx.moveTo(14, 4)
-            ctx.lineTo(26, 10)
-            ctx.lineTo(14, 17)
-            ctx.fill()
-        } else if (maneuver === NavigationModel.TurnLeft) {
-            ctx.beginPath()
-            ctx.moveTo(26, 24)
-            ctx.lineTo(26, 10)
-            ctx.lineTo(10, 10)
-            ctx.stroke()
-            ctx.beginPath()
-            ctx.moveTo(16, 4)
-            ctx.lineTo(4, 10)
-            ctx.lineTo(16, 17)
-            ctx.fill()
-        } else if (maneuver === NavigationModel.UTurn) {
-            ctx.beginPath()
-            ctx.moveTo(18, 24)
-            ctx.lineTo(18, 8)
-            ctx.arc(12, 8, 6, 0, Math.PI, true)
-            ctx.lineTo(6, 14)
-            ctx.stroke()
-            ctx.beginPath()
-            ctx.moveTo(3, 9)
-            ctx.lineTo(8, 14)
-            ctx.lineTo(13, 9)
-            ctx.fill()
-        } else if (maneuver === NavigationModel.Arrive) {
-            ctx.beginPath()
-            ctx.arc(15, 10, 6, 0, Math.PI * 2)
-            ctx.stroke()
-            ctx.beginPath()
-            ctx.arc(15, 10, 3, 0, Math.PI * 2)
-            ctx.fill()
-        } else {
-            ctx.beginPath()
-            ctx.moveTo(15, 25)
-            ctx.lineTo(15, 8)
-            ctx.stroke()
-            ctx.beginPath()
-            ctx.moveTo(8, 14)
-            ctx.lineTo(15, 4)
-            ctx.lineTo(22, 14)
-            ctx.fill()
-        }
+    function getManeuverIcon(value) {
+        if (value === NavigationModel.TurnLeft) return "qrc:/images/map/turn_left.svg"
+        if (value === NavigationModel.TurnRight) return "qrc:/images/map/turn_right.svg"
+        if (value === NavigationModel.GoStraight) return "qrc:/images/map/go_straight.svg"
+        if (value === NavigationModel.UTurn) return "qrc:/images/map/u_turn.svg"
+        if (value === NavigationModel.Arrive) return "qrc:/images/map/arrive.svg"
+        return "qrc:/images/map/go_straight.svg"
     }
 
     function syncCameraToVehicle(forceCenter) {
@@ -686,10 +635,15 @@ Item {
             console.log("[NavMap] Route received with", path.length, "points")
             navMapRoot.osrmRetryCount = 0
             navMapRoot.liveRouteReady = true
+            
+            // Only rebuild visual path line; don't start feeding driving data yet
             navMapRoot.rebuildRouteFromActiveSource()
             if (navMapRoot.overviewMode) {
                 navMapRoot.showRouteOverview()
             }
+        }
+        function onRouteStepsChanged() {
+            // Can sync if necessary, but we choose to only push data to NavigationModel upon "Start"
         }
         function onRouteFailed(error) {
             console.warn("[NavMap] Route request failed:", error)
@@ -975,54 +929,62 @@ Item {
         spacing: navMapRoot.overlayGap
         z: 50
 
-        // Zoom in / out control
+        // Glassmorphic background for grouped controls (zoom in/out)
         Rectangle {
-            id: zoomControl
             width: parent.width
-            height: 80
-            radius: 10
-            color: "#1e2a3add"
+            height: 96
+            radius: 20
+            color: "#661A202C" // Glassmorphic dark
             border.width: 1
-            border.color: "#415568"
+            border.color: "#33FFFFFF"
+            
+            // Blur effect simulation via background manipulation is complex in QML without specific QtGraphicalEffects or Qt 6 MultiEffect.
+            // Using translucent color for a glassmorphic look.
 
-            Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: parent.height / 2 - 1
-                width: parent.width - 12
-                height: 1
-                color: "#415568"
-            }
-
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: 8
-                color: "#f3f6ff"
-                font.pixelSize: 20
-                font.bold: true
-                text: "+"
-            }
-
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: parent.height / 2 + 8
-                color: "#f3f6ff"
-                font.pixelSize: 24
-                text: "−"
-            }
-
-            MouseArea {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                height: parent.height / 2
-                onClicked: navMapRoot.zoomBy(navMapRoot.zoomStep)
-            }
-            MouseArea {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                height: parent.height / 2
-                onClicked: navMapRoot.zoomBy(-navMapRoot.zoomStep)
+            Column {
+                anchors.fill: parent
+                // Zoom In
+                Item {
+                    width: parent.width
+                    height: 48
+                    Image {
+                        anchors.centerIn: parent
+                        width: 24
+                        height: 24
+                        source: "qrc:/images/map/zoom_in.svg"
+                        sourceSize: Qt.size(24, 24)
+                        opacity: zoomInMouse.pressed ? 0.6 : 1.0
+                    }
+                    MouseArea {
+                        id: zoomInMouse
+                        anchors.fill: parent
+                        onClicked: navMapRoot.zoomBy(navMapRoot.zoomStep)
+                    }
+                }
+                Rectangle { // Divider
+                    width: parent.width - 16
+                    height: 1
+                    color: "#33FFFFFF"
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+                // Zoom Out
+                Item {
+                    width: parent.width
+                    height: 47
+                    Image {
+                        anchors.centerIn: parent
+                        width: 24
+                        height: 24
+                        source: "qrc:/images/map/zoom_out.svg"
+                        sourceSize: Qt.size(24, 24)
+                        opacity: zoomOutMouse.pressed ? 0.6 : 1.0
+                    }
+                    MouseArea {
+                        id: zoomOutMouse
+                        anchors.fill: parent
+                        onClicked: navMapRoot.zoomBy(-navMapRoot.zoomStep)
+                    }
+                }
             }
         }
 
@@ -1030,34 +992,23 @@ Item {
         Rectangle {
             width: parent.width
             height: parent.width
-            radius: 10
-            color: navMapRoot.autoHeading ? "#1d4f87ee" : "#1e2a3add"
+            radius: 20
+            color: navMapRoot.autoHeading ? "#992D5BF5" : "#661A202C"
             border.width: 1
-            border.color: navMapRoot.autoHeading ? "#7fb8f6" : "#415568"
+            border.color: navMapRoot.autoHeading ? "#2D5BF5" : "#33FFFFFF"
 
-            Canvas {
+            Image {
                 anchors.centerIn: parent
-                width: 18
-                height: 18
-                onPaint: {
-                    var ctx = getContext("2d")
-                    ctx.reset()
-                    ctx.strokeStyle = "#f3f6ff"
-                    ctx.fillStyle = "#f3f6ff"
-                    ctx.lineWidth = 1.6
-                    ctx.beginPath()
-                    ctx.arc(9, 9, 7, 0, Math.PI * 2)
-                    ctx.stroke()
-                    ctx.beginPath()
-                    ctx.moveTo(9, 2.5)
-                    ctx.lineTo(11.5, 9.5)
-                    ctx.lineTo(9, 8.2)
-                    ctx.lineTo(6.5, 9.5)
-                    ctx.closePath()
-                    ctx.fill()
-                }
+                width: 24
+                height: 24
+                source: "qrc:/images/map/compass.svg"
+                sourceSize: Qt.size(24, 24)
+                opacity: compassMouse.pressed ? 0.6 : 1.0
+                rotation: navMapRoot.autoHeading ? 0 : -navMap.bearing
+                Behavior on rotation { NumberAnimation { duration: 200 } }
             }
             MouseArea {
+                id: compassMouse
                 anchors.fill: parent
                 onClicked: {
                     navMapRoot.autoHeading = !navMapRoot.autoHeading
@@ -1076,29 +1027,21 @@ Item {
         Rectangle {
             width: parent.width
             height: parent.width
-            radius: 10
-            color: navMapRoot.followVehicle ? "#1d4f87ee" : "#1e2a3add"
+            radius: 20
+            color: navMapRoot.followVehicle ? "#992D5BF5" : "#661A202C"
             border.width: 1
-            border.color: navMapRoot.followVehicle ? "#7fb8f6" : "#415568"
+            border.color: navMapRoot.followVehicle ? "#2D5BF5" : "#33FFFFFF"
 
-            Canvas {
+            Image {
                 anchors.centerIn: parent
-                width: 18
-                height: 18
-                onPaint: {
-                    var ctx = getContext("2d")
-                    ctx.reset()
-                    ctx.fillStyle = "#f3f6ff"
-                    ctx.beginPath()
-                    ctx.moveTo(9, 1.5)
-                    ctx.lineTo(16, 16)
-                    ctx.lineTo(9, 12)
-                    ctx.lineTo(2, 16)
-                    ctx.closePath()
-                    ctx.fill()
-                }
+                width: 24
+                height: 24
+                source: "qrc:/images/map/follow.svg"
+                sourceSize: Qt.size(24, 24)
+                opacity: followMouse.pressed ? 0.6 : 1.0
             }
             MouseArea {
+                id: followMouse
                 anchors.fill: parent
                 onClicked: {
                     navMapRoot.followVehicle = !navMapRoot.followVehicle
@@ -1114,34 +1057,21 @@ Item {
         Rectangle {
             width: parent.width
             height: parent.width
-            radius: 10
-            color: navMapRoot.overviewMode ? "#1d4f87ee" : "#1e2a3add"
+            radius: 20
+            color: navMapRoot.overviewMode ? "#992D5BF5" : "#661A202C"
             border.width: 1
-            border.color: navMapRoot.overviewMode ? "#7fb8f6" : "#415568"
+            border.color: navMapRoot.overviewMode ? "#2D5BF5" : "#33FFFFFF"
 
-            Canvas {
+            Image {
                 anchors.centerIn: parent
-                width: 18
-                height: 18
-                onPaint: {
-                    var ctx = getContext("2d")
-                    ctx.reset()
-                    ctx.strokeStyle = "#f3f6ff"
-                    ctx.lineWidth = 1.6
-                    ctx.beginPath()
-                    ctx.arc(9, 9, 5, 0, Math.PI * 2)
-                    ctx.moveTo(9, 0.8)
-                    ctx.lineTo(9, 3.5)
-                    ctx.moveTo(9, 14.5)
-                    ctx.lineTo(9, 17.2)
-                    ctx.moveTo(0.8, 9)
-                    ctx.lineTo(3.5, 9)
-                    ctx.moveTo(14.5, 9)
-                    ctx.lineTo(17.2, 9)
-                    ctx.stroke()
-                }
+                width: 24
+                height: 24
+                source: "qrc:/images/map/overview.svg"
+                sourceSize: Qt.size(24, 24)
+                opacity: recenterMouse.pressed ? 0.6 : 1.0
             }
             MouseArea {
+                id: recenterMouse
                 anchors.fill: parent
                 onClicked: navMapRoot.recenterVehicleCamera()
                 onPressAndHold: navMapRoot.showRouteOverview()
@@ -1158,78 +1088,94 @@ Item {
         anchors.leftMargin: navMapRoot.overlayInset
         anchors.right: rightControlColumn.left
         anchors.rightMargin: navMapRoot.overlayGap
-        radius: 10
-        color: "#0f1d2dee"
-        border.color: "#2e4a62"
+        radius: 20
+        color: "#661A202C"
+        border.color: "#33FFFFFF"
         border.width: 1
         z: 50
+        height: Math.max(40, destinationInput.height + (navMapRoot.searchPanelVisible ? Math.min(6, destinationGeocode.count) * 40 + 8 : 8))
 
         Column {
             anchors.fill: parent
-            anchors.margins: 8
-            spacing: 6
+            anchors.margins: 4
+            spacing: 2
 
-            TextField {
-                id: destinationInput
+            Row {
                 width: parent.width
-                height: 34
-                placeholderText: "Search destination (Da Nang)"
-                text: navMapRoot.destinationSearchText
-                color: "#e8f2fb"
-                placeholderTextColor: "#87a1b8"
-                selectByMouse: true
-                font.pixelSize: 12
-                leftPadding: 10
-                onTextEdited: {
-                    var normalized = navMapRoot.normalizeVietnameseTelexInput(text)
-                    if (normalized !== text) {
-                        var oldCursor = cursorPosition
-                        text = normalized
-                        cursorPosition = Math.min(text.length, oldCursor)
+                height: 32
+                spacing: 8
+                
+                Item {
+                    width: 32
+                    height: 32
+                    Image {
+                        anchors.centerIn: parent
+                        width: 20
+                        height: 20
+                        source: "qrc:/images/map/search.svg"
+                        sourceSize: Qt.size(20, 20)
+                        opacity: 0.8
                     }
-                    navMapRoot.destinationSearchText = text
-                    searchDebounce.restart()
                 }
-                background: Rectangle {
-                    radius: 7
-                    color: "#0a1520"
-                    border.color: "#2e4a62"
-                    border.width: 1
+
+                TextField {
+                    id: destinationInput
+                    width: parent.width - 40
+                    height: 32
+                    placeholderText: "Search destination (Da Nang)"
+                    text: navMapRoot.destinationSearchText
+                    color: "#FFFFFF"
+                    placeholderTextColor: "#88FFFFFF"
+                    selectByMouse: true
+                    font.pixelSize: 13
+                    leftPadding: 2
+                    background: Item {} // Remove background to blend into glassmorphic card
+                    onTextEdited: {
+                        var normalized = navMapRoot.normalizeVietnameseTelexInput(text)
+                        if (normalized !== text) {
+                            var oldCursor = cursorPosition
+                            text = normalized
+                            cursorPosition = Math.min(text.length, oldCursor)
+                        }
+                        navMapRoot.destinationSearchText = text
+                        searchDebounce.restart()
+                    }
                 }
             }
 
             ListView {
                 id: geocodeResults
-                width: parent.width
+                width: parent.width - 8
+                anchors.horizontalCenter: parent.horizontalCenter
                 height: navMapRoot.searchPanelVisible ? Math.min(6, destinationGeocode.count) * 40 : 0
                 visible: navMapRoot.searchPanelVisible
                 clip: true
-                spacing: 3
+                spacing: 2
                 model: destinationGeocode
                 delegate: Rectangle {
                     width: geocodeResults.width
-                    height: 36
-                    radius: 7
-                    color: "#0e1a27"
-                    border.color: "#274057"
-                    border.width: 1
-
+                    height: 38
+                    radius: 12
+                    color: itemMouseArea.pressed ? "#44FFFFFF" : (itemMouseArea.containsMouse ? "#22FFFFFF" : "transparent")
+                    
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left: parent.left
-                        anchors.leftMargin: 10
+                        anchors.leftMargin: 12
                         anchors.right: parent.right
-                        anchors.rightMargin: 10
+                        anchors.rightMargin: 12
                         elide: Text.ElideRight
-                        color: "#d8e9f8"
-                        font.pixelSize: 11
+                        color: "#FFFFFF"
+                        font.pixelSize: 12
                         text: (locationData.address && locationData.address.text)
-                              ? locationData.address.text
-                              : (locationData.coordinate.latitude.toFixed(5) + ", " + locationData.coordinate.longitude.toFixed(5))
+                                ? locationData.address.text
+                                : (locationData.coordinate.latitude.toFixed(5) + ", " + locationData.coordinate.longitude.toFixed(5))
                     }
 
                     MouseArea {
+                        id: itemMouseArea
                         anchors.fill: parent
+                        hoverEnabled: true
                         onClicked: {
                             navMapRoot.chooseDestinationFromResult(locationData.address, locationData.coordinate)
                         }
@@ -1239,51 +1185,135 @@ Item {
         }
     }
 
-    /* ── Top mini-guide (turn cue) — below search card ── */
+    /* ── Top guide (consolidated turn cue) ── */
     Rectangle {
         id: topMiniGuide
+        visible: navMapRoot.navigationActive
         anchors.left: mapArea.left
         anchors.leftMargin: navMapRoot.overlayInset
         anchors.right: rightControlColumn.left
         anchors.rightMargin: navMapRoot.overlayGap
         anchors.top: destinationSearchCard.bottom
         anchors.topMargin: navMapRoot.overlayGap
-        height: 40
-        radius: 10
-        color: "#0f1d2dee"
+        height: (NavigationModel.currentStep + 1 < NavigationModel.route.length) ? 96 : 72
+        radius: 20
+        color: "#D9161B22" // Deeper, modern dark theme base
         border.width: 1
-        border.color: "#2a4058"
+        border.color: "#4DFFFFFF"
         z: 44
 
-        Row {
+        Column {
             anchors.fill: parent
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            anchors.topMargin: 6
-            anchors.bottomMargin: 6
+            anchors.margins: 12
             spacing: 8
 
-            Canvas {
-                width: 28
-                height: 28
-                anchors.verticalCenter: parent.verticalCenter
-                onPaint: navMapRoot.drawArrow(getContext("2d"), NavigationModel.maneuver, "#7ef2d0")
+            Row {
+                width: parent.width
+                spacing: 16
+                
+                Image {
+                    width: 44
+                    height: 44
+                    anchors.verticalCenter: parent.verticalCenter
+                    source: navMapRoot.getManeuverIcon(NavigationModel.maneuver)
+                    sourceSize: Qt.size(44, 44)
+                }
+
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - 60
+                    spacing: 2
+
+                    Row {
+                        width: parent.width
+                        spacing: 8
+                        clip: true
+                        
+                        Text {
+                            id: distText
+                            text: NavigationModel.distanceToTurnText
+                            color: "#FFFFFF"
+                            font.pixelSize: 22
+                            font.bold: true
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        Text {
+                            text: NavigationModel.nextStreet.length > 0 ? NavigationModel.nextStreet : NavigationModel.currentStreet
+                            color: "#E2E8F0"
+                            font.pixelSize: 18
+                            font.bold: true
+                            elide: Text.ElideRight
+                            width: parent.width - distText.width - parent.spacing
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    Text {
+                        text: navMapRoot.maneuverVerb(NavigationModel.maneuver)
+                        color: "#94A3B8"
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
+                }
             }
 
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 0
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: "#1AFFFFFF"
+                visible: NavigationModel.currentStep + 1 < NavigationModel.route.length
+            }
+
+            Row {
+                spacing: 8
+                visible: NavigationModel.currentStep + 1 < NavigationModel.route.length
+                anchors.left: parent.left
+                anchors.leftMargin: 8
 
                 Text {
-                    text: NavigationModel.distanceToTurnText
-                    color: "#f0f8ff"
-                    font.pixelSize: 14
+                    text: "THEN"
+                    color: "#64748B"
+                    font.pixelSize: 11
                     font.bold: true
+                    font.letterSpacing: 0.5
+                    anchors.verticalCenter: parent.verticalCenter
                 }
+
+                Image {
+                    width: 18
+                    height: 18
+                    property int nextManeuver: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
+                                               ? NavigationModel.route[NavigationModel.currentStep + 1].maneuver
+                                               : NavigationModel.Arrive
+                    source: navMapRoot.getManeuverIcon(nextManeuver)
+                    sourceSize: Qt.size(18, 18)
+                    opacity: 0.8
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
                 Text {
-                    text: navMapRoot.maneuverVerb(NavigationModel.maneuver)
-                    color: "#99b4cf"
-                    font.pixelSize: 10
+                    property string nextStreet: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
+                                                ? NavigationModel.route[NavigationModel.currentStep + 1].next
+                                                : "Destination"
+                    text: nextStreet
+                    color: "#CBD5E1"
+                    font.pixelSize: 13
+                    font.bold: true
+                    elide: Text.ElideRight
+                    width: Math.min(implicitWidth, topMiniGuide.width - 160)
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Text {
+                    property real nextDistance: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
+                                                ? NavigationModel.route[NavigationModel.currentStep + 1].dist
+                                                : 0
+                    text: nextDistance > 0 ? ("in " + navMapRoot.formatMeters(nextDistance)) : ""
+                    color: "#38BDF8"
+                    font.pixelSize: 12
+                    font.bold: true
+                    anchors.verticalCenter: parent.verticalCenter
                 }
             }
         }
@@ -1295,12 +1325,12 @@ Item {
         anchors.leftMargin: navMapRoot.overlayInset
         anchors.right: rightControlColumn.left
         anchors.rightMargin: navMapRoot.overlayGap
-        anchors.top: topMiniGuide.bottom
+        anchors.top: navMapRoot.navigationActive ? topMiniGuide.bottom : destinationSearchCard.bottom
         anchors.topMargin: navMapRoot.overlayGap
         clip: true
         spacing: 6
         z: 30
-        visible: OsrmRoute.alternativeRoutes.length > 1
+        visible: OsrmRoute.alternativeRoutes.length > 1 && !navMapRoot.navigationActive
 
         Repeater {
             model: OsrmRoute.alternativeRoutes
@@ -1309,14 +1339,14 @@ Item {
                 property bool selected: OsrmRoute.selectedRouteIndex === routeIdx
                 width: 110
                 height: 34
-                radius: 8
-                color: selected ? "#1f4060ee" : "#122131dd"
+                radius: 17 // more rounded
+                color: selected ? "#4C2D5BF5" : "#661A202C"
                 border.width: 1
-                border.color: selected ? "#6bc7ff" : "#35506c"
+                border.color: selected ? "#6bc7ff" : "#33FFFFFF"
 
                 Text {
                     anchors.centerIn: parent
-                    color: selected ? "#dff6ff" : "#aac2d8"
+                    color: selected ? "#FFFFFF" : "#A0AEC0"
                     font.pixelSize: 11
                     text: navMapRoot.formatMeters(modelData.distanceMeters) + " · " +
                           navMapRoot.formatDurationSeconds(modelData.durationSeconds)
@@ -1357,89 +1387,63 @@ Item {
         }
     }
 
-    /* ── Guide panel (bottom) ── */
+    /* ── Start Navigation Button ── */
     Rectangle {
-        id: guidePanel
+        id: startNavButton
         anchors.left: mapArea.left
-        anchors.right: mapArea.right
-        anchors.bottom: mapArea.bottom
         anchors.leftMargin: navMapRoot.overlayInset
-        anchors.rightMargin: navMapRoot.rightControlReservedWidth
-        anchors.bottomMargin: navMapRoot.overlayInset
-        height: 68
-        radius: 10
-        color: "#0f1d2dee"
+        anchors.top: alternativesRow.visible ? alternativesRow.bottom : destinationSearchCard.bottom
+        anchors.topMargin: navMapRoot.overlayGap
+        width: 140
+        height: 48
+        radius: 24
+        color: startArea.pressed ? "#1C3FAF" : "#2D5BF5"
+        visible: navMapRoot.liveRouteReady && !navMapRoot.navigationActive
+        z: 40
         border.width: 1
-        border.color: "#2a4058"
-        z: 36
+        border.color: "#4DFFFFFF"
 
-        Column {
-            anchors.fill: parent
-            anchors.margins: 8
-            spacing: 4
-
-            Row {
-                spacing: 8
-
-                Canvas {
-                    width: 24
-                    height: 24
-                    onPaint: navMapRoot.drawArrow(getContext("2d"), NavigationModel.maneuver, "#7ef2d0")
-                }
-
-                Text {
-                    width: guidePanel.width - 170
-                    elide: Text.ElideRight
-                    text: NavigationModel.nextStreet.length > 0 ? NavigationModel.nextStreet : NavigationModel.currentStreet
-                    color: "#f0f8ff"
-                    font.pixelSize: 16
-                    font.bold: true
-                }
-
-                Text {
-                    text: navMapRoot.maneuverVerb(NavigationModel.maneuver)
-                    color: "#a7c0d8"
-                    font.pixelSize: 12
-                }
+        Row {
+            anchors.centerIn: parent
+            spacing: 8
+            
+            Image {
+                width: 20
+                height: 20
+                source: "qrc:/images/map/go_straight.svg"
+                sourceSize: Qt.size(20, 20)
+                anchors.verticalCenter: parent.verticalCenter
             }
 
-            Row {
-                spacing: 8
+            Text {
+                text: "Start"
+                color: "#FFFFFF"
+                font.pixelSize: 18
+                font.bold: true
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
 
-                Text {
-                    text: "THEN"
-                    color: "#6f8499"
-                    font.pixelSize: 10
-                    font.bold: true
-                }
-
-                Canvas {
-                    width: 20
-                    height: 20
-                    property int nextManeuver: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
-                                               ? NavigationModel.route[NavigationModel.currentStep + 1].maneuver
-                                               : NavigationModel.Arrive
-                    onPaint: navMapRoot.drawArrow(getContext("2d"), nextManeuver, "#7ea8ec")
-                }
-
-                Text {
-                    property string nextStreet: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
-                                                ? NavigationModel.route[NavigationModel.currentStep + 1].next
-                                                : "Destination"
-                    text: nextStreet
-                    color: "#8ea4bb"
-                    font.pixelSize: 13
-                }
-
-                Text {
-                    property real nextDistance: (NavigationModel.currentStep + 1 < NavigationModel.route.length)
-                                                ? NavigationModel.route[NavigationModel.currentStep + 1].dist
-                                                : 0
-                    text: nextDistance > 0 ? ("in " + navMapRoot.formatMeters(nextDistance)) : ""
-                    color: "#8ea4bb"
-                    font.pixelSize: 12
-                }
+        MouseArea {
+            id: startArea
+            anchors.fill: parent
+            onClicked: {
+                navMapRoot.navigationActive = true
+                navMapRoot.followVehicle = true
+                navMapRoot.autoHeading = true
+                
+                // 2. Inject parsed map steps into the instruction model
+                NavigationModel.setRouteSteps(OsrmRoute.routeSteps)
+                
+                // 3. Transform map perspective
+                navMapRoot.overviewMode = false
+                navMap.zoomLevel = 18.0
+                navMap.tilt = 60.0
+                navMapRoot.syncCameraToVehicle(true)
             }
         }
     }
+
+
+
 }

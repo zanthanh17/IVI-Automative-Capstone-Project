@@ -34,7 +34,7 @@ QtObject {
     property real _lastLon: 0
     property real _lastTimestampMs: 0
 
-    readonly property var route: [
+    property var route: [
         { street: "Nguyen Van Linh", next: "2 Thang 9",      maneuver: NavigationModel.TurnRight,  dist: 420 },
         { street: "2 Thang 9",       next: "Tran Hung Dao",  maneuver: NavigationModel.GoStraight, dist: 560 },
         { street: "Tran Hung Dao",   next: "Pham Van Dong",  maneuver: NavigationModel.TurnLeft,   dist: 390 },
@@ -44,7 +44,7 @@ QtObject {
         { street: "Le Quang Dao",    next: "Destination",    maneuver: NavigationModel.Arrive,     dist: 70  }
     ]
 
-    readonly property real totalRouteMeters: computeTotalRouteMeters()
+    property real totalRouteMeters: computeTotalRouteMeters()
 
     function toRad(degrees) {
         return degrees * Math.PI / 180.0
@@ -62,11 +62,25 @@ QtObject {
     }
 
     function computeTotalRouteMeters() {
+        if (!route) return 0
         var total = 0
         for (var i = 0; i < route.length; ++i) {
             total += route[i].dist
         }
         return total
+    }
+
+    function setRouteSteps(stepsVariantList) {
+        if (!stepsVariantList || stepsVariantList.length === 0) {
+            route = []
+            totalRouteMeters = 0
+            return
+        }
+        
+        // The items inside stepsVariantList correspond to the QVariantMap {street, next, maneuver, dist}
+        route = stepsVariantList
+        totalRouteMeters = computeTotalRouteMeters()
+        resetRouteProgress()
     }
 
     function formatDistance(meters) {
@@ -95,6 +109,10 @@ QtObject {
         updateFromDistance(0)
     }
 
+    onRouteChanged: {
+        totalRouteMeters = computeTotalRouteMeters()
+    }
+
     function updateFromDistance(distanceMeters) {
         var clamped = Math.min(Math.max(distanceMeters, 0), totalRouteMeters)
         traveledMeters = clamped
@@ -102,23 +120,36 @@ QtObject {
         routeProgress = totalRouteMeters > 0 ? clamped / totalRouteMeters : 0
 
         var cumulative = 0
-        var stepIndex = route.length - 1
-        for (var i = 0; i < route.length; ++i) {
-            var nextCumulative = cumulative + route[i].dist
-            if (clamped < nextCumulative) {
-                stepIndex = i
-                break
+        var stepIndex = route && route.length > 0 ? route.length - 1 : 0
+        if (route && route.length > 0) {
+            for (var i = 0; i < route.length; ++i) {
+                var nextCumulative = cumulative + route[i].dist
+                if (clamped < nextCumulative) {
+                    stepIndex = i
+                    break
+                }
+                cumulative = nextCumulative
             }
-            cumulative = nextCumulative
         }
 
         currentStep = stepIndex
+        if (!route || route.length === 0) {
+            currentStreet = ""
+            nextStreet = ""
+            maneuver = NavigationModel.Arrive
+            distanceToTurn = 0
+            distanceToTurnText = ""
+            totalDistance = formatDistance(remainingMeters)
+            eta = computeEta(remainingMeters, speedKmh)
+            return
+        }
+
         var step = route[stepIndex]
         var distanceWithinStep = clamped - cumulative
-        var remainingStep = Math.max(step.dist - distanceWithinStep, 0)
+        var remainingStep = Math.max((step.dist || 0) - distanceWithinStep, 0)
 
-        currentStreet = step.street
-        nextStreet = step.next
+        currentStreet = step.street || ""
+        nextStreet = step.next || ""
         maneuver = remainingMeters <= 8 ? NavigationModel.Arrive : step.maneuver
 
         distanceToTurn = remainingStep

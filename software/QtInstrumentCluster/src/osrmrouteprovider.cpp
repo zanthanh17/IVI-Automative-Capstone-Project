@@ -136,15 +136,18 @@ void OsrmRouteProvider::applyRouteAtIndex(int index, bool emitRouteReadySignal)
 
     const QVariantMap route = m_alternativeRoutes.at(index).toMap();
     const QVariantList path = route.value(QStringLiteral("path")).toList();
+    const QVariantList steps = route.value(QStringLiteral("steps")).toList();
     const double distance = route.value(QStringLiteral("distanceMeters")).toDouble();
     const double duration = route.value(QStringLiteral("durationSeconds")).toDouble();
 
     const bool pathChanged = (m_routePath != path);
+    const bool stepsChanged = (m_routeSteps != steps);
     const bool metricsChanged = !qFuzzyCompare(m_distanceMeters + 1.0, distance + 1.0)
                                 || !qFuzzyCompare(m_durationSeconds + 1.0, duration + 1.0);
     const bool indexChanged = (m_selectedRouteIndex != index);
 
     m_routePath = path;
+    m_routeSteps = steps;
     m_distanceMeters = distance;
     m_durationSeconds = duration;
     m_selectedRouteIndex = index;
@@ -154,6 +157,9 @@ void OsrmRouteProvider::applyRouteAtIndex(int index, bool emitRouteReadySignal)
     }
     if (pathChanged || metricsChanged) {
         emit routePathChanged();
+    }
+    if (stepsChanged) {
+        emit routeStepsChanged();
     }
     if (emitRouteReadySignal) {
         emit routeReady(m_routePath);
@@ -213,11 +219,13 @@ void OsrmRouteProvider::handleReply(QNetworkReply *reply)
         const QJsonObject routeObj = routeVal.toObject();
         const QJsonObject geometry = routeObj.value(QStringLiteral("geometry")).toObject();
         const QJsonArray coordinates = geometry.value(QStringLiteral("coordinates")).toArray();
+        const QJsonArray legs = routeObj.value(QStringLiteral("legs")).toArray();
 
         QVariantMap item;
         item.insert(QStringLiteral("distanceMeters"), routeObj.value(QStringLiteral("distance")).toDouble());
         item.insert(QStringLiteral("durationSeconds"), routeObj.value(QStringLiteral("duration")).toDouble());
         item.insert(QStringLiteral("path"), parseGeoJsonCoordinates(coordinates));
+        item.insert(QStringLiteral("steps"), parseRouteSteps(legs));
         alternatives.append(item);
     }
 
@@ -253,3 +261,62 @@ QVariantList OsrmRouteProvider::parseGeoJsonCoordinates(const QJsonArray &coordi
 
     return path;
 }
+
+QVariantList OsrmRouteProvider::parseRouteSteps(const QJsonArray &legs) const
+{
+    QVariantList stepsList;
+    if (legs.isEmpty()) return stepsList;
+
+    // Usually driving routes have 1 leg between 2 points
+    const QJsonObject firstLeg = legs.first().toObject();
+    const QJsonArray steps = firstLeg.value(QStringLiteral("steps")).toArray();
+
+    for (int i = 0; i < steps.size(); ++i) {
+        const QJsonObject stepObj = steps.at(i).toObject();
+        const QJsonObject maneuver = stepObj.value(QStringLiteral("maneuver")).toObject();
+        
+        QString street = stepObj.value(QStringLiteral("name")).toString();
+        
+        // Find next street name if available
+        QString nextStreet = QStringLiteral("");
+        if (i + 1 < steps.size()) {
+            nextStreet = steps.at(i + 1).toObject().value(QStringLiteral("name")).toString();
+        }
+
+        QString type = maneuver.value(QStringLiteral("type")).toString();
+        QString modifier = maneuver.value(QStringLiteral("modifier")).toString();
+        
+        int maneuverEnum = parseManeuverType(modifier, type);
+        double dist = stepObj.value(QStringLiteral("distance")).toDouble();
+
+        QVariantMap stepMap;
+        stepMap.insert(QStringLiteral("street"), street);
+        stepMap.insert(QStringLiteral("next"), nextStreet);
+        stepMap.insert(QStringLiteral("maneuver"), maneuverEnum);
+        stepMap.insert(QStringLiteral("dist"), dist);
+        
+        stepsList.append(stepMap);
+    }
+
+    return stepsList;
+}
+
+int OsrmRouteProvider::parseManeuverType(const QString &modifier, const QString &type) const
+{
+    // Mapbox/OSRM Maneuvers -> NavigationModel Enums
+    // enum Maneuver { TurnLeft = 0, TurnRight = 1, GoStraight = 2, UTurn = 3, Arrive = 4 }
+    if (type == QStringLiteral("arrive")) {
+        return 4; // Arrive
+    }
+    
+    if (modifier.contains(QStringLiteral("left"))) {
+        return 0; // TurnLeft
+    } else if (modifier.contains(QStringLiteral("right"))) {
+        return 1; // TurnRight
+    } else if (modifier.contains(QStringLiteral("uturn"))) {
+        return 3; // UTurn
+    }
+    
+    return 2; // GoStraight (default)
+}
+

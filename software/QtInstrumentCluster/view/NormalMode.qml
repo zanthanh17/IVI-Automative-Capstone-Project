@@ -124,12 +124,6 @@ Item {
             anchors.fill: parent;
         }
 
-        Bluetooth {
-            activeMode: active;
-            selected: menu == NormalModeModel.BluetoothMenu;
-            anchors.fill: parent;
-        }
-
         Setup {
             activeMode: active;
             // Tạm dùng CarStatusMenu làm trang Setup

@@ -8,6 +8,18 @@ NormalModeContentItem {
     readonly property int textAreaWidth: 330
 
 
+    // Beautiful Glassmorphism Background
+    Rectangle {
+        anchors.fill: parent
+        anchors.margins: 10
+        anchors.topMargin: 100
+        anchors.bottomMargin: 20
+        radius: 20
+        color: Qt.rgba(0.05, 0.05, 0.08, 0.6)
+        border.color: Qt.rgba(1, 1, 1, 0.15)
+        border.width: 1
+    }
+
     /* === Song Title === */
     Item {
         id: songTitleViewport
@@ -48,7 +60,7 @@ NormalModeContentItem {
                ? -songTitleViewport.marqueeOffset
                : (songTitleViewport.width - implicitWidth) / 2
             text: MediaPlayerModel.currentSong
-            font.pixelSize: 18
+            font.pixelSize: 20
             font.bold: true
             color: Style.textPrimary
 
@@ -65,7 +77,7 @@ NormalModeContentItem {
         width: playerRoot.textAreaWidth
         height: 20
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 158
+        y: 160
         clip: true
 
         property real marqueeOffset: 0
@@ -99,7 +111,7 @@ NormalModeContentItem {
                ? -artistViewport.marqueeOffset
                : (artistViewport.width - implicitWidth) / 2
             text: MediaPlayerModel.currentArtist
-            font.pixelSize: 13
+            font.pixelSize: 14
             color: Style.textSecondary
 
             onTextChanged: artistViewport.marqueeOffset = 0
@@ -112,93 +124,67 @@ NormalModeContentItem {
     Row {
         id: controls
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 206
-        spacing: 36
+        y: 204
+        spacing: 30
 
         /* Previous button */
-        Canvas {
-            width: 28; height: 28
+        Item {
+            width: 44; height: 44
             anchors.verticalCenter: parent.verticalCenter
-
-            onPaint: {
-                var ctx = getContext("2d")
-                ctx.reset()
-                ctx.fillStyle = Style.lightPeriwinkle
-                // Left-pointing double triangle
-                ctx.beginPath()
-                ctx.moveTo(14, 4); ctx.lineTo(2, 14); ctx.lineTo(14, 24)
-                ctx.fill()
-                ctx.beginPath()
-                ctx.moveTo(24, 4); ctx.lineTo(12, 14); ctx.lineTo(24, 24)
-                ctx.fill()
+            Image {
+                anchors.centerIn: parent
+                source: "qrc:/images/media/skip-previous.svg"
+                width: 32; height: 32
+                opacity: prevMouseArea.pressed ? 0.6 : 1.0
+                Behavior on opacity { NumberAnimation { duration: 100 } }
             }
-
             MouseArea {
+                id: prevMouseArea
                 anchors.fill: parent
                 onClicked: MediaPlayerModel.previousSong()
             }
         }
 
         /* Play / Pause button */
-        Canvas {
+        Item {
             id: playPauseBtn
-            width: 40; height: 40
+            width: 56; height: 56
             anchors.verticalCenter: parent.verticalCenter
+            
+            Rectangle {
+                anchors.fill: parent
+                radius: width / 2
+                color: playMouseArea.pressed ? Qt.rgba(Style.brightBlue.r, Style.brightBlue.g, Style.brightBlue.b, 0.7) : Style.brightBlue
+                Behavior on color { ColorAnimation { duration: 100 } }
+            }
 
-            property bool isPlaying: MediaPlayerModel.mediaPlayback
-            onIsPlayingChanged: requestPaint()
-
-            onPaint: {
-                var ctx = getContext("2d")
-                ctx.reset()
-
-                // Circle outline
-                ctx.strokeStyle = Style.brightBlue
-                ctx.lineWidth = 2
-                ctx.beginPath()
-                ctx.arc(20, 20, 18, 0, Math.PI * 2)
-                ctx.stroke()
-
-                ctx.fillStyle = Style.brightBlue
-                if (isPlaying) {
-                    // Pause icon (two bars)
-                    ctx.fillRect(13, 12, 4, 16)
-                    ctx.fillRect(23, 12, 4, 16)
-                } else {
-                    // Play icon (triangle)
-                    ctx.beginPath()
-                    ctx.moveTo(15, 10)
-                    ctx.lineTo(30, 20)
-                    ctx.lineTo(15, 30)
-                    ctx.fill()
-                }
+            Image {
+                property bool isPlaying: MediaPlayerModel.mediaPlayback
+                anchors.centerIn: parent
+                source: isPlaying ? "qrc:/images/media/pause.svg" : "qrc:/images/media/play.svg"
+                width: 36; height: 36
             }
 
             MouseArea {
+                id: playMouseArea
                 anchors.fill: parent
                 onClicked: MediaPlayerModel.togglePlayback()
             }
         }
 
         /* Next button */
-        Canvas {
-            width: 28; height: 28
+        Item {
+            width: 44; height: 44
             anchors.verticalCenter: parent.verticalCenter
-
-            onPaint: {
-                var ctx = getContext("2d")
-                ctx.reset()
-                ctx.fillStyle = Style.lightPeriwinkle
-                // Right-pointing double triangle
-                ctx.beginPath()
-                ctx.moveTo(4, 4); ctx.lineTo(16, 14); ctx.lineTo(4, 24)
-                ctx.fill()
-                ctx.beginPath()
-                ctx.moveTo(14, 4); ctx.lineTo(26, 14); ctx.lineTo(14, 24)
-                ctx.fill()
+            Image {
+                anchors.centerIn: parent
+                source: "qrc:/images/media/skip-next.svg"
+                width: 32; height: 32
+                opacity: nextMouseArea.pressed ? 0.6 : 1.0
+                Behavior on opacity { NumberAnimation { duration: 100 } }
             }
-
             MouseArea {
+                id: nextMouseArea
                 anchors.fill: parent
                 onClicked: MediaPlayerModel.nextSong()
             }
@@ -208,19 +194,20 @@ NormalModeContentItem {
     /* === Bluetooth status hint === */
     Row {
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 298
-        spacing: 5
-        opacity: 0.4
+        y: 284
+        spacing: 6
+        opacity: 0.6
 
         Text {
             text: "♪"
-            font.pixelSize: 11
+            font.pixelSize: 12
             color: Style.brightBlue
         }
         Text {
             text: MediaPlayerModel.modeLabel
-            font.pixelSize: 10
-            color: "#657080"
+            font.pixelSize: 11
+            color: Style.textSecondary
+            font.bold: true
         }
     }
 }

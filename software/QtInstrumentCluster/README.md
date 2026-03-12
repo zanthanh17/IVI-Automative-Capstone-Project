@@ -86,7 +86,11 @@ QT_QPA_PLATFORM=eglfs ./scripts/pi/run_pi.sh
 - WebEngine map fallback has been removed.
 - Required env vars:
   - `MAPBOX_ACCESS_TOKEN`
-  - `MAPBOX_STYLE_URL` (optional; default is fixed `mapbox://styles/mapbox/navigation-guidance-night-v2`)
+  - `MAPBOX_STYLE_URL` (optional; default is fixed `mapbox://styles/mapbox/navigation-guidance-night-v2
+
+
+
+`)
 - Dashboard map controls use icon buttons (zoom in/out, compass heading, follow toggle, recenter; long-press recenter for route overview).
 - Map attribution may still include OpenStreetMap because Mapbox style sources include OSM-derived data and attribution is mandatory by license.
 
@@ -187,7 +191,11 @@ Notes:
 - Qt5 build output is isolated in `build-pi-qt5/` (does not overwrite Qt6 build output).
 - If both Qt5 and Qt6 are installed, `build_pi_qt5.sh` explicitly resolves a Qt5 qmake.
 - Put `MAPBOX_ACCESS_TOKEN` in `.env` (or export in shell) for Mapbox map + routing + geocode on Qt5.
-- `MAPBOX_STYLE_URL` is optional; Qt5 flow defaults to `mapbox://styles/mapbox/navigation-guidance-night-v2`.
+- `MAPBOX_STYLE_URL` is optional; Qt5 flow defaults to `mapbox://styles/mapbox/navigation-guidance-night-v2
+
+
+
+`.
 - Qt5 flow is Mapbox-only (no WebEngine fallback).
 - Qt Virtual Keyboard is enabled for text boxes (`QT_IM_MODULE=qtvirtualkeyboard`), default keyboard locale is Vietnamese (`QT_VIRTUALKEYBOARD_LOCALE=vi_VN`).
 - If keyboard logs `module "Qt.labs.folderlistmodel" is not installed`, install:

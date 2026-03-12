@@ -26,6 +26,17 @@
         <file>images/lanes/red-border-left.png</file>
         <file>images/lanes/red-border-right.png</file>
         <file>images/menu/navi.png</file>
+        <file>images/map/search.svg</file>
+        <file>images/map/zoom_in.svg</file>
+        <file>images/map/zoom_out.svg</file>
+        <file>images/map/compass.svg</file>
+        <file>images/map/follow.svg</file>
+        <file>images/map/overview.svg</file>
+        <file>images/map/turn_left.svg</file>
+        <file>images/map/turn_right.svg</file>
+        <file>images/map/go_straight.svg</file>
+        <file>images/map/u_turn.svg</file>
+        <file>images/map/arrive.svg</file>
         <file>images/Model_3-2_new.png</file>
         <file>images/Model_3-2_new.svg</file>
         <file>images/Tesla_Logo.png</file>
@@ -67,6 +78,10 @@
         <file>images/others/power.png</file>
         <file>images/others/shutdown.png</file>
         <file>images/others/restart.png</file>
+        <file>images/media/play.svg</file>
+        <file>images/media/pause.svg</file>
+        <file>images/media/skip-next.svg</file>
+        <file>images/media/skip-previous.svg</file>
         <file>models/NormalModeModel.qml</file>
         <file>images/albums/ak.png</file>
         <file>images/albums/juno.png</file>
@@ -83,7 +98,6 @@
         <file>view/LaneAssistWhiteLine.qml</file>
         <file>view/LinearGauge.qml</file>
         <file>view/MediaPlayer.qml</file>
-        <file>view/Bluetooth.qml</file>
         <file>view/Navigation.qml</file>
         <file>view/NavigationMapLocation.qml</file>
         <file>view/VirtualKeyboardOverlay.qml</file>

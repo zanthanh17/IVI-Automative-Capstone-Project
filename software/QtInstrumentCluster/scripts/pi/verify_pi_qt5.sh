@@ -38,7 +38,11 @@ if [[ -f "${ENV_FILE}" ]]; then
     set +a
 fi
 
-MAPBOX_STYLE_URL="${MAPBOX_STYLE_URL:-mapbox://styles/mapbox/navigation-guidance-night-v2}"
+MAPBOX_STYLE_URL="${MAPBOX_STYLE_URL:-mapbox://styles/mapbox/navigation-guidance-night-v2
+
+
+
+}"
 MAPBOX_STYLE_PATH=""
 if [[ "${MAPBOX_STYLE_URL}" == mapbox://styles/* ]]; then
     MAPBOX_STYLE_PATH="${MAPBOX_STYLE_URL#mapbox://styles/}"
