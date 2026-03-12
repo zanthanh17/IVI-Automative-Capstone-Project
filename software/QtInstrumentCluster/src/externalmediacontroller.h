@@ -3,7 +3,6 @@
 
 #include <QObject>
 #include <QStringList>
-#include <QVector>
 
 #if defined(Q_OS_LINUX)
 #include <QDBusObjectPath>
@@ -42,7 +41,6 @@ public:
     Q_INVOKABLE void next();
     Q_INVOKABLE void previous();
     Q_INVOKABLE void rescan();
-    void handleBluetoothDeviceConnectionChanged(const QString &address, bool connected);
 
 signals:
     void availableChanged();
@@ -67,7 +65,6 @@ private:
     void connectPlayerSignals();
     void disconnectPlayerSignals();
     void subscribeBluezSignals();
-    void scheduleProbeBurst(const QVector<int> &delaysMs);
 #endif
 
 private slots:
@@ -96,9 +93,6 @@ private:
     QString m_systemArtist;
     QString m_linuxPlayerPath;
     QString m_linuxPlayerPathConnected;  // path currently subscribed to signals
-#if defined(Q_OS_LINUX)
-    quint64 m_linuxProbeGeneration;
-#endif
 };
 
 #endif // EXTERNALMEDIACONTROLLER_H
