@@ -94,9 +94,7 @@ int main(int argc, char *argv[])
 
     QObject::connect(BluetoothController::instance(), &BluetoothController::deviceConnectionChanged,
                      ExternalMediaController::instance(),
-                     [](const QString &, bool) {
-        ExternalMediaController::instance()->rescan();
-    });
+                     &ExternalMediaController::handleBluetoothDeviceConnectionChanged);
 
     qmlRegisterSingletonType<WeatherProvider>("Weather", 1, 0, "Weather",
         [](QQmlEngine*, QJSEngine*) -> QObject* {

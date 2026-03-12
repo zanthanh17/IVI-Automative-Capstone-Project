@@ -79,6 +79,33 @@ QString trackArtistFromVariant(const QVariant &artistValue)
     }
     return artistValue.toString();
 }
+
+QVariant unwrapDBusVariant(const QVariant &value)
+{
+    QVariant result = value;
+    while (result.canConvert<QDBusVariant>()) {
+        result = result.value<QDBusVariant>().variant();
+    }
+    return result;
+}
+
+QVariantMap dbusMapFromVariant(const QVariant &value)
+{
+    const QVariant unwrapped = unwrapDBusVariant(value);
+    QVariantMap map;
+    if (unwrapped.canConvert<QDBusArgument>()) {
+        const QDBusArgument argument = unwrapped.value<QDBusArgument>();
+        argument >> map;
+    } else {
+        map = unwrapped.toMap();
+    }
+
+    QVariantMap normalized;
+    for (auto it = map.cbegin(); it != map.cend(); ++it) {
+        normalized.insert(it.key(), unwrapDBusVariant(it.value()));
+    }
+    return normalized;
+}
 } // namespace
 #endif
 
@@ -170,7 +197,7 @@ QString ExternalMediaController::fileNameFallback(const QString &path) const
 
 QString ExternalMediaController::currentSong() const
 {
-    if (m_systemSessionAvailable && !m_systemSong.isEmpty()) {
+    if (m_systemSessionAvailable) {
         return m_systemSong;
     }
 
@@ -186,7 +213,7 @@ QString ExternalMediaController::currentSong() const
 
 QString ExternalMediaController::currentArtist() const
 {
-    if (m_systemSessionAvailable && !m_systemArtist.isEmpty()) {
+    if (m_systemSessionAvailable) {
         return m_systemArtist;
     }
 
@@ -466,69 +493,54 @@ void ExternalMediaController::probeSystemSession()
 
     m_linuxPlayerPath = playerPath;
 
-    // ---------- Fetch properties via Properties.GetAll ----------
-    QDBusInterface propsIface(QStringLiteral("org.bluez"),
-                              playerPath,
-                              QStringLiteral("org.freedesktop.DBus.Properties"),
-                              QDBusConnection::systemBus());
-    propsIface.setTimeout(1500);  /* Prevent indefinite blocking */
+    QString status = unwrapDBusVariant(playerProps.value(QStringLiteral("Status"))).toString().trimmed();
+    QVariantMap track = dbusMapFromVariant(playerProps.value(QStringLiteral("Track")));
+    QString title = track.value(QStringLiteral("Title")).toString().trimmed();
+    QString artist = trackArtistFromVariant(track.value(QStringLiteral("Artist"))).trimmed();
 
-    QString status;
-    QString title;
-    QString artist;
+    if (status.isEmpty() || (title.isEmpty() && artist.isEmpty())) {
+        QDBusInterface propsIface(QStringLiteral("org.bluez"),
+                                  playerPath,
+                                  QStringLiteral("org.freedesktop.DBus.Properties"),
+                                  QDBusConnection::systemBus());
+        propsIface.setTimeout(1500);  /* Prevent indefinite blocking */
 
-    if (propsIface.isValid()) {
-        // --- 1. Get Status ---
-        const QDBusMessage statusReply = propsIface.call(
-            QStringLiteral("Get"),
-            QStringLiteral("org.bluez.MediaPlayer1"),
-            QStringLiteral("Status"));
-        if (statusReply.type() == QDBusMessage::ReplyMessage && !statusReply.arguments().isEmpty()) {
-            // Properties.Get returns variant(variant(string))
-            const QVariant outer = statusReply.arguments().constFirst();
-            const QDBusVariant dbusVar = outer.value<QDBusVariant>();
-            status = dbusVar.variant().toString();
-        }
-        qDebug() << "[ExternalMedia] Player:" << playerPath << "Status:" << status;
-
-        // --- 2. Get Track dict ---
-        const QDBusMessage trackReply = propsIface.call(
-            QStringLiteral("Get"),
-            QStringLiteral("org.bluez.MediaPlayer1"),
-            QStringLiteral("Track"));
-
-        QVariantMap track;
-        if (trackReply.type() == QDBusMessage::ReplyMessage && !trackReply.arguments().isEmpty()) {
-            // Properties.Get wraps in variant → the inner value is a{sv} (QDBusArgument)
-            const QDBusVariant outerVar = trackReply.arguments().constFirst().value<QDBusVariant>();
-            const QVariant innerVal = outerVar.variant();
-
-            if (innerVal.canConvert<QDBusArgument>()) {
-                const QDBusArgument trackArg = innerVal.value<QDBusArgument>();
-                trackArg >> track;
+        if (propsIface.isValid()) {
+            const QDBusMessage allReply = propsIface.call(
+                QStringLiteral("GetAll"),
+                QStringLiteral("org.bluez.MediaPlayer1"));
+            if (allReply.type() == QDBusMessage::ReplyMessage && !allReply.arguments().isEmpty()) {
+                const QVariantMap allProps = dbusMapFromVariant(allReply.arguments().constFirst());
+                if (status.isEmpty()) {
+                    status = unwrapDBusVariant(allProps.value(QStringLiteral("Status"))).toString().trimmed();
+                }
+                if (track.isEmpty()) {
+                    track = dbusMapFromVariant(allProps.value(QStringLiteral("Track")));
+                }
+                if (title.isEmpty()) {
+                    title = track.value(QStringLiteral("Title")).toString().trimmed();
+                }
+                if (artist.isEmpty()) {
+                    artist = trackArtistFromVariant(track.value(QStringLiteral("Artist"))).trimmed();
+                }
             } else {
-                track = innerVal.toMap();
+                qDebug() << "[ExternalMedia] GetAll failed for" << playerPath
+                         << (allReply.type() == QDBusMessage::ErrorMessage
+                             ? allReply.errorMessage() : QStringLiteral("empty reply"));
             }
         } else {
-            qDebug() << "[ExternalMedia] Track property error:"
-                     << (trackReply.type() == QDBusMessage::ErrorMessage
-                         ? trackReply.errorMessage() : "empty reply");
+            qDebug() << "[ExternalMedia] Properties interface invalid for" << playerPath;
         }
-
-        if (!track.isEmpty()) {
-            qDebug() << "[ExternalMedia] Track keys:" << track.keys();
-            qDebug() << "[ExternalMedia] Track values:" << track;
-        } else {
-            qDebug() << "[ExternalMedia] Track dict is EMPTY";
-        }
-
-        title = track.value(QStringLiteral("Title")).toString();
-        artist = trackArtistFromVariant(track.value(QStringLiteral("Artist")));
-
-        qDebug() << "[ExternalMedia] Title:" << title << "Artist:" << artist;
-    } else {
-        qDebug() << "[ExternalMedia] Properties interface invalid for" << playerPath;
     }
+
+    qDebug() << "[ExternalMedia] Player:" << playerPath << "Status:" << status;
+    if (!track.isEmpty()) {
+        qDebug() << "[ExternalMedia] Track keys:" << track.keys();
+        qDebug() << "[ExternalMedia] Track values:" << track;
+    } else {
+        qDebug() << "[ExternalMedia] Track dict is EMPTY";
+    }
+    qDebug() << "[ExternalMedia] Title:" << title << "Artist:" << artist;
 
     const bool isPlaying = status.compare(QStringLiteral("playing"), Qt::CaseInsensitive) == 0;
     setSystemSessionState(true, isPlaying, title, artist);
@@ -715,6 +727,21 @@ void ExternalMediaController::rescan()
     }
 }
 
+void ExternalMediaController::handleBluetoothDeviceConnectionChanged(const QString &address, bool connected)
+{
+    Q_UNUSED(address)
+    probeSystemSession();
+
+#if defined(Q_OS_LINUX)
+    const int retryDelayMs = connected ? 450 : 250;
+    const int secondRetryDelayMs = connected ? 1400 : 700;
+    QTimer::singleShot(retryDelayMs, this, &ExternalMediaController::probeSystemSession);
+    QTimer::singleShot(secondRetryDelayMs, this, &ExternalMediaController::probeSystemSession);
+#else
+    Q_UNUSED(connected)
+#endif
+}
+
 #if defined(Q_OS_LINUX)
 void ExternalMediaController::disconnectPlayerSignals()
 {
@@ -784,13 +811,19 @@ void ExternalMediaController::onBluezInterfacesAdded(
     const QDBusObjectPath &objectPath,
     const QVariantMap &interfaces)
 {
-    Q_UNUSED(interfaces)
     const QString path = objectPath.path();
-    /* Only react when a MediaPlayer1 or MediaControl1 interface appears */
-    if (path.contains(QStringLiteral("player")) ||
-        path.contains(QStringLiteral("Player"))) {
-        qDebug() << "[ExternalMedia] BlueZ interface added:" << path;
+    const bool hasMediaPlayer = interfaces.contains(QStringLiteral("org.bluez.MediaPlayer1"));
+    const bool hasMediaControl = interfaces.contains(QStringLiteral("org.bluez.MediaControl1"));
+
+    if (hasMediaPlayer || hasMediaControl ||
+        path.contains(QStringLiteral("player"), Qt::CaseInsensitive)) {
+        qDebug() << "[ExternalMedia] BlueZ media interface added:" << path
+                 << "player:" << hasMediaPlayer
+                 << "control:" << hasMediaControl;
         probeSystemSession();
+        if (hasMediaControl && !hasMediaPlayer) {
+            QTimer::singleShot(400, this, &ExternalMediaController::probeSystemSession);
+        }
     }
 }
 
@@ -798,23 +831,19 @@ void ExternalMediaController::onBluezInterfacesRemoved(
     const QDBusObjectPath &objectPath,
     const QStringList &interfaces)
 {
-    Q_UNUSED(interfaces)
     const QString path = objectPath.path();
-    if (path.contains(QStringLiteral("player")) ||
-        path.contains(QStringLiteral("Player"))) {
-        qDebug() << "[ExternalMedia] BlueZ interface removed:" << path;
-        setSystemSessionState(false, false, QString(), QString());
-    }
-}
+    const bool hasMediaPlayer = interfaces.contains(QStringLiteral("org.bluez.MediaPlayer1"));
+    const bool hasMediaControl = interfaces.contains(QStringLiteral("org.bluez.MediaControl1"));
 
-// Helper: unwrap a QVariant that may be wrapped in one or more QDBusVariant layers
-static QVariant unwrapDBusVariant(const QVariant &v)
-{
-    QVariant result = v;
-    while (result.canConvert<QDBusVariant>()) {
-        result = result.value<QDBusVariant>().variant();
+    if (hasMediaPlayer || hasMediaControl ||
+        path == m_linuxPlayerPath || path == m_linuxPlayerPathConnected ||
+        path.contains(QStringLiteral("player"), Qt::CaseInsensitive)) {
+        qDebug() << "[ExternalMedia] BlueZ media interface removed:" << path
+                 << "player:" << hasMediaPlayer
+                 << "control:" << hasMediaControl;
+        probeSystemSession();
+        QTimer::singleShot(300, this, &ExternalMediaController::probeSystemSession);
     }
-    return result;
 }
 
 void ExternalMediaController::onPlayerPropertiesChanged(
@@ -861,8 +890,8 @@ void ExternalMediaController::onPlayerPropertiesChanged(
         }
 
         qDebug() << "[ExternalMedia] Track from changedProps:" << unwrappedTrack;
-        const QString title = unwrappedTrack.value(QStringLiteral("Title")).toString();
-        const QString artist = unwrappedTrack.value(QStringLiteral("Artist")).toString();
+        const QString title = unwrappedTrack.value(QStringLiteral("Title")).toString().trimmed();
+        const QString artist = trackArtistFromVariant(unwrappedTrack.value(QStringLiteral("Artist"))).trimmed();
 
         if (m_systemSong != title) { m_systemSong = title; emit currentSongChanged(); changed = true; }
         if (m_systemArtist != artist) { m_systemArtist = artist; emit currentArtistChanged(); changed = true; }
@@ -925,8 +954,8 @@ void ExternalMediaController::onPlayerPropertiesChanged(
 
                     qDebug() << "[ExternalMedia] Re-fetched Track:" << unwrappedTrack;
 
-                    const QString title = unwrappedTrack.value(QStringLiteral("Title")).toString();
-                    const QString artist = unwrappedTrack.value(QStringLiteral("Artist")).toString();
+                    const QString title = unwrappedTrack.value(QStringLiteral("Title")).toString().trimmed();
+                    const QString artist = trackArtistFromVariant(unwrappedTrack.value(QStringLiteral("Artist"))).trimmed();
 
                     qDebug() << "[ExternalMedia] Re-fetched Title:" << title << "Artist:" << artist;
 

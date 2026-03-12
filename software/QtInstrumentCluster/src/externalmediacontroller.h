@@ -41,6 +41,7 @@ public:
     Q_INVOKABLE void next();
     Q_INVOKABLE void previous();
     Q_INVOKABLE void rescan();
+    void handleBluetoothDeviceConnectionChanged(const QString &address, bool connected);
 
 signals:
     void availableChanged();
