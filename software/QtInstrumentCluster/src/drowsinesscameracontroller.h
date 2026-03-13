@@ -5,6 +5,7 @@
 #include <QProcess>
 #include <QImage>
 #include <QMutex>
+#include <QDateTime>
 #include <QTimer>
 
 class QQmlImageProviderBase;
@@ -50,6 +51,7 @@ private:
     void handleProcessError(QProcess::ProcessError error);
     bool parseMetricLine(const QString &line);
     void parseFramePackets();
+    void pollFrameFile();
     void clearFrame();
 
     QString resolveScriptPath() const;
@@ -63,6 +65,7 @@ private:
 
     QProcess m_process;
     QTimer m_stopTimer;
+    QTimer m_framePollTimer;
     bool m_keepWorkerAliveOnHide = true;
     bool m_running = false;
     bool m_activeRequested = false;
@@ -73,6 +76,10 @@ private:
     QString m_stderrBuffer;
     QString m_lastStderrLine;
     QString m_startSummary;
+    QString m_frameTransport = QStringLiteral("stdout");
+    QString m_frameFilePath;
+    QDateTime m_lastFrameFileModified;
+    qint64 m_lastFrameFileSize = -1;
     mutable QMutex m_frameMutex;
     QImage m_latestFrame;
     qulonglong m_frameSequence = 0;

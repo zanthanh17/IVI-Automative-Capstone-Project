@@ -78,6 +78,7 @@ DrowsinessCameraController::DrowsinessCameraController(QObject *parent)
     m_keepWorkerAliveOnHide = envFlagEnabled("DROWSY_PERSIST_WORKER", true);
     m_stopTimer.setSingleShot(true);
     m_stopTimer.setInterval(1000);
+    m_framePollTimer.setInterval(80);
 
     connect(&m_process, &QProcess::readyReadStandardOutput,
             this, &DrowsinessCameraController::handleStdout);
@@ -91,6 +92,8 @@ DrowsinessCameraController::DrowsinessCameraController(QObject *parent)
         if (!m_activeRequested)
             stop();
     });
+    connect(&m_framePollTimer, &QTimer::timeout,
+            this, &DrowsinessCameraController::pollFrameFile);
 }
 
 DrowsinessCameraController::~DrowsinessCameraController()
@@ -174,7 +177,6 @@ void DrowsinessCameraController::start()
          << "--height" << readEnvOrDefault("DROWSY_HEIGHT", QStringLiteral("540"))
          << "--fps" << readEnvOrDefault("DROWSY_FPS", QStringLiteral("30"))
          << "--no-display"
-         << "--stream-jpeg-stdout"
          << "--export-quality" << readEnvOrDefault("DROWSY_EXPORT_QUALITY", QStringLiteral("70"))
          << "--export-every-n" << readEnvOrDefault("DROWSY_EXPORT_EVERY_N", QStringLiteral("1"))
          << "--metrics-every-n" << readEnvOrDefault("DROWSY_METRICS_EVERY_N", QStringLiteral("10"));
@@ -187,9 +189,19 @@ void DrowsinessCameraController::start()
              << "--fallback-scan-max" << readEnvOrDefault("DROWSY_FALLBACK_SCAN_MAX", QStringLiteral("6"));
     }
 
-    const QString exportFramePath = readEnvOrDefault("DROWSY_EXPORT_FRAME", QString());
-    if (!exportFramePath.isEmpty())
-        args << "--export-frame" << exportFramePath;
+    const QString transport = readEnvOrDefault("DROWSY_FRAME_TRANSPORT", QStringLiteral("stdout")).trimmed().toLower();
+    m_frameTransport = (transport == QLatin1String("file"))
+                           ? QStringLiteral("file")
+                           : QStringLiteral("stdout");
+    m_frameFilePath = readEnvOrDefault("DROWSY_EXPORT_FRAME", QStringLiteral("/tmp/drowsy_live_frame.jpg"));
+    m_lastFrameFileModified = QDateTime();
+    m_lastFrameFileSize = -1;
+
+    if (m_frameTransport == QLatin1String("stdout")) {
+        args << "--stream-jpeg-stdout";
+    } else {
+        args << "--export-frame" << m_frameFilePath;
+    }
 
     m_framePacketBuffer.clear();
     m_stderrBuffer.clear();
@@ -204,7 +216,9 @@ void DrowsinessCameraController::start()
 
     m_startSummary = QStringLiteral("python=%1 script=%2 workdir=%3")
                          .arg(resolvedPython, scriptPath, workDir);
-    qInfo() << "[DrowsyCamera] Starting worker:" << m_startSummary;
+    qInfo() << "[DrowsyCamera] Starting worker:" << m_startSummary
+            << "transport=" << m_frameTransport
+            << "frameFile=" << m_frameFilePath;
 
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     if (!env.contains(QStringLiteral("PYTHONFAULTHANDLER")))
@@ -225,12 +239,17 @@ void DrowsinessCameraController::start()
     }
 
     setRunning(true);
+    if (m_frameTransport == QLatin1String("file"))
+        m_framePollTimer.start();
+    else
+        m_framePollTimer.stop();
 }
 
 void DrowsinessCameraController::stop()
 {
     m_activeRequested = false;
     m_stopTimer.stop();
+    m_framePollTimer.stop();
 
     if (m_process.state() == QProcess::NotRunning) {
         setRunning(false);
@@ -274,6 +293,9 @@ void DrowsinessCameraController::setActive(bool active)
 
 void DrowsinessCameraController::handleStdout()
 {
+    if (m_frameTransport != QLatin1String("stdout"))
+        return;
+
     m_framePacketBuffer.append(m_process.readAllStandardOutput());
     parseFramePackets();
 }
@@ -441,6 +463,37 @@ void DrowsinessCameraController::parseFramePackets()
         if (sequenceChanged)
             emit frameSequenceChanged();
     }
+}
+
+void DrowsinessCameraController::pollFrameFile()
+{
+    if (m_frameTransport != QLatin1String("file") || m_frameFilePath.isEmpty())
+        return;
+
+    const QFileInfo fi(m_frameFilePath);
+    if (!fi.exists() || !fi.isFile())
+        return;
+
+    if (fi.lastModified() == m_lastFrameFileModified && fi.size() == m_lastFrameFileSize)
+        return;
+
+    QImage frame;
+    if (!frame.load(fi.absoluteFilePath()))
+        return;
+
+    m_lastFrameFileModified = fi.lastModified();
+    m_lastFrameFileSize = fi.size();
+
+    bool sequenceChanged = false;
+    {
+        QMutexLocker locker(&m_frameMutex);
+        m_latestFrame = frame.convertToFormat(QImage::Format_RGB32);
+        ++m_frameSequence;
+        sequenceChanged = true;
+    }
+
+    if (sequenceChanged)
+        emit frameSequenceChanged();
 }
 
 void DrowsinessCameraController::clearFrame()

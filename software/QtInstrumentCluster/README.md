@@ -213,9 +213,11 @@ Recommended defaults in `.env` for stable FPS on Pi:
 
 ```bash
 DROWSY_CAMERA_INDEX=0
+DROWSY_FRAME_TRANSPORT=file
 DROWSY_WIDTH=960
 DROWSY_HEIGHT=540
 DROWSY_FPS=30
+DROWSY_EXPORT_FRAME=/tmp/drowsy_live_frame.jpg
 DROWSY_EXPORT_QUALITY=70
 DROWSY_EXPORT_EVERY_N=1
 DROWSY_METRICS_EVERY_N=10
@@ -238,3 +240,5 @@ If FPS drops, reduce first:
 3. `DROWSY_EXPORT_EVERY_N` (e.g. `2` to stream every 2 frames)
 
 `DROWSY_PERSIST_WORKER=1` keeps the Python detector running when the user leaves the Camera page, so returning to the page resumes live view immediately. Set it to `0` if you prefer lower background CPU usage.
+
+On Raspberry Pi, `DROWSY_FRAME_TRANSPORT=file` is the safer integration path. The AI worker still runs headless, but Qt reads the latest exported JPEG from `/tmp/drowsy_live_frame.jpg` instead of parsing a binary stdout stream.
