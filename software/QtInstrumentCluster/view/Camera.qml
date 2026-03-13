@@ -19,7 +19,7 @@ NormalModeContentItem {
     Loader {
         id: cameraLoader
         anchors.fill: parent
-        active: cameraRoot.selected || cameraRoot.visible
+        active: true
         source: cameraRoot.implementationSource
 
         onLoaded: cameraRoot.syncCameraState()
