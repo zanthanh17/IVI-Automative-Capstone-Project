@@ -17,6 +17,17 @@ constexpr char kFrameMagic[] = "FRAM";
 constexpr int kFrameHeaderSize = 8;
 constexpr quint32 kMaxJpegPayloadBytes = 8 * 1024 * 1024;
 
+bool envFlagEnabled(const char *key, bool fallback)
+{
+    const QString value = qEnvironmentVariable(key).trimmed().toLower();
+    if (value.isEmpty())
+        return fallback;
+    return value != QLatin1String("0")
+        && value != QLatin1String("false")
+        && value != QLatin1String("no")
+        && value != QLatin1String("off");
+}
+
 quint32 readLeUInt32(const char *ptr)
 {
     const uchar *u = reinterpret_cast<const uchar *>(ptr);
@@ -64,6 +75,7 @@ DrowsinessCameraController *DrowsinessCameraController::instance()
 DrowsinessCameraController::DrowsinessCameraController(QObject *parent)
     : QObject(parent)
 {
+    m_keepWorkerAliveOnHide = envFlagEnabled("DROWSY_PERSIST_WORKER", true);
     m_stopTimer.setSingleShot(true);
     m_stopTimer.setInterval(1000);
 
@@ -240,12 +252,20 @@ void DrowsinessCameraController::setActive(bool active)
 {
     qInfo() << "[DrowsyCamera] setActive(" << active << ")"
             << "running=" << m_running
-            << "state=" << m_process.state();
+            << "state=" << m_process.state()
+            << "keepAlive=" << m_keepWorkerAliveOnHide;
 
     if (active) {
+        m_activeRequested = true;
         m_stopTimer.stop();
         start();
     } else {
+        if (m_keepWorkerAliveOnHide && m_process.state() != QProcess::NotRunning) {
+            m_activeRequested = true;
+            qInfo() << "[DrowsyCamera] Page hidden; worker kept alive in background.";
+            return;
+        }
+
         m_activeRequested = false;
         if (!m_stopTimer.isActive())
             m_stopTimer.start();

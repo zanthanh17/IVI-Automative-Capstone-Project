@@ -63,6 +63,7 @@ private:
 
     QProcess m_process;
     QTimer m_stopTimer;
+    bool m_keepWorkerAliveOnHide = true;
     bool m_running = false;
     bool m_activeRequested = false;
     QString m_statusText = QStringLiteral("AI detector idle");

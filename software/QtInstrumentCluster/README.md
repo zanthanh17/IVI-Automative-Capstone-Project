@@ -219,6 +219,7 @@ DROWSY_FPS=30
 DROWSY_EXPORT_QUALITY=70
 DROWSY_EXPORT_EVERY_N=1
 DROWSY_METRICS_EVERY_N=10
+DROWSY_PERSIST_WORKER=1
 # Prefer venv python on Pi:
 # DROWSY_PYTHON=/home/pi/IVI-Automative-Capstone-Project/software/Driver-Drowsy-Detection/.venv-pi/bin/python3
 # Optional fixed camera node:
@@ -235,3 +236,5 @@ If FPS drops, reduce first:
 1. `DROWSY_WIDTH` / `DROWSY_HEIGHT` (e.g. `640x360`)
 2. `DROWSY_EXPORT_QUALITY` (e.g. `60`)
 3. `DROWSY_EXPORT_EVERY_N` (e.g. `2` to stream every 2 frames)
+
+`DROWSY_PERSIST_WORKER=1` keeps the Python detector running when the user leaves the Camera page, so returning to the page resumes live view immediately. Set it to `0` if you prefer lower background CPU usage.

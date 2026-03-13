@@ -59,6 +59,7 @@ export DROWSY_EXPORT_FRAME="${DROWSY_EXPORT_FRAME:-}"
 export DROWSY_EXPORT_QUALITY="${DROWSY_EXPORT_QUALITY:-70}"
 export DROWSY_EXPORT_EVERY_N="${DROWSY_EXPORT_EVERY_N:-1}"
 export DROWSY_METRICS_EVERY_N="${DROWSY_METRICS_EVERY_N:-10}"
+export DROWSY_PERSIST_WORKER="${DROWSY_PERSIST_WORKER:-1}"
 
 # Root sessions often use /run/user/0 with wrong permissions (0755).
 # Force a private runtime dir to satisfy Qt's 0700 requirement.
@@ -82,6 +83,7 @@ fi
 echo "[INFO] DROWSY camera=${DROWSY_CAMERA_INDEX} ${DROWSY_WIDTH}x${DROWSY_HEIGHT}@${DROWSY_FPS}"
 echo "[INFO] DROWSY fallback-scan-max=${DROWSY_FALLBACK_SCAN_MAX}"
 echo "[INFO] DROWSY stream quality=${DROWSY_EXPORT_QUALITY} everyN=${DROWSY_EXPORT_EVERY_N}"
+echo "[INFO] DROWSY persist-worker=${DROWSY_PERSIST_WORKER}"
 if [[ -n "${DROWSY_EXPORT_FRAME}" ]]; then
     echo "[INFO] DROWSY optional file export=${DROWSY_EXPORT_FRAME}"
 fi
