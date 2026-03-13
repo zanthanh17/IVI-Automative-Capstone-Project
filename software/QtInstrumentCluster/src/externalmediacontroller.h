@@ -41,6 +41,7 @@ public:
     Q_INVOKABLE void next();
     Q_INVOKABLE void previous();
     Q_INVOKABLE void rescan();
+    void handleBluetoothDeviceConnectionChanged(const QString &address, bool connected);
 
 signals:
     void availableChanged();
@@ -65,6 +66,8 @@ private:
     void connectPlayerSignals();
     void disconnectPlayerSignals();
     void subscribeBluezSignals();
+    void pollLinuxPlayerSnapshot();
+    void scheduleLinuxDeferredProbes(const QList<int> &delaysMs);
 #endif
 
 private slots:
@@ -93,6 +96,10 @@ private:
     QString m_systemArtist;
     QString m_linuxPlayerPath;
     QString m_linuxPlayerPathConnected;  // path currently subscribed to signals
+#if defined(Q_OS_LINUX)
+    int m_linuxNoPathPollCounter;
+    qint64 m_linuxLastRealtimeEventMs;
+#endif
 };
 
 #endif // EXTERNALMEDIACONTROLLER_H
