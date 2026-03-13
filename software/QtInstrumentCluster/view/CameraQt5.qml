@@ -24,7 +24,7 @@ Item {
     }
 
     Component.onDestruction: {
-        DrowsyCamera.setActive(false)
+        DrowsyCamera.stop()
     }
 
     Rectangle {

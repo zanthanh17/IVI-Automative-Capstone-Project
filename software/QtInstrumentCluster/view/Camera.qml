@@ -4,7 +4,7 @@ NormalModeContentItem {
     id: cameraRoot
 
     readonly property string implementationSource: "qrc:/view/CameraQt5.qml"
-    readonly property bool shouldRunCamera: selected && activeMode
+    readonly property bool shouldRunCamera: selected
 
     function syncCameraState() {
         if (cameraLoader.status !== Loader.Ready || !cameraLoader.item)
@@ -14,8 +14,6 @@ NormalModeContentItem {
     }
 
     onSelectedChanged: syncCameraState()
-    onActiveModeChanged: syncCameraState()
-
     Loader {
         id: cameraLoader
         anchors.fill: parent

@@ -64,6 +64,9 @@ DrowsinessCameraController *DrowsinessCameraController::instance()
 DrowsinessCameraController::DrowsinessCameraController(QObject *parent)
     : QObject(parent)
 {
+    m_stopTimer.setSingleShot(true);
+    m_stopTimer.setInterval(1000);
+
     connect(&m_process, &QProcess::readyReadStandardOutput,
             this, &DrowsinessCameraController::handleStdout);
     connect(&m_process, &QProcess::readyReadStandardError,
@@ -72,6 +75,10 @@ DrowsinessCameraController::DrowsinessCameraController(QObject *parent)
             this, &DrowsinessCameraController::handleFinished);
     connect(&m_process, &QProcess::errorOccurred,
             this, &DrowsinessCameraController::handleProcessError);
+    connect(&m_stopTimer, &QTimer::timeout, this, [this]() {
+        if (!m_activeRequested)
+            stop();
+    });
 }
 
 DrowsinessCameraController::~DrowsinessCameraController()
@@ -211,6 +218,7 @@ void DrowsinessCameraController::start()
 void DrowsinessCameraController::stop()
 {
     m_activeRequested = false;
+    m_stopTimer.stop();
 
     if (m_process.state() == QProcess::NotRunning) {
         setRunning(false);
@@ -230,10 +238,18 @@ void DrowsinessCameraController::stop()
 
 void DrowsinessCameraController::setActive(bool active)
 {
-    if (active)
+    qInfo() << "[DrowsyCamera] setActive(" << active << ")"
+            << "running=" << m_running
+            << "state=" << m_process.state();
+
+    if (active) {
+        m_stopTimer.stop();
         start();
-    else
-        stop();
+    } else {
+        m_activeRequested = false;
+        if (!m_stopTimer.isActive())
+            m_stopTimer.start();
+    }
 }
 
 void DrowsinessCameraController::handleStdout()

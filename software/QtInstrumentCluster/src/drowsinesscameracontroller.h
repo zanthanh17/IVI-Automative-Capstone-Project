@@ -5,6 +5,7 @@
 #include <QProcess>
 #include <QImage>
 #include <QMutex>
+#include <QTimer>
 
 class QQmlImageProviderBase;
 
@@ -61,6 +62,7 @@ private:
     void setErrorText(const QString &value);
 
     QProcess m_process;
+    QTimer m_stopTimer;
     bool m_running = false;
     bool m_activeRequested = false;
     QString m_statusText = QStringLiteral("AI detector idle");
