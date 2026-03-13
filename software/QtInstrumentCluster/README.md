@@ -219,11 +219,16 @@ DROWSY_FPS=30
 DROWSY_EXPORT_QUALITY=70
 DROWSY_EXPORT_EVERY_N=1
 DROWSY_METRICS_EVERY_N=10
-DROWSY_PYTHON=python3
+# Prefer venv python on Pi:
+# DROWSY_PYTHON=/home/pi/IVI-Automative-Capstone-Project/software/Driver-Drowsy-Detection/.venv-pi/bin/python3
+# Optional fixed camera node:
+# DROWSY_CAMERA_PATH=/dev/video0
+# Optional scan range when using camera-index:
+# DROWSY_FALLBACK_SCAN_MAX=6
+# Optional explicit script path:
+# DROWSY_LIVE_CAMERA_SCRIPT=/home/pi/IVI-Automative-Capstone-Project/software/Driver-Drowsy-Detection/app/live_camera.py
 # Optional: also dump frames to file (debug only, adds overhead)
 # DROWSY_EXPORT_FRAME=/tmp/drowsy_live_frame.jpg
-# Optional if your working directory layout is different:
-# DROWSY_LIVE_CAMERA_SCRIPT=/abs/path/to/live_camera.py
 ```
 
 If FPS drops, reduce first:

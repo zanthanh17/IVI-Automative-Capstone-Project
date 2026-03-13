@@ -32,9 +32,26 @@ export QT_IM_MODULE="${QT_IM_MODULE:-qtvirtualkeyboard}"
 export QT_VIRTUALKEYBOARD_LOCALE="${QT_VIRTUALKEYBOARD_LOCALE:-vi_VN}"
 
 # Drowsiness detector worker defaults (Camera page, Qt5)
-export DROWSY_PYTHON="${DROWSY_PYTHON:-python3}"
+DEFAULT_DROWSY_ROOT="${PROJECT_DIR}/../Driver-Drowsy-Detection"
+DEFAULT_DROWSY_PYTHON="${DEFAULT_DROWSY_ROOT}/.venv-pi/bin/python3"
+DEFAULT_DROWSY_SCRIPT="${DEFAULT_DROWSY_ROOT}/app/live_camera.py"
+
+if [[ -z "${DROWSY_PYTHON:-}" ]]; then
+    if [[ -x "${DEFAULT_DROWSY_PYTHON}" ]]; then
+        export DROWSY_PYTHON="${DEFAULT_DROWSY_PYTHON}"
+    else
+        export DROWSY_PYTHON="python3"
+    fi
+fi
+
+if [[ -z "${DROWSY_LIVE_CAMERA_SCRIPT:-}" && -f "${DEFAULT_DROWSY_SCRIPT}" ]]; then
+    export DROWSY_LIVE_CAMERA_SCRIPT="${DEFAULT_DROWSY_SCRIPT}"
+fi
+
 export DROWSY_BACKEND="${DROWSY_BACKEND:-v4l2}"
 export DROWSY_CAMERA_INDEX="${DROWSY_CAMERA_INDEX:-0}"
+export DROWSY_CAMERA_PATH="${DROWSY_CAMERA_PATH:-}"
+export DROWSY_FALLBACK_SCAN_MAX="${DROWSY_FALLBACK_SCAN_MAX:-6}"
 export DROWSY_WIDTH="${DROWSY_WIDTH:-960}"
 export DROWSY_HEIGHT="${DROWSY_HEIGHT:-540}"
 export DROWSY_FPS="${DROWSY_FPS:-30}"
@@ -55,7 +72,15 @@ echo "[INFO] QT_QPA_PLATFORM=${QT_QPA_PLATFORM}"
 echo "[INFO] QT_IM_MODULE=${QT_IM_MODULE}"
 echo "[INFO] QT_VIRTUALKEYBOARD_LOCALE=${QT_VIRTUALKEYBOARD_LOCALE}"
 echo "[INFO] XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-"(not set)"}"
+echo "[INFO] DROWSY python=${DROWSY_PYTHON}"
+if [[ -n "${DROWSY_LIVE_CAMERA_SCRIPT:-}" ]]; then
+    echo "[INFO] DROWSY script=${DROWSY_LIVE_CAMERA_SCRIPT}"
+fi
+if [[ -n "${DROWSY_CAMERA_PATH}" ]]; then
+    echo "[INFO] DROWSY camera-path=${DROWSY_CAMERA_PATH}"
+fi
 echo "[INFO] DROWSY camera=${DROWSY_CAMERA_INDEX} ${DROWSY_WIDTH}x${DROWSY_HEIGHT}@${DROWSY_FPS}"
+echo "[INFO] DROWSY fallback-scan-max=${DROWSY_FALLBACK_SCAN_MAX}"
 echo "[INFO] DROWSY stream quality=${DROWSY_EXPORT_QUALITY} everyN=${DROWSY_EXPORT_EVERY_N}"
 if [[ -n "${DROWSY_EXPORT_FRAME}" ]]; then
     echo "[INFO] DROWSY optional file export=${DROWSY_EXPORT_FRAME}"

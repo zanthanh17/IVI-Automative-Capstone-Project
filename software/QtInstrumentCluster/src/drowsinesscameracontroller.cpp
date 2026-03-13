@@ -8,6 +8,7 @@
 #include <QMutexLocker>
 #include <QQuickImageProvider>
 #include <QRegularExpression>
+#include <QStandardPaths>
 #include <cstring>
 
 namespace {
@@ -129,11 +130,24 @@ void DrowsinessCameraController::start()
 
     const QString workDir = resolveWorkingDir(scriptPath);
     const QString pythonBin = readEnvOrDefault("DROWSY_PYTHON", QStringLiteral("python3"));
+    QString resolvedPython = pythonBin;
+    const QFileInfo pythonFi(pythonBin);
+    if (pythonFi.isAbsolute()) {
+        if (!pythonFi.exists() || !pythonFi.isExecutable())
+            resolvedPython.clear();
+    } else {
+        resolvedPython = QStandardPaths::findExecutable(pythonBin);
+    }
+
+    if (resolvedPython.isEmpty()) {
+        setErrorText(QStringLiteral("Python executable not found: %1").arg(pythonBin));
+        setStatusText(QStringLiteral("AI detector unavailable"));
+        return;
+    }
 
     QStringList args;
     args << "-u"
          << scriptPath
-         << "--camera-index" << readEnvOrDefault("DROWSY_CAMERA_INDEX", QStringLiteral("0"))
          << "--backend" << readEnvOrDefault("DROWSY_BACKEND", QStringLiteral("v4l2"))
          << "--width" << readEnvOrDefault("DROWSY_WIDTH", QStringLiteral("960"))
          << "--height" << readEnvOrDefault("DROWSY_HEIGHT", QStringLiteral("540"))
@@ -144,12 +158,21 @@ void DrowsinessCameraController::start()
          << "--export-every-n" << readEnvOrDefault("DROWSY_EXPORT_EVERY_N", QStringLiteral("1"))
          << "--metrics-every-n" << readEnvOrDefault("DROWSY_METRICS_EVERY_N", QStringLiteral("10"));
 
+    const QString cameraPath = readEnvOrDefault("DROWSY_CAMERA_PATH", QString());
+    if (!cameraPath.isEmpty()) {
+        args << "--camera-path" << cameraPath;
+    } else {
+        args << "--camera-index" << readEnvOrDefault("DROWSY_CAMERA_INDEX", QStringLiteral("0"))
+             << "--fallback-scan-max" << readEnvOrDefault("DROWSY_FALLBACK_SCAN_MAX", QStringLiteral("6"));
+    }
+
     const QString exportFramePath = readEnvOrDefault("DROWSY_EXPORT_FRAME", QString());
     if (!exportFramePath.isEmpty())
         args << "--export-frame" << exportFramePath;
 
     m_framePacketBuffer.clear();
     m_stderrBuffer.clear();
+    m_lastStderrLine.clear();
     clearFrame();
     setDetectorFps(0.0);
     setErrorText(QString());
@@ -158,14 +181,21 @@ void DrowsinessCameraController::start()
     if (!workDir.isEmpty())
         m_process.setWorkingDirectory(workDir);
 
-    m_process.setProgram(pythonBin);
+    m_startSummary = QStringLiteral("python=%1 script=%2 workdir=%3")
+                         .arg(resolvedPython, scriptPath, workDir);
+    qInfo() << "[DrowsyCamera] Starting worker:" << m_startSummary;
+
+    m_process.setProgram(resolvedPython);
     m_process.setArguments(args);
     m_process.start();
 
     if (!m_process.waitForStarted(3000)) {
-        setErrorText(QStringLiteral("Cannot start AI detector process"));
+        setErrorText(QStringLiteral("Cannot start AI detector process: %1")
+                         .arg(m_process.errorString()));
         setStatusText(QStringLiteral("AI detector failed to start"));
         setRunning(false);
+        qWarning() << "[DrowsyCamera] FailedToStart" << m_startSummary
+                   << "error=" << m_process.errorString();
         return;
     }
 
@@ -218,6 +248,8 @@ void DrowsinessCameraController::handleStderr()
         if (line.isEmpty())
             continue;
 
+        m_lastStderrLine = line;
+
         if (parseMetricLine(line))
             continue;
 
@@ -235,7 +267,9 @@ void DrowsinessCameraController::handleStderr()
         if (line.startsWith(QStringLiteral("Missing dependency"))
             || line.contains(QStringLiteral("Traceback"))
             || line.contains(QStringLiteral("Exception"))
-            || line.contains(QStringLiteral("Error"))) {
+            || line.contains(QStringLiteral("Error"))
+            || line.contains(QStringLiteral("Segmentation fault"), Qt::CaseInsensitive)
+            || line.contains(QStringLiteral("Illegal instruction"), Qt::CaseInsensitive)) {
             setErrorText(line);
         }
 
@@ -258,9 +292,18 @@ void DrowsinessCameraController::handleFinished(int exitCode, QProcess::ExitStat
         return;
     }
 
-    if (m_errorText.isEmpty())
-        setErrorText(QStringLiteral("AI detector exited unexpectedly"));
+    if (m_errorText.isEmpty()) {
+        if (!m_lastStderrLine.isEmpty())
+            setErrorText(QStringLiteral("AI detector exited (%1): %2").arg(exitCode).arg(m_lastStderrLine));
+        else
+            setErrorText(QStringLiteral("AI detector exited unexpectedly (%1)").arg(exitCode));
+    }
     setStatusText(QStringLiteral("AI detector stopped unexpectedly"));
+    qWarning() << "[DrowsyCamera] Worker finished unexpectedly."
+               << "exitCode=" << exitCode
+               << "exitStatus=" << exitStatus
+               << "lastStderr=" << m_lastStderrLine
+               << m_startSummary;
 }
 
 void DrowsinessCameraController::handleProcessError(QProcess::ProcessError error)
@@ -268,9 +311,15 @@ void DrowsinessCameraController::handleProcessError(QProcess::ProcessError error
     if (error == QProcess::FailedToStart)
         setErrorText(QStringLiteral("Failed to start python process. Check DROWSY_PYTHON."));
     else if (error == QProcess::Crashed)
-        setErrorText(QStringLiteral("AI detector process crashed"));
+        setErrorText(m_lastStderrLine.isEmpty()
+                         ? QStringLiteral("AI detector process crashed")
+                         : QStringLiteral("AI detector process crashed: %1").arg(m_lastStderrLine));
     else
         setErrorText(QStringLiteral("AI detector process error"));
+
+    qWarning() << "[DrowsyCamera] Process error:" << error
+               << "lastStderr=" << m_lastStderrLine
+               << m_startSummary;
 }
 
 bool DrowsinessCameraController::parseMetricLine(const QString &line)

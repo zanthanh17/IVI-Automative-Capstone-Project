@@ -68,6 +68,8 @@ private:
     QString m_errorText;
     QByteArray m_framePacketBuffer;
     QString m_stderrBuffer;
+    QString m_lastStderrLine;
+    QString m_startSummary;
     mutable QMutex m_frameMutex;
     QImage m_latestFrame;
     qulonglong m_frameSequence = 0;

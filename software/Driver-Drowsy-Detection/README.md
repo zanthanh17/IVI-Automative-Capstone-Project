@@ -282,6 +282,16 @@ Nếu gặp lỗi kiểu `_ARRAY_API not found` hoặc `numpy.core.multiarray fa
 bash scripts/pi4_setup.sh
 ```
 
+Nếu gặp lỗi apt kiểu `Release file ... is not valid yet`, đồng hồ hệ thống Pi đang bị lệch. Đồng bộ lại thời gian rồi chạy lại setup:
+
+```bash
+sudo timedatectl set-ntp true
+sudo systemctl restart systemd-timesyncd
+timedatectl status
+```
+
+Chỉ chạy lại `bash scripts/pi4_setup.sh` khi `System clock synchronized: yes`.
+
 ---
 
 ## ⚠️ Lưu Ý Quan Trọng

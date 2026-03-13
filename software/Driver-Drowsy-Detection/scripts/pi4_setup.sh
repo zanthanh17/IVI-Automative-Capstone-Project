@@ -29,8 +29,61 @@ if [[ "${EUID}" -ne 0 ]]; then
   fi
 fi
 
+wait_for_ntp_sync() {
+  if ! command -v timedatectl >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local sync_state=""
+  sync_state="$(timedatectl show -p NTPSynchronized --value 2>/dev/null || true)"
+  if [[ "$sync_state" == "yes" ]]; then
+    return 0
+  fi
+
+  echo "==> System clock not synchronized yet; enabling NTP"
+  "$SUDO" timedatectl set-ntp true >/dev/null 2>&1 || true
+  "$SUDO" systemctl restart systemd-timesyncd >/dev/null 2>&1 || true
+
+  local i=0
+  for i in {1..24}; do
+    sync_state="$(timedatectl show -p NTPSynchronized --value 2>/dev/null || true)"
+    if [[ "$sync_state" == "yes" ]]; then
+      echo "==> NTP synchronized"
+      return 0
+    fi
+    sleep 5
+  done
+
+  echo "WARNING: NTP synchronization is still pending."
+  echo "Current time: $(date -Is)"
+}
+
+apt_update_with_retry() {
+  if "$SUDO" apt-get update; then
+    return 0
+  fi
+
+  echo "apt-get update failed. Retrying after NTP sync attempt..."
+  wait_for_ntp_sync
+  if "$SUDO" apt-get update; then
+    return 0
+  fi
+
+  cat <<'EOF'
+ERROR: apt-get update failed after retry.
+If you see "Release file ... is not valid yet", the Pi clock is behind.
+Fix with:
+  sudo timedatectl set-ntp true
+  sudo systemctl restart systemd-timesyncd
+  timedatectl status
+Wait until "System clock synchronized: yes", then rerun this script.
+EOF
+  exit 1
+}
+
 echo "==> Installing system packages"
-"$SUDO" apt-get update
+wait_for_ntp_sync
+apt_update_with_retry
 "$SUDO" apt-get install -y \
   python3-venv \
   python3-pip \
