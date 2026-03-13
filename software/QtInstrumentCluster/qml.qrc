@@ -43,6 +43,7 @@
         <file>images/menu/phone.png</file>
         <file>images/menu/bluetooth.png</file>
         <file>images/menu/music.png</file>
+        <file>images/menu/camera.png</file>
         <file>images/menu/setup.png</file>
         <file>images/menu/weather.png</file>
         <file>images/weather/location.svg</file>
@@ -99,6 +100,8 @@
         <file>view/LaneAssistWhiteLine.qml</file>
         <file>view/LinearGauge.qml</file>
         <file>view/MediaPlayer.qml</file>
+        <file>view/Camera.qml</file>
+        <file>view/CameraQt5.qml</file>
         <file>view/Navigation.qml</file>
         <file>view/NavigationMapLocation.qml</file>
         <file>view/VirtualKeyboardOverlay.qml</file>

@@ -1,0 +1,76 @@
+# ─────────────────────────────────────────────────────────
+# Virtual Environment
+# ─────────────────────────────────────────────────────────
+drowsy_env/
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ─────────────────────────────────────────────────────────
+# Data — quá lớn để push (1.4 GB)
+# ─────────────────────────────────────────────────────────
+data/raw/
+data/processed/
+data/eye_dataset/
+data/mouth_dataset/
+data/splits/
+data/face_dataset/
+debug_crops/
+
+# Giữ lại cấu trúc thư mục
+!data/.gitkeep
+!data/raw/.gitkeep
+
+# ─────────────────────────────────────────────────────────
+# Model checkpoints — chỉ giữ TFLite + final .keras
+# ─────────────────────────────────────────────────────────
+models/**/*.h5
+models/**/best_p1.h5
+models/**/best_p2.h5
+models/**/final.h5
+# Giữ lại: *.tflite, *_fixed.keras, train_results.json
+
+# ─────────────────────────────────────────────────────────
+# Logs & caches
+# ─────────────────────────────────────────────────────────
+logs/*.log
+logs/eye_*/
+logs/yawn_*/
+logs/face_*/
+logs/fit/
+*.log
+
+# TensorBoard event files
+*.tfevents*
+runs/
+
+# ─────────────────────────────────────────────────────────
+# Python / Jupyter
+# ─────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+.jupyter/
+
+# ─────────────────────────────────────────────────────────
+# OS / Editor
+# ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─────────────────────────────────────────────────────────
+# Misc
+# ─────────────────────────────────────────────────────────
+*.tmp
+*.bak
+*.orig
+__MACOSX/

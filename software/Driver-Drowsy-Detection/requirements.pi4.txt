@@ -1,0 +1,8 @@
+# Minimal runtime dependencies for Raspberry Pi 4 (Bookworm 64-bit)
+# MediaPipe is installed separately in scripts/pi4_setup.sh with fallback logic.
+
+numpy==1.26.4
+opencv-python>=4.8,<5
+pyyaml>=6.0
+tflite-runtime>=2.14
+protobuf<5

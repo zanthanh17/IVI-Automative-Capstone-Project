@@ -1,0 +1,42 @@
+[
+  {
+    "video": "Bao_awake.mp4",
+    "expected": "awake",
+    "alert_ratio": 0.0,
+    "correct": true,
+    "avg_latency_ms": 5.844381006053564,
+    "p95_latency_ms": 6.638958299708975,
+    "fps": 171.1045188471128,
+    "processed_frames": 330
+  },
+  {
+    "video": "Bao_drowsy.mp4",
+    "expected": "drowsy",
+    "alert_ratio": 0.9313725490196079,
+    "correct": true,
+    "avg_latency_ms": 5.344973049001186,
+    "p95_latency_ms": 6.074892749666105,
+    "fps": 187.09168237749483,
+    "processed_frames": 306
+  },
+  {
+    "video": "Thanh_awake.mp4",
+    "expected": "awake",
+    "alert_ratio": 0.0,
+    "correct": true,
+    "avg_latency_ms": 6.098146725429815,
+    "p95_latency_ms": 7.03805450029904,
+    "fps": 163.9842471861018,
+    "processed_frames": 346
+  },
+  {
+    "video": "Thanh_drowsy.mp4",
+    "expected": "drowsy",
+    "alert_ratio": 0.9107692307692308,
+    "correct": true,
+    "avg_latency_ms": 6.143210803079105,
+    "p95_latency_ms": 6.998965200546081,
+    "fps": 162.78132593118556,
+    "processed_frames": 325
+  }
+]

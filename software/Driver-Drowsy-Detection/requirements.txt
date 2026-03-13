@@ -1,0 +1,27 @@
+# Requirements for DMS Drowsiness Detection
+# ─────────────────────────────────────────
+# GPU  : pip install -r requirements.txt
+# CPU  : thay tensorflow[and-cuda] → tensorflow
+
+# Core ML ──────────────────────────────────
+tensorflow[and-cuda]==2.18.0        # GPU (CUDA 12.5 auto-bundled)
+mediapipe==0.10.14                  # ⚠ phải dùng ≤0.10.14 (solutions API)
+
+# Computer Vision ─────────────────────────
+opencv-contrib-python>=4.8
+
+# ML utilities ────────────────────────────
+scikit-learn>=1.3
+h5py>=3.10                          # H5 weight extraction (TF2.18 bug)
+
+# Data & Math ─────────────────────────────
+scipy>=1.11
+numpy>=1.24,<2.1
+
+# Visualization ───────────────────────────
+matplotlib>=3.7
+
+# Utilities ───────────────────────────────
+tqdm
+pillow>=10.0
+pyyaml>=6.0

@@ -201,3 +201,32 @@ Notes:
 - If keyboard logs `module "Qt.labs.folderlistmodel" is not installed`, install:
   `sudo apt install -y qml-module-qt-labs-folderlistmodel qml-module-qt-labs-settings qml-module-qt-labs-platform`
 - Destination search now applies Vietnamese Telex normalization in the search box and biases geocoding to Da Nang when city is not explicitly provided.
+
+### Driver Drowsiness Camera Page (Qt5)
+
+- Camera page now runs **Python AI worker** (`Driver-Drowsy-Detection/app/live_camera.py`) in headless mode.
+- The worker owns camera capture + inference, streams JPEG frames via stdout packet protocol.
+- Qt side consumes that stream in-memory through a `QQuickImageProvider` (`image://drowsy/...`), no frame-file polling.
+- This reduces disk I/O, lowers UI latency, and keeps Qt render loop lighter.
+
+Recommended defaults in `.env` for stable FPS on Pi:
+
+```bash
+DROWSY_CAMERA_INDEX=0
+DROWSY_WIDTH=960
+DROWSY_HEIGHT=540
+DROWSY_FPS=30
+DROWSY_EXPORT_QUALITY=70
+DROWSY_EXPORT_EVERY_N=1
+DROWSY_METRICS_EVERY_N=10
+DROWSY_PYTHON=python3
+# Optional: also dump frames to file (debug only, adds overhead)
+# DROWSY_EXPORT_FRAME=/tmp/drowsy_live_frame.jpg
+# Optional if your working directory layout is different:
+# DROWSY_LIVE_CAMERA_SCRIPT=/abs/path/to/live_camera.py
+```
+
+If FPS drops, reduce first:
+1. `DROWSY_WIDTH` / `DROWSY_HEIGHT` (e.g. `640x360`)
+2. `DROWSY_EXPORT_QUALITY` (e.g. `60`)
+3. `DROWSY_EXPORT_EVERY_N` (e.g. `2` to stream every 2 frames)

@@ -31,6 +31,18 @@ export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 export QT_IM_MODULE="${QT_IM_MODULE:-qtvirtualkeyboard}"
 export QT_VIRTUALKEYBOARD_LOCALE="${QT_VIRTUALKEYBOARD_LOCALE:-vi_VN}"
 
+# Drowsiness detector worker defaults (Camera page, Qt5)
+export DROWSY_PYTHON="${DROWSY_PYTHON:-python3}"
+export DROWSY_BACKEND="${DROWSY_BACKEND:-v4l2}"
+export DROWSY_CAMERA_INDEX="${DROWSY_CAMERA_INDEX:-0}"
+export DROWSY_WIDTH="${DROWSY_WIDTH:-960}"
+export DROWSY_HEIGHT="${DROWSY_HEIGHT:-540}"
+export DROWSY_FPS="${DROWSY_FPS:-30}"
+export DROWSY_EXPORT_FRAME="${DROWSY_EXPORT_FRAME:-}"
+export DROWSY_EXPORT_QUALITY="${DROWSY_EXPORT_QUALITY:-70}"
+export DROWSY_EXPORT_EVERY_N="${DROWSY_EXPORT_EVERY_N:-1}"
+export DROWSY_METRICS_EVERY_N="${DROWSY_METRICS_EVERY_N:-10}"
+
 # Root sessions often use /run/user/0 with wrong permissions (0755).
 # Force a private runtime dir to satisfy Qt's 0700 requirement.
 if [[ "$(id -u)" -eq 0 ]]; then
@@ -43,6 +55,11 @@ echo "[INFO] QT_QPA_PLATFORM=${QT_QPA_PLATFORM}"
 echo "[INFO] QT_IM_MODULE=${QT_IM_MODULE}"
 echo "[INFO] QT_VIRTUALKEYBOARD_LOCALE=${QT_VIRTUALKEYBOARD_LOCALE}"
 echo "[INFO] XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-"(not set)"}"
+echo "[INFO] DROWSY camera=${DROWSY_CAMERA_INDEX} ${DROWSY_WIDTH}x${DROWSY_HEIGHT}@${DROWSY_FPS}"
+echo "[INFO] DROWSY stream quality=${DROWSY_EXPORT_QUALITY} everyN=${DROWSY_EXPORT_EVERY_N}"
+if [[ -n "${DROWSY_EXPORT_FRAME}" ]]; then
+    echo "[INFO] DROWSY optional file export=${DROWSY_EXPORT_FRAME}"
+fi
 if [[ -n "${MAPBOX_ACCESS_TOKEN:-}" ]]; then
     echo "[INFO] MAPBOX_ACCESS_TOKEN is set (Mapbox map + routing enabled)."
 else

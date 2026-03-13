@@ -1,0 +1,83 @@
+# config.yaml — AI Agent đọc file này trước khi làm bất cứ điều gì
+
+project:
+  name: "IVI_DMS_Drowsiness_Detection"
+  version: "2.0"
+  seed: 42
+
+data:
+  img_size_face: 224          # Full face model input
+  img_size_region: 64         # Eye/mouth crop input
+  val_split: 0.15
+  test_split: 0.05            # CHỈ dùng own dataset (người Việt)
+  train_split: 0.80
+
+  # Số lượng minimum trước khi train
+  min_samples_face: 1500      # Mỗi class
+  min_samples_eye: 5000       # Mỗi class
+  min_samples_mouth: 2000     # Mỗi class
+
+  # Video extraction
+  video_fps_extract: 5        # Frame/giây lấy từ video
+
+  # Quality filters
+  blur_threshold: 80          # Laplacian variance minimum
+  brightness_min: 25
+  brightness_max: 245
+
+training:
+  batch_size: 32
+  epochs_phase1: 20           # Frozen base
+  epochs_phase2: 30           # Fine-tune
+  lr_phase1: 0.001
+  lr_phase2: 0.000005
+  patience_early_stop: 8
+  patience_reduce_lr: 4
+
+  # Augmentation
+  augment_times: 4            # Nhân dataset train lên 4x
+
+  # Class balance
+  use_class_weights: true
+
+models:
+  eye_cnn:
+    base: "MobileNetV2"
+    alpha: 0.35               # Lightweight version
+    input_size: 64
+    unfreeze_layers: 30
+
+  yawn_cnn:
+    base: "MobileNetV2"
+    alpha: 0.35
+    input_size: 64
+    unfreeze_layers: 30
+
+thresholds:
+  ear: 0.25                   # < này → mắt nhắm
+  mar: 0.60                   # > này → đang ngáp
+  pitch_danger: 15.0          # độ, > này → đầu cúi nguy hiểm
+  roll_danger: 20.0           # độ
+  perclos_window: 90          # frames (~3s ở 30fps)
+  perclos_alert: 0.15         # 15% thời gian mắt nhắm
+  yawn_decay_frames: 150      # Frame để yawn counter về 0
+  fusion_alert: 0.45          # Ngưỡng cảnh báo cuối cùng
+  drowsy_confirm_frames: 15   # Liên tục bao nhiêu frame mới alert
+
+fusion_weights:
+  eye_cnn: 0.15
+  ear_perclos: 0.45
+  yawn_combined: 0.15
+  yawn_counter: 0.15
+  head_pose: 0.25
+
+export:
+  quantize: true              # INT8 quantization
+  target_device: "rpi4"
+
+targets:
+  accuracy_eye: 0.97
+  accuracy_yawn: 0.95
+  accuracy_overall: 0.95
+  latency_ms: 80
+  fps_rpi4: 12

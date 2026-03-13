@@ -124,6 +124,12 @@ Item {
             anchors.fill: parent;
         }
 
+        Camera {
+            activeMode: active;
+            selected: menu == NormalModeModel.CameraMenu;
+            anchors.fill: parent;
+        }
+
         Setup {
             activeMode: active;
             // Tạm dùng CarStatusMenu làm trang Setup

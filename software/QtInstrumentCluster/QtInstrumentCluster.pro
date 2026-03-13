@@ -22,6 +22,7 @@ linux: QT += dbus
 
 SOURCES += \
         src/bluetoothcontroller.cpp \
+        src/drowsinesscameracontroller.cpp \
         main.cpp \
         src/externalmediacontroller.cpp \
         src/mainmodel.cpp \
@@ -50,6 +51,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 
 HEADERS += \
     src/bluetoothcontroller.h \
+    src/drowsinesscameracontroller.h \
     src/externalmediacontroller.h \
     src/mainmodel.h \
     src/mathutils.h \
