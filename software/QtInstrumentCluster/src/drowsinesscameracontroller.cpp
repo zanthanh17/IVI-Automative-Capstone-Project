@@ -10,6 +10,7 @@
 #include <QQuickImageProvider>
 #include <QRegularExpression>
 #include <QStandardPaths>
+#include <QUrl>
 #include <cstring>
 
 namespace {
@@ -75,6 +76,10 @@ DrowsinessCameraController *DrowsinessCameraController::instance()
 DrowsinessCameraController::DrowsinessCameraController(QObject *parent)
     : QObject(parent)
 {
+    m_frameTransport = readEnvOrDefault("DROWSY_FRAME_TRANSPORT", QStringLiteral("stdout")).trimmed().toLower();
+    if (m_frameTransport != QLatin1String("file"))
+        m_frameTransport = QStringLiteral("stdout");
+    m_frameFilePath = readEnvOrDefault("DROWSY_EXPORT_FRAME", QStringLiteral("/tmp/drowsy_live_frame.jpg"));
     m_keepWorkerAliveOnHide = envFlagEnabled("DROWSY_PERSIST_WORKER", true);
     m_stopTimer.setSingleShot(true);
     m_stopTimer.setInterval(1000);
@@ -125,6 +130,16 @@ qulonglong DrowsinessCameraController::frameSequence() const
 {
     QMutexLocker locker(&m_frameMutex);
     return m_frameSequence;
+}
+
+QString DrowsinessCameraController::frameTransport() const
+{
+    return m_frameTransport;
+}
+
+QString DrowsinessCameraController::frameFileUrl() const
+{
+    return QUrl::fromLocalFile(m_frameFilePath).toString();
 }
 
 QImage DrowsinessCameraController::latestFrameCopy() const
@@ -189,11 +204,19 @@ void DrowsinessCameraController::start()
              << "--fallback-scan-max" << readEnvOrDefault("DROWSY_FALLBACK_SCAN_MAX", QStringLiteral("6"));
     }
 
-    const QString transport = readEnvOrDefault("DROWSY_FRAME_TRANSPORT", QStringLiteral("stdout")).trimmed().toLower();
-    m_frameTransport = (transport == QLatin1String("file"))
-                           ? QStringLiteral("file")
-                           : QStringLiteral("stdout");
-    m_frameFilePath = readEnvOrDefault("DROWSY_EXPORT_FRAME", QStringLiteral("/tmp/drowsy_live_frame.jpg"));
+    const QString nextTransport = readEnvOrDefault("DROWSY_FRAME_TRANSPORT", QStringLiteral("stdout")).trimmed().toLower();
+    const QString nextFrameTransport = (nextTransport == QLatin1String("file"))
+                                           ? QStringLiteral("file")
+                                           : QStringLiteral("stdout");
+    const QString nextFrameFilePath = readEnvOrDefault("DROWSY_EXPORT_FRAME", QStringLiteral("/tmp/drowsy_live_frame.jpg"));
+    if (m_frameTransport != nextFrameTransport) {
+        m_frameTransport = nextFrameTransport;
+        emit frameTransportChanged();
+    }
+    if (m_frameFilePath != nextFrameFilePath) {
+        m_frameFilePath = nextFrameFilePath;
+        emit frameFileUrlChanged();
+    }
     m_lastFrameFileModified = QDateTime();
     m_lastFrameFileSize = -1;
 

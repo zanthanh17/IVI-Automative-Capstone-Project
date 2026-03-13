@@ -5,6 +5,7 @@ Item {
     id: cameraView
 
     property bool cameraActive: false
+    readonly property bool useFileTransport: DrowsyCamera.frameTransport === "file"
     readonly property bool frameReady: DrowsyCamera.frameSequence > 0 && liveFrame.status === Image.Ready
     readonly property bool hasBackendError: DrowsyCamera.errorText.length > 0
     readonly property bool showMessageOverlay: !cameraActive || !frameReady || hasBackendError
@@ -40,7 +41,9 @@ Item {
             id: liveFrame
             anchors.fill: parent
             source: cameraView.cameraActive
-                    ? ("image://drowsy/live?seq=" + DrowsyCamera.frameSequence)
+                    ? (cameraView.useFileTransport
+                        ? (DrowsyCamera.frameFileUrl + "?seq=" + DrowsyCamera.frameSequence)
+                        : ("image://drowsy/live?seq=" + DrowsyCamera.frameSequence))
                     : ""
             fillMode: Image.PreserveAspectCrop
             asynchronous: true

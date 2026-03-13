@@ -18,6 +18,8 @@ class DrowsinessCameraController : public QObject
     Q_PROPERTY(double detectorFps READ detectorFps NOTIFY detectorFpsChanged)
     Q_PROPERTY(QString errorText READ errorText NOTIFY errorTextChanged)
     Q_PROPERTY(qulonglong frameSequence READ frameSequence NOTIFY frameSequenceChanged)
+    Q_PROPERTY(QString frameTransport READ frameTransport NOTIFY frameTransportChanged)
+    Q_PROPERTY(QString frameFileUrl READ frameFileUrl NOTIFY frameFileUrlChanged)
 
 public:
     static DrowsinessCameraController *instance();
@@ -30,6 +32,8 @@ public:
     double detectorFps() const;
     QString errorText() const;
     qulonglong frameSequence() const;
+    QString frameTransport() const;
+    QString frameFileUrl() const;
     QImage latestFrameCopy() const;
     QQmlImageProviderBase *createImageProvider();
 
@@ -43,6 +47,8 @@ signals:
     void detectorFpsChanged();
     void errorTextChanged();
     void frameSequenceChanged();
+    void frameTransportChanged();
+    void frameFileUrlChanged();
 
 private:
     void consumeLogText(QString &buffer);
