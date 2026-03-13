@@ -45,6 +45,7 @@ signals:
     void frameSequenceChanged();
 
 private:
+    void consumeLogText(QString &buffer);
     void handleStdout();
     void handleStderr();
     void handleFinished(int exitCode, QProcess::ExitStatus exitStatus);

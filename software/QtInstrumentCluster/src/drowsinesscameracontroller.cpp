@@ -293,8 +293,11 @@ void DrowsinessCameraController::setActive(bool active)
 
 void DrowsinessCameraController::handleStdout()
 {
-    if (m_frameTransport != QLatin1String("stdout"))
+    if (m_frameTransport == QLatin1String("file")) {
+        m_stderrBuffer += QString::fromUtf8(m_process.readAllStandardOutput());
+        consumeLogText(m_stderrBuffer);
         return;
+    }
 
     m_framePacketBuffer.append(m_process.readAllStandardOutput());
     parseFramePackets();
@@ -303,11 +306,15 @@ void DrowsinessCameraController::handleStdout()
 void DrowsinessCameraController::handleStderr()
 {
     m_stderrBuffer += QString::fromUtf8(m_process.readAllStandardError());
+    consumeLogText(m_stderrBuffer);
+}
 
+void DrowsinessCameraController::consumeLogText(QString &buffer)
+{
     int newlineIndex = -1;
-    while ((newlineIndex = m_stderrBuffer.indexOf(QLatin1Char('\n'))) >= 0) {
-        const QString line = m_stderrBuffer.left(newlineIndex).trimmed();
-        m_stderrBuffer.remove(0, newlineIndex + 1);
+    while ((newlineIndex = buffer.indexOf(QLatin1Char('\n'))) >= 0) {
+        const QString line = buffer.left(newlineIndex).trimmed();
+        buffer.remove(0, newlineIndex + 1);
 
         if (line.isEmpty())
             continue;
@@ -474,9 +481,6 @@ void DrowsinessCameraController::pollFrameFile()
     if (!fi.exists() || !fi.isFile())
         return;
 
-    if (fi.lastModified() == m_lastFrameFileModified && fi.size() == m_lastFrameFileSize)
-        return;
-
     QImage frame;
     if (!frame.load(fi.absoluteFilePath()))
         return;
@@ -492,8 +496,16 @@ void DrowsinessCameraController::pollFrameFile()
         sequenceChanged = true;
     }
 
-    if (sequenceChanged)
+    if (sequenceChanged) {
+        if (!m_running)
+            setRunning(true);
+        if (!m_statusText.startsWith(QStringLiteral("AWAKE"))
+            && !m_statusText.startsWith(QStringLiteral("WARNING"))
+            && !m_statusText.startsWith(QStringLiteral("DROWSY"))) {
+            setStatusText(QStringLiteral("AI detector running"));
+        }
         emit frameSequenceChanged();
+    }
 }
 
 void DrowsinessCameraController::clearFrame()
