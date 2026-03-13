@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QMutexLocker>
+#include <QProcessEnvironment>
 #include <QQuickImageProvider>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -146,7 +147,8 @@ void DrowsinessCameraController::start()
     }
 
     QStringList args;
-    args << "-u"
+    args << "-X" << "faulthandler"
+         << "-u"
          << scriptPath
          << "--backend" << readEnvOrDefault("DROWSY_BACKEND", QStringLiteral("v4l2"))
          << "--width" << readEnvOrDefault("DROWSY_WIDTH", QStringLiteral("960"))
@@ -185,6 +187,10 @@ void DrowsinessCameraController::start()
                          .arg(resolvedPython, scriptPath, workDir);
     qInfo() << "[DrowsyCamera] Starting worker:" << m_startSummary;
 
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    if (!env.contains(QStringLiteral("PYTHONFAULTHANDLER")))
+        env.insert(QStringLiteral("PYTHONFAULTHANDLER"), QStringLiteral("1"));
+    m_process.setProcessEnvironment(env);
     m_process.setProgram(resolvedPython);
     m_process.setArguments(args);
     m_process.start();
@@ -308,6 +314,12 @@ void DrowsinessCameraController::handleFinished(int exitCode, QProcess::ExitStat
 
 void DrowsinessCameraController::handleProcessError(QProcess::ProcessError error)
 {
+    if (!m_activeRequested) {
+        qInfo() << "[DrowsyCamera] Ignoring process error during requested stop:" << error
+                << m_startSummary;
+        return;
+    }
+
     if (error == QProcess::FailedToStart)
         setErrorText(QStringLiteral("Failed to start python process. Check DROWSY_PYTHON."));
     else if (error == QProcess::Crashed)
