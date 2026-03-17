@@ -204,9 +204,11 @@ Notes:
 
 ### Driver Drowsiness Camera Launcher (Qt5)
 
-- The bottom-bar `Camera` icon now launches `Driver-Drowsy-Detection/app/live_camera.py` as a separate app.
-- The Qt dashboard no longer embeds a camera preview page; the current dashboard page stays unchanged after clicking `Camera`.
-- Qt resolves the Python interpreter from `DROWSY_PYTHON`, then falls back to the drowsy detector virtualenv (`.venv-pi`, then `.venv`).
+- The bottom-bar `Camera` icon now calls `Driver-Drowsy-Detection/app/drowsy_camera_ctl.py show`.
+- The detector itself runs as a persistent background daemon (`live_camera_daemon.py`) and keeps the camera/model warm.
+- The visible window is now a lightweight viewer client (`live_camera_viewer.py`), so clicking `Camera` no longer restarts the detector.
+- The Qt dashboard still stays on the current page after clicking `Camera`.
+- Each `show` request also forwards the current GUI session environment (`DISPLAY` / `XAUTHORITY` / `XDG_RUNTIME_DIR` / Wayland vars), so a daemon started earlier by `systemd --user` can still pop the viewer correctly on Pi.
 
 Recommended `.env` values for Raspberry Pi:
 
@@ -217,23 +219,30 @@ DROWSY_HEIGHT=540
 DROWSY_FPS=30
 # Prefer venv python on Pi:
 # DROWSY_PYTHON=/home/pi/IVI-Automative-Capstone-Project/software/Driver-Drowsy-Detection/.venv-pi/bin/python3
+# Optional explicit control script path:
+# DROWSY_CAMERA_CTL_SCRIPT=/home/pi/IVI-Automative-Capstone-Project/software/Driver-Drowsy-Detection/app/drowsy_camera_ctl.py
+# Optional daemon socket path:
+# DROWSY_DAEMON_SOCKET=/run/user/1000/drowsy-camera-daemon.sock
 # Optional fixed camera node:
 # DROWSY_CAMERA_PATH=/dev/video0
 # Optional scan range when using camera-index:
 # DROWSY_FALLBACK_SCAN_MAX=6
-# Optional explicit script path:
-# DROWSY_LIVE_CAMERA_SCRIPT=/home/pi/IVI-Automative-Capstone-Project/software/Driver-Drowsy-Detection/app/live_camera.py
+# Optional viewer behavior:
+# DROWSY_VIEWER_FULLSCREEN=1
+# DROWSY_VIEWER_TITLE=Driver Camera
 ```
 
 When the icon is clicked, Qt forwards:
-1. `--backend`
-2. `--width` / `--height`
-3. `--fps`
-4. `--camera-path` or `--camera-index` + `--fallback-scan-max`
+1. `show`
+2. `--start-daemon-if-needed`
+3. `--backend`
+4. `--width` / `--height`
+5. `--fps`
+6. `--camera-path` or `--camera-index` + `--fallback-scan-max`
 
 If performance drops, reduce first:
 1. `DROWSY_WIDTH` / `DROWSY_HEIGHT` (e.g. `640x360`)
 2. `DROWSY_FPS`
 3. camera source selection (`DROWSY_CAMERA_PATH` or `DROWSY_CAMERA_INDEX`)
 
-Repeated clicks do not spawn extra instances while the previously launched camera process is still running.
+Repeated clicks do not restart the detector. If the daemon is already alive, Qt only asks it to show the viewer.

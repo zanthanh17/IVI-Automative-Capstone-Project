@@ -34,7 +34,7 @@ export QT_VIRTUALKEYBOARD_LOCALE="${QT_VIRTUALKEYBOARD_LOCALE:-vi_VN}"
 # Drowsiness detector launcher defaults (external app)
 DEFAULT_DROWSY_ROOT="${PROJECT_DIR}/../Driver-Drowsy-Detection"
 DEFAULT_DROWSY_PYTHON="${DEFAULT_DROWSY_ROOT}/.venv-pi/bin/python3"
-DEFAULT_DROWSY_SCRIPT="${DEFAULT_DROWSY_ROOT}/app/live_camera.py"
+DEFAULT_DROWSY_CTL_SCRIPT="${DEFAULT_DROWSY_ROOT}/app/drowsy_camera_ctl.py"
 
 if [[ -z "${DROWSY_PYTHON:-}" ]]; then
     if [[ -x "${DEFAULT_DROWSY_PYTHON}" ]]; then
@@ -42,8 +42,8 @@ if [[ -z "${DROWSY_PYTHON:-}" ]]; then
     fi
 fi
 
-if [[ -z "${DROWSY_LIVE_CAMERA_SCRIPT:-}" && -f "${DEFAULT_DROWSY_SCRIPT}" ]]; then
-    export DROWSY_LIVE_CAMERA_SCRIPT="${DEFAULT_DROWSY_SCRIPT}"
+if [[ -z "${DROWSY_CAMERA_CTL_SCRIPT:-}" && -f "${DEFAULT_DROWSY_CTL_SCRIPT}" ]]; then
+    export DROWSY_CAMERA_CTL_SCRIPT="${DEFAULT_DROWSY_CTL_SCRIPT}"
 fi
 
 export DROWSY_BACKEND="${DROWSY_BACKEND:-v4l2}"
@@ -53,6 +53,9 @@ export DROWSY_FALLBACK_SCAN_MAX="${DROWSY_FALLBACK_SCAN_MAX:-6}"
 export DROWSY_WIDTH="${DROWSY_WIDTH:-960}"
 export DROWSY_HEIGHT="${DROWSY_HEIGHT:-540}"
 export DROWSY_FPS="${DROWSY_FPS:-30}"
+export DROWSY_VIEWER_FULLSCREEN="${DROWSY_VIEWER_FULLSCREEN:-0}"
+export DROWSY_VIEWER_TITLE="${DROWSY_VIEWER_TITLE:-}"
+export DROWSY_DAEMON_SOCKET="${DROWSY_DAEMON_SOCKET:-}"
 
 # Root sessions often use /run/user/0 with wrong permissions (0755).
 # Force a private runtime dir to satisfy Qt's 0700 requirement.
@@ -67,14 +70,21 @@ echo "[INFO] QT_IM_MODULE=${QT_IM_MODULE}"
 echo "[INFO] QT_VIRTUALKEYBOARD_LOCALE=${QT_VIRTUALKEYBOARD_LOCALE}"
 echo "[INFO] XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-"(not set)"}"
 echo "[INFO] DROWSY python=${DROWSY_PYTHON:-"(auto-resolve virtualenv in app)"}"
-if [[ -n "${DROWSY_LIVE_CAMERA_SCRIPT:-}" ]]; then
-    echo "[INFO] DROWSY script=${DROWSY_LIVE_CAMERA_SCRIPT}"
+if [[ -n "${DROWSY_CAMERA_CTL_SCRIPT:-}" ]]; then
+    echo "[INFO] DROWSY control=${DROWSY_CAMERA_CTL_SCRIPT}"
 fi
 if [[ -n "${DROWSY_CAMERA_PATH}" ]]; then
     echo "[INFO] DROWSY camera-path=${DROWSY_CAMERA_PATH}"
 fi
 echo "[INFO] DROWSY camera=${DROWSY_CAMERA_INDEX} ${DROWSY_WIDTH}x${DROWSY_HEIGHT}@${DROWSY_FPS}"
 echo "[INFO] DROWSY fallback-scan-max=${DROWSY_FALLBACK_SCAN_MAX}"
+echo "[INFO] DROWSY viewer-fullscreen=${DROWSY_VIEWER_FULLSCREEN}"
+if [[ -n "${DROWSY_VIEWER_TITLE}" ]]; then
+    echo "[INFO] DROWSY viewer-title=${DROWSY_VIEWER_TITLE}"
+fi
+if [[ -n "${DROWSY_DAEMON_SOCKET}" ]]; then
+    echo "[INFO] DROWSY daemon-socket=${DROWSY_DAEMON_SOCKET}"
+fi
 if [[ -z "${DROWSY_PYTHON:-}" ]]; then
     echo "[WARN] No DROWSY_PYTHON exported here; Qt launcher will only use a detected virtualenv (.venv-pi/.venv)."
 fi

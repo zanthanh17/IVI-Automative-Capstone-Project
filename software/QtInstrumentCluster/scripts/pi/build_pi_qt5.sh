@@ -47,8 +47,11 @@ echo "[INFO] Using qmake: ${QMAKE_CMD[*]} (Qt ${QT_VERSION})"
 echo "[INFO] Build directory: ${BUILD_DIR}"
 
 pushd "${BUILD_DIR}" >/dev/null
+if [[ -f Makefile ]]; then
+    echo "[INFO] Forcing full rebuild to avoid stale Qt object files"
+fi
 "${QMAKE_CMD[@]}" "${PRO_FILE}" "CONFIG+=release"
-make -j"${JOBS}"
+make -B -j"${JOBS}"
 popd >/dev/null
 
 APP_BIN=""

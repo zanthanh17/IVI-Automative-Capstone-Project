@@ -259,8 +259,12 @@ Repo đã có script cài nhanh + chạy nhanh cho Pi4:
 # 1) Setup 1 lần
 bash scripts/pi4_setup.sh
 
-# 2) Chạy live camera
+# 2) Chạy live camera foreground (debug/demo)
 bash scripts/pi4_run_live.sh
+
+# 3) Hoặc chạy daemon nền + viewer on-demand
+bash scripts/pi4_run_daemon.sh
+bash scripts/pi4_camera_ctl.sh show
 ```
 
 Mặc định script sẽ:
@@ -274,6 +278,21 @@ Tuỳ chỉnh nhanh:
 ```bash
 CAMERA_PATH=/dev/video0 WIDTH=960 HEIGHT=540 FPS=25 bash scripts/pi4_run_live.sh
 SAVE_VIDEO=results/pi4_live.mp4 bash scripts/pi4_run_live.sh
+```
+
+### Daemon nền + viewer on-demand
+
+- `scripts/pi4_run_daemon.sh`: giữ `VideoCapture`, detector/model, frame mới nhất và metrics luôn nóng trong nền.
+- `scripts/pi4_camera_ctl.sh show`: mở viewer riêng mà không restart detector.
+- `scripts/pi4_camera_ctl.sh hide`: đóng viewer, daemon vẫn chạy.
+- `scripts/pi4_camera_ctl.sh status`: lấy trạng thái daemon hiện tại.
+- Lệnh `show` tự forward `DISPLAY` / `WAYLAND_DISPLAY` / `XAUTHORITY` / `XDG_RUNTIME_DIR` hiện tại sang daemon, nên viewer vẫn bật đúng ngay cả khi daemon đã được `systemd --user` khởi chạy từ sớm.
+
+Cài dưới `systemd --user` để daemon tự chạy sau login:
+
+```bash
+bash scripts/pi4_install_daemon_service.sh
+systemctl --user status drowsy-camera-daemon.service
 ```
 
 Nếu gặp lỗi kiểu `_ARRAY_API not found` hoặc `numpy.core.multiarray failed to import`, chạy lại setup để hạ NumPy về bản tương thích:
