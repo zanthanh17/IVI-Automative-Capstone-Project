@@ -35,4 +35,4 @@ firmware/*.launch
 *.log
 
 # Qt build artifacts
-software/**/build/
+software/**/build-pi-qt5/

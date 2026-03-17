@@ -41,6 +41,22 @@ QString resolveExecutableCandidate(const QString &value, const QString &baseDir 
 
     return QStandardPaths::findExecutable(trimmed);
 }
+
+bool isVirtualEnvPython(const QString &pythonPath)
+{
+    const QFileInfo pythonInfo(pythonPath);
+    if (!pythonInfo.exists() || !pythonInfo.isExecutable())
+        return false;
+
+    QDir binDir = pythonInfo.absoluteDir();
+    if (binDir.dirName() != QLatin1String("bin"))
+        return false;
+
+    if (!binDir.cdUp())
+        return false;
+
+    return QFileInfo(binDir.absoluteFilePath(QStringLiteral("pyvenv.cfg"))).exists();
+}
 }
 
 // ────────────────────────── Singleton ──────────────────────────
@@ -633,10 +649,15 @@ QString SystemSettingsController::resolveDrowsyCameraPython(const QString &camer
     const QString envPython = qEnvironmentVariable("DROWSY_PYTHON").trimmed();
     if (!envPython.isEmpty()) {
         const QString resolvedEnvPython = resolveExecutableCandidate(envPython, cameraRoot);
-        if (!resolvedEnvPython.isEmpty())
+        if (!resolvedEnvPython.isEmpty() && isVirtualEnvPython(resolvedEnvPython))
             return resolvedEnvPython;
 
-        qWarning() << "[SystemSettings] DROWSY_PYTHON is not executable:" << envPython;
+        if (resolvedEnvPython.isEmpty()) {
+            qWarning() << "[SystemSettings] DROWSY_PYTHON is not executable:" << envPython;
+        } else {
+            qWarning() << "[SystemSettings] DROWSY_PYTHON does not point to a virtualenv python:"
+                       << resolvedEnvPython;
+        }
     }
 
     const QStringList venvCandidates = {
@@ -645,9 +666,8 @@ QString SystemSettingsController::resolveDrowsyCameraPython(const QString &camer
     };
 
     for (const QString &candidate : venvCandidates) {
-        const QFileInfo info(candidate);
-        if (info.exists() && info.isExecutable())
-            return info.absoluteFilePath();
+        if (isVirtualEnvPython(candidate))
+            return QFileInfo(candidate).absoluteFilePath();
     }
 
     return QString();

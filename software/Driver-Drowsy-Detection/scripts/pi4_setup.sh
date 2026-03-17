@@ -19,10 +19,10 @@ if [[ "$ARCH" != "aarch64" ]]; then
   echo "WARNING: Detected arch '$ARCH' (expected aarch64 for Pi OS 64-bit)."
 fi
 
-SUDO=""
+SUDO_CMD=()
 if [[ "${EUID}" -ne 0 ]]; then
   if command -v sudo >/dev/null 2>&1; then
-    SUDO="sudo"
+    SUDO_CMD=(sudo)
   else
     echo "ERROR: sudo not available. Run this script as root."
     exit 1
@@ -41,8 +41,8 @@ wait_for_ntp_sync() {
   fi
 
   echo "==> System clock not synchronized yet; enabling NTP"
-  "$SUDO" timedatectl set-ntp true >/dev/null 2>&1 || true
-  "$SUDO" systemctl restart systemd-timesyncd >/dev/null 2>&1 || true
+  "${SUDO_CMD[@]}" timedatectl set-ntp true >/dev/null 2>&1 || true
+  "${SUDO_CMD[@]}" systemctl restart systemd-timesyncd >/dev/null 2>&1 || true
 
   local i=0
   for i in {1..24}; do
@@ -59,13 +59,13 @@ wait_for_ntp_sync() {
 }
 
 apt_update_with_retry() {
-  if "$SUDO" apt-get update; then
+  if "${SUDO_CMD[@]}" apt-get update; then
     return 0
   fi
 
   echo "apt-get update failed. Retrying after NTP sync attempt..."
   wait_for_ntp_sync
-  if "$SUDO" apt-get update; then
+  if "${SUDO_CMD[@]}" apt-get update; then
     return 0
   fi
 
@@ -84,7 +84,7 @@ EOF
 echo "==> Installing system packages"
 wait_for_ntp_sync
 apt_update_with_retry
-"$SUDO" apt-get install -y \
+"${SUDO_CMD[@]}" apt-get install -y \
   python3-venv \
   python3-pip \
   python3-dev \

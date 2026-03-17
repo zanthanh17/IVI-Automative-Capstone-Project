@@ -39,8 +39,6 @@ DEFAULT_DROWSY_SCRIPT="${DEFAULT_DROWSY_ROOT}/app/live_camera.py"
 if [[ -z "${DROWSY_PYTHON:-}" ]]; then
     if [[ -x "${DEFAULT_DROWSY_PYTHON}" ]]; then
         export DROWSY_PYTHON="${DEFAULT_DROWSY_PYTHON}"
-    else
-        export DROWSY_PYTHON="python3"
     fi
 fi
 
@@ -68,7 +66,7 @@ echo "[INFO] QT_QPA_PLATFORM=${QT_QPA_PLATFORM}"
 echo "[INFO] QT_IM_MODULE=${QT_IM_MODULE}"
 echo "[INFO] QT_VIRTUALKEYBOARD_LOCALE=${QT_VIRTUALKEYBOARD_LOCALE}"
 echo "[INFO] XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-"(not set)"}"
-echo "[INFO] DROWSY python=${DROWSY_PYTHON}"
+echo "[INFO] DROWSY python=${DROWSY_PYTHON:-"(auto-resolve virtualenv in app)"}"
 if [[ -n "${DROWSY_LIVE_CAMERA_SCRIPT:-}" ]]; then
     echo "[INFO] DROWSY script=${DROWSY_LIVE_CAMERA_SCRIPT}"
 fi
@@ -77,6 +75,9 @@ if [[ -n "${DROWSY_CAMERA_PATH}" ]]; then
 fi
 echo "[INFO] DROWSY camera=${DROWSY_CAMERA_INDEX} ${DROWSY_WIDTH}x${DROWSY_HEIGHT}@${DROWSY_FPS}"
 echo "[INFO] DROWSY fallback-scan-max=${DROWSY_FALLBACK_SCAN_MAX}"
+if [[ -z "${DROWSY_PYTHON:-}" ]]; then
+    echo "[WARN] No DROWSY_PYTHON exported here; Qt launcher will only use a detected virtualenv (.venv-pi/.venv)."
+fi
 if [[ -n "${MAPBOX_ACCESS_TOKEN:-}" ]]; then
     echo "[INFO] MAPBOX_ACCESS_TOKEN is set (Mapbox map + routing enabled)."
 else
