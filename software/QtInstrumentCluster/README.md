@@ -202,26 +202,19 @@ Notes:
   `sudo apt install -y qml-module-qt-labs-folderlistmodel qml-module-qt-labs-settings qml-module-qt-labs-platform`
 - Destination search now applies Vietnamese Telex normalization in the search box and biases geocoding to Da Nang when city is not explicitly provided.
 
-### Driver Drowsiness Camera Page (Qt5)
+### Driver Drowsiness Camera Launcher (Qt5)
 
-- Camera page now runs **Python AI worker** (`Driver-Drowsy-Detection/app/live_camera.py`) in headless mode.
-- The worker owns camera capture + inference, streams JPEG frames via stdout packet protocol.
-- Qt side consumes that stream in-memory through a `QQuickImageProvider` (`image://drowsy/...`), no frame-file polling.
-- This reduces disk I/O, lowers UI latency, and keeps Qt render loop lighter.
+- The bottom-bar `Camera` icon now launches `Driver-Drowsy-Detection/app/live_camera.py` as a separate app.
+- The Qt dashboard no longer embeds a camera preview page; the current dashboard page stays unchanged after clicking `Camera`.
+- Qt resolves the Python interpreter from `DROWSY_PYTHON`, then falls back to the drowsy detector virtualenv (`.venv-pi`, then `.venv`).
 
-Recommended defaults in `.env` for stable FPS on Pi:
+Recommended `.env` values for Raspberry Pi:
 
 ```bash
 DROWSY_CAMERA_INDEX=0
-DROWSY_FRAME_TRANSPORT=file
 DROWSY_WIDTH=960
 DROWSY_HEIGHT=540
 DROWSY_FPS=30
-DROWSY_EXPORT_FRAME=/tmp/drowsy_live_frame.jpg
-DROWSY_EXPORT_QUALITY=70
-DROWSY_EXPORT_EVERY_N=1
-DROWSY_METRICS_EVERY_N=10
-DROWSY_PERSIST_WORKER=1
 # Prefer venv python on Pi:
 # DROWSY_PYTHON=/home/pi/IVI-Automative-Capstone-Project/software/Driver-Drowsy-Detection/.venv-pi/bin/python3
 # Optional fixed camera node:
@@ -230,15 +223,17 @@ DROWSY_PERSIST_WORKER=1
 # DROWSY_FALLBACK_SCAN_MAX=6
 # Optional explicit script path:
 # DROWSY_LIVE_CAMERA_SCRIPT=/home/pi/IVI-Automative-Capstone-Project/software/Driver-Drowsy-Detection/app/live_camera.py
-# Optional: also dump frames to file (debug only, adds overhead)
-# DROWSY_EXPORT_FRAME=/tmp/drowsy_live_frame.jpg
 ```
 
-If FPS drops, reduce first:
+When the icon is clicked, Qt forwards:
+1. `--backend`
+2. `--width` / `--height`
+3. `--fps`
+4. `--camera-path` or `--camera-index` + `--fallback-scan-max`
+
+If performance drops, reduce first:
 1. `DROWSY_WIDTH` / `DROWSY_HEIGHT` (e.g. `640x360`)
-2. `DROWSY_EXPORT_QUALITY` (e.g. `60`)
-3. `DROWSY_EXPORT_EVERY_N` (e.g. `2` to stream every 2 frames)
+2. `DROWSY_FPS`
+3. camera source selection (`DROWSY_CAMERA_PATH` or `DROWSY_CAMERA_INDEX`)
 
-`DROWSY_PERSIST_WORKER=1` keeps the Python detector running when the user leaves the Camera page, so returning to the page resumes live view immediately. Set it to `0` if you prefer lower background CPU usage.
-
-On Raspberry Pi, `DROWSY_FRAME_TRANSPORT=file` is the safer integration path. The AI worker still runs headless, but Qt reads the latest exported JPEG from `/tmp/drowsy_live_frame.jpg` instead of parsing a binary stdout stream.
+Repeated clicks do not spawn extra instances while the previously launched camera process is still running.

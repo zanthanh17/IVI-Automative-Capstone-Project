@@ -4,7 +4,9 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QRegularExpression>
+#include <QStandardPaths>
 #include <QTextStream>
 
 #if defined(Q_OS_LINUX)
@@ -13,6 +15,33 @@
 #include <unistd.h>   // write(), close(), lseek()
 #include <fcntl.h>     // open(), O_WRONLY
 #endif
+
+namespace {
+QString resolveExecutableCandidate(const QString &value, const QString &baseDir = QString())
+{
+    const QString trimmed = value.trimmed();
+    if (trimmed.isEmpty())
+        return QString();
+
+    const QFileInfo directInfo(trimmed);
+    if (directInfo.isAbsolute()) {
+        if (directInfo.exists() && directInfo.isExecutable())
+            return directInfo.absoluteFilePath();
+        return QString();
+    }
+
+    if (trimmed.contains(QLatin1Char('/'))) {
+        const QDir dir(baseDir.isEmpty() ? QDir::currentPath() : baseDir);
+        const QString candidate = dir.absoluteFilePath(trimmed);
+        const QFileInfo candidateInfo(candidate);
+        if (candidateInfo.exists() && candidateInfo.isExecutable())
+            return candidateInfo.absoluteFilePath();
+        return QString();
+    }
+
+    return QStandardPaths::findExecutable(trimmed);
+}
+}
 
 // ────────────────────────── Singleton ──────────────────────────
 
@@ -186,6 +215,62 @@ void SystemSettingsController::restartApp()
     const QString appPath = QCoreApplication::applicationFilePath();
     QProcess::startDetached(appPath, QCoreApplication::arguments());
     QCoreApplication::quit();
+#endif
+}
+
+bool SystemSettingsController::launchDrowsyCamera()
+{
+#if defined(Q_OS_LINUX)
+    if (isDrowsyCameraRunning()) {
+        qInfo() << "[SystemSettings] Drowsy camera already running, pid=" << m_drowsyCameraPid;
+        return false;
+    }
+    m_drowsyCameraPid = 0;
+
+    const QString scriptPath = resolveDrowsyCameraScriptPath();
+    if (scriptPath.isEmpty()) {
+        qWarning() << "[SystemSettings] Cannot find Driver-Drowsy-Detection/app/live_camera.py";
+        return false;
+    }
+
+    const QString cameraRoot = resolveDrowsyCameraRoot(scriptPath);
+    if (cameraRoot.isEmpty()) {
+        qWarning() << "[SystemSettings] Cannot resolve Driver-Drowsy-Detection root from" << scriptPath;
+        return false;
+    }
+
+    const QString pythonPath = resolveDrowsyCameraPython(cameraRoot);
+    if (pythonPath.isEmpty()) {
+        qWarning() << "[SystemSettings] Cannot find Python virtualenv for drowsy camera under" << cameraRoot
+                   << "(checked DROWSY_PYTHON, .venv-pi/bin/python3, .venv/bin/python3)";
+        return false;
+    }
+
+    QStringList args = buildDrowsyCameraArguments();
+    args.prepend(scriptPath);
+
+    qint64 pid = 0;
+    const bool started = QProcess::startDetached(pythonPath, args, cameraRoot, &pid);
+    if (!started || pid <= 0) {
+        qWarning() << "[SystemSettings] Failed to launch drowsy camera:"
+                   << "python=" << pythonPath
+                   << "script=" << scriptPath
+                   << "workdir=" << cameraRoot
+                   << "args=" << args;
+        return false;
+    }
+
+    m_drowsyCameraPid = pid;
+    qInfo() << "[SystemSettings] Drowsy camera launched:"
+            << "pid=" << m_drowsyCameraPid
+            << "python=" << pythonPath
+            << "script=" << scriptPath
+            << "workdir=" << cameraRoot
+            << "args=" << args;
+    return true;
+#else
+    qWarning() << "[SystemSettings] launchDrowsyCamera is only supported on Linux.";
+    return false;
 #endif
 }
 
@@ -492,6 +577,114 @@ void SystemSettingsController::applyBrightnessToSystem(qreal level)
 #endif
 }
 
+// ────────────────────────── Drowsy camera launcher helpers ──────────────────────────
+
+QString SystemSettingsController::readEnvOrDefault(const char *key, const QString &fallback) const
+{
+    const QString value = qEnvironmentVariable(key).trimmed();
+    return value.isEmpty() ? fallback : value;
+}
+
+QString SystemSettingsController::resolveDrowsyCameraScriptPath() const
+{
+    const QString envPath = qEnvironmentVariable("DROWSY_LIVE_CAMERA_SCRIPT").trimmed();
+    if (!envPath.isEmpty()) {
+        const QFileInfo envInfo(envPath);
+        const QString resolvedEnvPath = envInfo.isAbsolute()
+                                            ? envInfo.absoluteFilePath()
+                                            : QDir(QDir::currentPath()).absoluteFilePath(envPath);
+        const QFileInfo resolvedInfo(resolvedEnvPath);
+        if (resolvedInfo.exists() && resolvedInfo.isFile())
+            return resolvedInfo.absoluteFilePath();
+
+        qWarning() << "[SystemSettings] DROWSY_LIVE_CAMERA_SCRIPT not found:" << envPath;
+    }
+
+    const QString cwd = QDir::currentPath();
+    const QString appDir = QCoreApplication::applicationDirPath();
+    const QStringList candidates = {
+        QDir(cwd).absoluteFilePath(QStringLiteral("software/Driver-Drowsy-Detection/app/live_camera.py")),
+        QDir(cwd).absoluteFilePath(QStringLiteral("../Driver-Drowsy-Detection/app/live_camera.py")),
+        QDir(cwd).absoluteFilePath(QStringLiteral("../../Driver-Drowsy-Detection/app/live_camera.py")),
+        QDir(appDir).absoluteFilePath(QStringLiteral("../../Driver-Drowsy-Detection/app/live_camera.py")),
+        QDir(appDir).absoluteFilePath(QStringLiteral("../../../Driver-Drowsy-Detection/app/live_camera.py")),
+    };
+
+    for (const QString &candidate : candidates) {
+        const QFileInfo info(candidate);
+        if (info.exists() && info.isFile())
+            return info.absoluteFilePath();
+    }
+
+    return QString();
+}
+
+QString SystemSettingsController::resolveDrowsyCameraRoot(const QString &scriptPath) const
+{
+    QFileInfo info(scriptPath);
+    QDir dir = info.absoluteDir();
+    if (dir.dirName() == QLatin1String("app"))
+        dir.cdUp();
+    return dir.absolutePath();
+}
+
+QString SystemSettingsController::resolveDrowsyCameraPython(const QString &cameraRoot) const
+{
+    const QString envPython = qEnvironmentVariable("DROWSY_PYTHON").trimmed();
+    if (!envPython.isEmpty()) {
+        const QString resolvedEnvPython = resolveExecutableCandidate(envPython, cameraRoot);
+        if (!resolvedEnvPython.isEmpty())
+            return resolvedEnvPython;
+
+        qWarning() << "[SystemSettings] DROWSY_PYTHON is not executable:" << envPython;
+    }
+
+    const QStringList venvCandidates = {
+        QDir(cameraRoot).absoluteFilePath(QStringLiteral(".venv-pi/bin/python3")),
+        QDir(cameraRoot).absoluteFilePath(QStringLiteral(".venv/bin/python3")),
+    };
+
+    for (const QString &candidate : venvCandidates) {
+        const QFileInfo info(candidate);
+        if (info.exists() && info.isExecutable())
+            return info.absoluteFilePath();
+    }
+
+    return QString();
+}
+
+QStringList SystemSettingsController::buildDrowsyCameraArguments() const
+{
+    QStringList args;
+    args << "--backend" << readEnvOrDefault("DROWSY_BACKEND", QStringLiteral("v4l2"))
+         << "--width" << readEnvOrDefault("DROWSY_WIDTH", QStringLiteral("960"))
+         << "--height" << readEnvOrDefault("DROWSY_HEIGHT", QStringLiteral("540"))
+         << "--fps" << readEnvOrDefault("DROWSY_FPS", QStringLiteral("30"));
+
+    const QString cameraPath = readEnvOrDefault("DROWSY_CAMERA_PATH");
+    if (!cameraPath.isEmpty()) {
+        args << "--camera-path" << cameraPath;
+    } else {
+        args << "--camera-index" << readEnvOrDefault("DROWSY_CAMERA_INDEX", QStringLiteral("0"))
+             << "--fallback-scan-max" << readEnvOrDefault("DROWSY_FALLBACK_SCAN_MAX", QStringLiteral("6"));
+    }
+
+    return args;
+}
+
+bool SystemSettingsController::isDrowsyCameraRunning() const
+{
+#if defined(Q_OS_LINUX)
+    if (m_drowsyCameraPid <= 0)
+        return false;
+
+    const QString procPath = QStringLiteral("/proc/%1").arg(m_drowsyCameraPid);
+    return QFileInfo::exists(procPath);
+#else
+    return false;
+#endif
+}
+
 // ────────────────────────── Backend detection helpers ──────────────────────────
 
 QString SystemSettingsController::detectAudioBackend() const
@@ -663,4 +856,3 @@ bool SystemSettingsController::readSystemBluetoothState() const
     return m_bluetoothEnabled;
 #endif
 }
-

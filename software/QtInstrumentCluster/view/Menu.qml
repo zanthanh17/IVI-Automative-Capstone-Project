@@ -1,27 +1,26 @@
 import QtQuick 2.12
 import QtGraphicalEffects 1.12
 import Style 1.0
-import NormalModeModel 1.0
 
 Row {
-    signal clicked(int index)
+    signal clicked(int menuIndex, string action)
     property int currentIndex
     id: menu
     spacing: 6
 
     Repeater {
         model: ListModel {
-            ListElement { text: "Play"; image: "qrc:/images/menu/music.png" }
-            ListElement { text: "Navi"; image: "qrc:/images/menu/navi.png" }
-            ListElement { text: "Weather"; image: "qrc:/images/menu/weather.png" }
-            ListElement { text: "Camera"; image: "qrc:/images/menu/camera.png" }
-            ListElement { text: "Setup"; image: "qrc:/images/menu/setup.png" }
+            ListElement { text: "Play"; image: "qrc:/images/menu/music.png"; menuIndex: 0; action: "" }
+            ListElement { text: "Navi"; image: "qrc:/images/menu/navi.png"; menuIndex: 1; action: "" }
+            ListElement { text: "Weather"; image: "qrc:/images/menu/weather.png"; menuIndex: 2; action: "" }
+            ListElement { text: "Camera"; image: "qrc:/images/menu/camera.png"; menuIndex: -1; action: "launchCamera" }
+            ListElement { text: "Setup"; image: "qrc:/images/menu/setup.png"; menuIndex: 3; action: "" }
         }
 
         delegate: Item {
             width: 64
             height: 42
-            property bool active: index == currentIndex
+            property bool active: model.action === "" && model.menuIndex === currentIndex
 
             Image {
                 id: menuIconSource
@@ -77,7 +76,7 @@ Row {
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: menu.clicked(index)
+                onClicked: menu.clicked(model.menuIndex, model.action)
             }
         }
     }

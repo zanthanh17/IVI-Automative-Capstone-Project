@@ -38,6 +38,7 @@ public:
     QString connectedWifiSSID() const;
     bool wifiConnecting() const;
     QString wifiStatusMessage() const;
+    Q_INVOKABLE bool launchDrowsyCamera();
 
 public slots:
     void setWifiEnabled(bool on);
@@ -72,6 +73,12 @@ private:
     void applyBluetoothToSystem(bool on);
     void applyVolumeToSystem(qreal level);
     void applyBrightnessToSystem(qreal level);
+    QString readEnvOrDefault(const char *key, const QString &fallback = QString()) const;
+    QString resolveDrowsyCameraScriptPath() const;
+    QString resolveDrowsyCameraRoot(const QString &scriptPath) const;
+    QString resolveDrowsyCameraPython(const QString &cameraRoot) const;
+    QStringList buildDrowsyCameraArguments() const;
+    bool isDrowsyCameraRunning() const;
 
     QString detectAudioBackend() const;
     QString detectWifiBackend() const;
@@ -106,8 +113,8 @@ private:
     QTimer *m_brightnessThrottle = nullptr; // debounce brightness changes
     qreal m_pendingVolume = -1.0;
     qreal m_pendingBrightness = -1.0;
+    qint64 m_drowsyCameraPid = 0;
 #endif
 };
 
 #endif // SYSTEMSETTINGSCONTROLLER_H
-

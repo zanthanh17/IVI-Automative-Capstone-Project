@@ -100,8 +100,6 @@
         <file>view/LaneAssistWhiteLine.qml</file>
         <file>view/LinearGauge.qml</file>
         <file>view/MediaPlayer.qml</file>
-        <file>view/Camera.qml</file>
-        <file>view/CameraQt5.qml</file>
         <file>view/Navigation.qml</file>
         <file>view/NavigationMapLocation.qml</file>
         <file>view/VirtualKeyboardOverlay.qml</file>

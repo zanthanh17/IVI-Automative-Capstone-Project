@@ -31,7 +31,7 @@ export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 export QT_IM_MODULE="${QT_IM_MODULE:-qtvirtualkeyboard}"
 export QT_VIRTUALKEYBOARD_LOCALE="${QT_VIRTUALKEYBOARD_LOCALE:-vi_VN}"
 
-# Drowsiness detector worker defaults (Camera page, Qt5)
+# Drowsiness detector launcher defaults (external app)
 DEFAULT_DROWSY_ROOT="${PROJECT_DIR}/../Driver-Drowsy-Detection"
 DEFAULT_DROWSY_PYTHON="${DEFAULT_DROWSY_ROOT}/.venv-pi/bin/python3"
 DEFAULT_DROWSY_SCRIPT="${DEFAULT_DROWSY_ROOT}/app/live_camera.py"
@@ -52,15 +52,9 @@ export DROWSY_BACKEND="${DROWSY_BACKEND:-v4l2}"
 export DROWSY_CAMERA_INDEX="${DROWSY_CAMERA_INDEX:-0}"
 export DROWSY_CAMERA_PATH="${DROWSY_CAMERA_PATH:-}"
 export DROWSY_FALLBACK_SCAN_MAX="${DROWSY_FALLBACK_SCAN_MAX:-6}"
-export DROWSY_FRAME_TRANSPORT="${DROWSY_FRAME_TRANSPORT:-file}"
 export DROWSY_WIDTH="${DROWSY_WIDTH:-960}"
 export DROWSY_HEIGHT="${DROWSY_HEIGHT:-540}"
 export DROWSY_FPS="${DROWSY_FPS:-30}"
-export DROWSY_EXPORT_FRAME="${DROWSY_EXPORT_FRAME:-/tmp/drowsy_live_frame.jpg}"
-export DROWSY_EXPORT_QUALITY="${DROWSY_EXPORT_QUALITY:-70}"
-export DROWSY_EXPORT_EVERY_N="${DROWSY_EXPORT_EVERY_N:-1}"
-export DROWSY_METRICS_EVERY_N="${DROWSY_METRICS_EVERY_N:-10}"
-export DROWSY_PERSIST_WORKER="${DROWSY_PERSIST_WORKER:-1}"
 
 # Root sessions often use /run/user/0 with wrong permissions (0755).
 # Force a private runtime dir to satisfy Qt's 0700 requirement.
@@ -78,17 +72,11 @@ echo "[INFO] DROWSY python=${DROWSY_PYTHON}"
 if [[ -n "${DROWSY_LIVE_CAMERA_SCRIPT:-}" ]]; then
     echo "[INFO] DROWSY script=${DROWSY_LIVE_CAMERA_SCRIPT}"
 fi
-echo "[INFO] DROWSY transport=${DROWSY_FRAME_TRANSPORT}"
 if [[ -n "${DROWSY_CAMERA_PATH}" ]]; then
     echo "[INFO] DROWSY camera-path=${DROWSY_CAMERA_PATH}"
 fi
 echo "[INFO] DROWSY camera=${DROWSY_CAMERA_INDEX} ${DROWSY_WIDTH}x${DROWSY_HEIGHT}@${DROWSY_FPS}"
 echo "[INFO] DROWSY fallback-scan-max=${DROWSY_FALLBACK_SCAN_MAX}"
-echo "[INFO] DROWSY stream quality=${DROWSY_EXPORT_QUALITY} everyN=${DROWSY_EXPORT_EVERY_N}"
-echo "[INFO] DROWSY persist-worker=${DROWSY_PERSIST_WORKER}"
-if [[ -n "${DROWSY_EXPORT_FRAME}" ]]; then
-    echo "[INFO] DROWSY optional file export=${DROWSY_EXPORT_FRAME}"
-fi
 if [[ -n "${MAPBOX_ACCESS_TOKEN:-}" ]]; then
     echo "[INFO] MAPBOX_ACCESS_TOKEN is set (Mapbox map + routing enabled)."
 else

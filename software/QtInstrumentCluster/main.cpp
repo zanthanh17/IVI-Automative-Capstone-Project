@@ -15,7 +15,6 @@
 #include "src/weatherprovider.h"
 #include "src/osrmrouteprovider.h"
 #include "src/systemsettingscontroller.h"
-#include "src/drowsinesscameracontroller.h"
 
 int main(int argc, char *argv[])
 {
@@ -93,11 +92,6 @@ int main(int argc, char *argv[])
             return SystemSettingsController::instance();
         });
 
-    qmlRegisterSingletonType<DrowsinessCameraController>("DrowsyCamera", 1, 0, "DrowsyCamera",
-        [](QQmlEngine*, QJSEngine*) -> QObject* {
-            return DrowsinessCameraController::instance();
-        });
-
     QObject::connect(BluetoothController::instance(), &BluetoothController::deviceConnectionChanged,
                      ExternalMediaController::instance(),
                      &ExternalMediaController::handleBluetoothDeviceConnectionChanged);
@@ -110,8 +104,6 @@ int main(int argc, char *argv[])
     MainModel::instance()->initSerialReceiver();
 
     QQmlApplicationEngine engine;
-    engine.addImageProvider(QStringLiteral("drowsy"),
-                            DrowsinessCameraController::instance()->createImageProvider());
 
     engine.rootContext()->setContextProperty(
         "serialReceiver", MainModel::instance()->serialReceiver());

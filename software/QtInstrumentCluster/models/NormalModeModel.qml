@@ -4,7 +4,7 @@ import QtQuick 2.15
 QtObject {
     id: normalmodemodel
 
-    enum Menu { MediaPlayerMenu, NavigationMenu, WeatherMenu, CameraMenu, CarStatusMenu, MenuCount }
+    enum Menu { MediaPlayerMenu, NavigationMenu, WeatherMenu, CarStatusMenu, MenuCount }
     property int menu: NormalModeModel.MediaPlayerMenu
 
     // Quick-controls / system settings (mirrors of SystemSettingsController properties)

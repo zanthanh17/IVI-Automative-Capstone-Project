@@ -2,6 +2,7 @@ import QtQuick 2.12
 import NormalModeModel 1.0
 import Style 1.0
 import MainModel 1.0
+import SystemSettings 1.0
 import Units 1.0
 Item {
     id: root
@@ -124,12 +125,6 @@ Item {
             anchors.fill: parent;
         }
 
-        Camera {
-            activeMode: active;
-            selected: menu == NormalModeModel.CameraMenu;
-            anchors.fill: parent;
-        }
-
         Setup {
             activeMode: active;
             // Tạm dùng CarStatusMenu làm trang Setup
@@ -212,6 +207,14 @@ Item {
         x: rightPaneX + (rightPaneWidth - width) / 2
         y: bottomPaneY + (menuPaneHeight - height) / 2
         currentIndex: menu;
-        onClicked: NormalModeModel.menu = index;
+        onClicked: function(menuIndex, action) {
+            if (action === "launchCamera") {
+                SystemSettings.launchDrowsyCamera()
+                return
+            }
+
+            if (menuIndex >= 0)
+                NormalModeModel.menu = menuIndex
+        }
     }
 }
