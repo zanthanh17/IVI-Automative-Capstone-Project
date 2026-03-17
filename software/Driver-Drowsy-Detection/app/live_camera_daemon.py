@@ -40,8 +40,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--camera-path", default="")
     parser.add_argument("--backend", choices=["auto", "v4l2", "default"], default="auto")
     parser.add_argument("--fallback-scan-max", type=int, default=4)
-    parser.add_argument("--width", type=int, default=1280)
-    parser.add_argument("--height", type=int, default=720)
+    parser.add_argument("--width", type=int, default=1024)
+    parser.add_argument("--height", type=int, default=600)
     parser.add_argument("--fps", type=int, default=30)
     parser.add_argument("--no-mirror", action="store_true")
     parser.add_argument("--eye-model", default="models/eye_cnn/eye_model.tflite")
@@ -66,6 +66,18 @@ def parse_args() -> argparse.Namespace:
         "--viewer-fullscreen",
         action="store_true",
         help="Launch viewer in fullscreen mode.",
+    )
+    parser.add_argument(
+        "--viewer-width",
+        type=int,
+        default=1024,
+        help="Viewer window width in normal windowed mode.",
+    )
+    parser.add_argument(
+        "--viewer-height",
+        type=int,
+        default=600,
+        help="Viewer window height in normal windowed mode.",
     )
     return parser.parse_args()
 
@@ -163,6 +175,8 @@ class DrowsyCameraDaemon:
         viewer_env: dict[str, str] | None = None,
         viewer_title: str | None = None,
         viewer_fullscreen: bool | None = None,
+        viewer_width: int | None = None,
+        viewer_height: int | None = None,
     ) -> tuple[bool, str]:
         with self.viewer_lock:
             if self.viewer_process is not None and self.viewer_process.poll() is None:
@@ -176,6 +190,8 @@ class DrowsyCameraDaemon:
 
             window_title = viewer_title or self.args.viewer_title
             fullscreen = self.args.viewer_fullscreen if viewer_fullscreen is None else viewer_fullscreen
+            window_width = max(320, self.args.viewer_width if viewer_width is None else int(viewer_width))
+            window_height = max(240, self.args.viewer_height if viewer_height is None else int(viewer_height))
 
             cmd = [
                 sys.executable,
@@ -184,6 +200,10 @@ class DrowsyCameraDaemon:
                 self.socket_path,
                 "--window-title",
                 window_title,
+                "--window-width",
+                str(window_width),
+                "--window-height",
+                str(window_height),
             ]
             if fullscreen:
                 cmd.append("--fullscreen")
@@ -256,10 +276,14 @@ class DrowsyCameraDaemon:
             viewer_fullscreen = None
             if viewer_fullscreen_value is not None:
                 viewer_fullscreen = bool(viewer_fullscreen_value)
+            viewer_width = request.get("viewer_width")
+            viewer_height = request.get("viewer_height")
             ok, detail = self.ensure_viewer(
                 viewer_env=self._viewer_env_from_request(request),
                 viewer_title=viewer_title,
                 viewer_fullscreen=viewer_fullscreen,
+                viewer_width=viewer_width if viewer_width is None else int(viewer_width),
+                viewer_height=viewer_height if viewer_height is None else int(viewer_height),
             )
             response = self._status_snapshot()
             response.update({"ok": ok, "detail": detail})
@@ -483,7 +507,7 @@ class DrowsyCameraDaemon:
                     fps_smooth,
                     actual_index,
                     backend_name,
-                    footer_text="q: close viewer | r: reset detector state",
+                    footer_text="Touch RESET or CLOSE in the control bar below",
                 )
 
                 if self.writer is not None:

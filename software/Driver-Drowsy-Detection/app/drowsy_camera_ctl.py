@@ -27,8 +27,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--camera-path", default="")
     parser.add_argument("--backend", choices=["auto", "v4l2", "default"], default="v4l2")
     parser.add_argument("--fallback-scan-max", type=int, default=6)
-    parser.add_argument("--width", type=int, default=960)
-    parser.add_argument("--height", type=int, default=540)
+    parser.add_argument("--width", type=int, default=1024)
+    parser.add_argument("--height", type=int, default=600)
     parser.add_argument("--fps", type=int, default=30)
     parser.add_argument("--no-mirror", action="store_true")
     parser.add_argument("--jpeg-quality", type=int, default=70)
@@ -36,6 +36,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--metrics-every-n", type=int, default=10)
     parser.add_argument("--viewer-fullscreen", action="store_true")
     parser.add_argument("--viewer-title", default="Drowsiness Detection Live")
+    parser.add_argument("--viewer-width", type=int, default=1024)
+    parser.add_argument("--viewer-height", type=int, default=600)
     return parser.parse_args()
 
 
@@ -85,6 +87,10 @@ def spawn_daemon(args: argparse.Namespace, socket_path: str) -> None:
         str(args.metrics_every_n),
         "--viewer-title",
         args.viewer_title,
+        "--viewer-width",
+        str(args.viewer_width),
+        "--viewer-height",
+        str(args.viewer_height),
     ]
     if args.camera_path:
         cmd.extend(["--camera-path", args.camera_path])
@@ -127,6 +133,8 @@ def main() -> int:
             payload.update(viewer_env_payload())
             payload["viewer_title"] = args.viewer_title
             payload["viewer_fullscreen"] = args.viewer_fullscreen
+            payload["viewer_width"] = args.viewer_width
+            payload["viewer_height"] = args.viewer_height
         response = send_command(
             socket_path,
             args.command,

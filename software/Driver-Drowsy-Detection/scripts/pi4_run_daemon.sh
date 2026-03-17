@@ -13,14 +13,16 @@ fi
 # shellcheck source=/dev/null
 source "$VENV_DIR/bin/activate"
 
-WIDTH="${WIDTH:-960}"
-HEIGHT="${HEIGHT:-540}"
+WIDTH="${WIDTH:-1024}"
+HEIGHT="${HEIGHT:-600}"
 FPS="${FPS:-30}"
 BACKEND="${BACKEND:-v4l2}"
 CAMERA_INDEX="${CAMERA_INDEX:-0}"
 FALLBACK_SCAN_MAX="${FALLBACK_SCAN_MAX:-6}"
 SOCKET_PATH="${SOCKET_PATH:-${DROWSY_DAEMON_SOCKET:-}}"
 VIEWER_TITLE="${VIEWER_TITLE:-Drowsiness Detection Live}"
+VIEWER_WIDTH="${VIEWER_WIDTH:-1024}"
+VIEWER_HEIGHT="${VIEWER_HEIGHT:-600}"
 JPEG_QUALITY="${JPEG_QUALITY:-70}"
 STREAM_EVERY_N="${STREAM_EVERY_N:-1}"
 METRICS_EVERY_N="${METRICS_EVERY_N:-10}"
@@ -42,6 +44,8 @@ CMD=(
   --stream-every-n "$STREAM_EVERY_N"
   --metrics-every-n "$METRICS_EVERY_N"
   --viewer-title "$VIEWER_TITLE"
+  --viewer-width "$VIEWER_WIDTH"
+  --viewer-height "$VIEWER_HEIGHT"
 )
 
 if [[ -n "$SOCKET_PATH" ]]; then
@@ -72,6 +76,7 @@ fi
 
 echo "Running drowsy daemon with:"
 echo "  WIDTH=$WIDTH HEIGHT=$HEIGHT FPS=$FPS BACKEND=$BACKEND"
+echo "  VIEWER=${VIEWER_WIDTH}x${VIEWER_HEIGHT}"
 if [[ -n "$CAMERA_PATH" ]]; then
   echo "  CAMERA_PATH=$CAMERA_PATH"
 else

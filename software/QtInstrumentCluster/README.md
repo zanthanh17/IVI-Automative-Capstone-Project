@@ -214,8 +214,8 @@ Recommended `.env` values for Raspberry Pi:
 
 ```bash
 DROWSY_CAMERA_INDEX=0
-DROWSY_WIDTH=960
-DROWSY_HEIGHT=540
+DROWSY_WIDTH=1024
+DROWSY_HEIGHT=600
 DROWSY_FPS=30
 # Prefer venv python on Pi:
 # DROWSY_PYTHON=/home/pi/IVI-Automative-Capstone-Project/software/Driver-Drowsy-Detection/.venv-pi/bin/python3
@@ -230,6 +230,8 @@ DROWSY_FPS=30
 # Optional viewer behavior:
 # DROWSY_VIEWER_FULLSCREEN=1
 # DROWSY_VIEWER_TITLE=Driver Camera
+# DROWSY_VIEWER_WIDTH=1024
+# DROWSY_VIEWER_HEIGHT=600
 ```
 
 When the icon is clicked, Qt forwards:

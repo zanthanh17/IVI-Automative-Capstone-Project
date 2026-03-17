@@ -670,9 +670,11 @@ QStringList SystemSettingsController::buildDrowsyCameraControlArguments() const
     args << "show"
          << "--start-daemon-if-needed"
          << "--backend" << readEnvOrDefault("DROWSY_BACKEND", QStringLiteral("v4l2"))
-         << "--width" << readEnvOrDefault("DROWSY_WIDTH", QStringLiteral("960"))
-         << "--height" << readEnvOrDefault("DROWSY_HEIGHT", QStringLiteral("540"))
-         << "--fps" << readEnvOrDefault("DROWSY_FPS", QStringLiteral("30"));
+         << "--width" << readEnvOrDefault("DROWSY_WIDTH", QStringLiteral("1024"))
+         << "--height" << readEnvOrDefault("DROWSY_HEIGHT", QStringLiteral("600"))
+         << "--fps" << readEnvOrDefault("DROWSY_FPS", QStringLiteral("30"))
+         << "--viewer-width" << readEnvOrDefault("DROWSY_VIEWER_WIDTH", QStringLiteral("1024"))
+         << "--viewer-height" << readEnvOrDefault("DROWSY_VIEWER_HEIGHT", QStringLiteral("600"));
 
     const QString socketPath = readEnvOrDefault("DROWSY_DAEMON_SOCKET");
     if (!socketPath.isEmpty())
