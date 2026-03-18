@@ -190,7 +190,7 @@ chmod +x scripts/pi/*.sh
 Notes:
 - Qt5 build output is isolated in `build-pi-qt5/` (does not overwrite Qt6 build output).
 - If both Qt5 and Qt6 are installed, `build_pi_qt5.sh` explicitly resolves a Qt5 qmake.
-- Put `MAPBOX_ACCESS_TOKEN` in `.env` (or export in shell) for Mapbox map + routing + geocode on Qt5.
+- Put `MAPBOX_ACCESS_TOKEN` in `.env` (or export in shell) for Mapbox map + Search Box + routing on Qt5.
 - `MAPBOX_STYLE_URL` is optional; Qt5 flow defaults to `mapbox://styles/mapbox/navigation-guidance-night-v2
 
 
@@ -200,7 +200,9 @@ Notes:
 - Qt Virtual Keyboard is enabled for text boxes (`QT_IM_MODULE=qtvirtualkeyboard`), default keyboard locale is Vietnamese (`QT_VIRTUALKEYBOARD_LOCALE=vi_VN`).
 - If keyboard logs `module "Qt.labs.folderlistmodel" is not installed`, install:
   `sudo apt install -y qml-module-qt-labs-folderlistmodel qml-module-qt-labs-settings qml-module-qt-labs-platform`
-- Destination search now applies Vietnamese Telex normalization in the search box and biases geocoding to Da Nang when city is not explicitly provided.
+- Destination search now applies Vietnamese Telex normalization, uses the Mapbox Search Box `/suggest` + `/retrieve` flow, biases results to the live vehicle position when GPS is available, and uses routable points when present for better turn-by-turn routing.
+- Optional search tuning env vars:
+  `MAPBOX_SEARCH_LANGUAGE=vi`, `MAPBOX_SEARCH_COUNTRY=VN`, `MAPBOX_SEARCH_LIMIT=8`
 
 ### Driver Drowsiness Camera Launcher (Qt5)
 

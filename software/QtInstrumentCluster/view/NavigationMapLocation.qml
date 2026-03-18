@@ -6,6 +6,7 @@ import QtGraphicalEffects 1.12
 import NavigationModel 1.0
 import NavigationFeed 1.0
 import OsrmRoute 1.0
+import MapboxSearch 1.0
 
 Item {
     id: navMapRoot
@@ -18,12 +19,6 @@ Item {
     property var destinationCoordinate: QtPositioning.coordinate()
     property bool searchPanelVisible: false
     property bool enableVietnameseTelex: true
-    property bool biasSearchToCurrentCity: true
-    property string preferredSearchCity: "Da Nang"
-    property string preferredSearchCityLocal: "Đà Nẵng"
-    property string preferredSearchCountry: "Vietnam"
-    property real preferredSearchLat: 16.061911
-    property real preferredSearchLon: 108.219773
     property bool liveRouteReady: false
     property bool navigationActive: false
     property int osrmRetryCount: 0
@@ -53,6 +48,13 @@ Item {
     readonly property int rightControlWidth: 46
     readonly property int rightControlReservedWidth: rightControlWidth + overlayInset + overlayGap
     readonly property int bottomOverlaySafeInset: 36
+    readonly property int searchMinQueryLength: 2
+    readonly property int maxSearchResultsVisible: 6
+    readonly property int searchResultRowHeight: 48
+    readonly property int routePastWidth: 6
+    readonly property int routeActiveWidth: 8
+    readonly property color routePastColor: "#53697d"
+    readonly property color routeActiveColor: "#7fd2ff"
 
     property bool followVehicle: true
     property bool autoHeading: false
@@ -260,59 +262,46 @@ Item {
         return rawText.slice(0, rawText.length - tailWord.length) + converted
     }
 
-    function effectiveSearchCenter() {
-        var c = vehicleCoordinate()
-        if (c && c.isValid) {
-            return c
-        }
-        return QtPositioning.coordinate(preferredSearchLat, preferredSearchLon)
-    }
-
-    function containsPreferredCity(textLower) {
-        return textLower.indexOf("da nang") >= 0
-               || textLower.indexOf("danang") >= 0
-               || textLower.indexOf("đà nẵng") >= 0
-    }
-
-    function buildCityBiasedQuery(rawQuery) {
-        var q = rawQuery.trim()
-        if (!biasSearchToCurrentCity || q.length === 0) {
-            return q
-        }
-
-        var lower = q.toLowerCase()
-        if (containsPreferredCity(lower)
-                || lower.indexOf("vietnam") >= 0
-                || lower.indexOf("việt nam") >= 0) {
-            return q
-        }
-
-        return q + ", " + preferredSearchCityLocal + ", " + preferredSearchCountry
+    function clearDestinationSuggestions() {
+        MapboxSearch.clearSuggestions()
+        searchPanelVisible = false
     }
 
     function triggerDestinationSearch() {
         var q = destinationSearchText.trim()
-        if (q.length < 3) {
-            searchPanelVisible = false
+        if (q.length < searchMinQueryLength || !hasMapboxToken) {
+            clearDestinationSuggestions()
             return
         }
-        destinationGeocode.query = buildCityBiasedQuery(q)
-        destinationGeocode.update()
+
+        var current = vehicleCoordinate()
+        MapboxSearch.suggest(
+            q,
+            current && current.isValid ? current.latitude : 0,
+            current && current.isValid ? current.longitude : 0,
+            current && current.isValid
+        )
     }
 
-    function chooseDestinationFromResult(resultAddress, resultCoordinate) {
-        if (!resultCoordinate || !resultCoordinate.isValid) {
+    function chooseDestinationFromPlace(place) {
+        if (!place
+                || !Number.isFinite(place.latitude)
+                || !Number.isFinite(place.longitude)) {
+            console.warn("[NavMap] Ignoring selected place without valid coordinates")
             return
         }
 
-        destinationCoordinate = resultCoordinate
-        if (resultAddress && resultAddress.text) {
-            destinationSearchText = resultAddress.text
+        destinationCoordinate = QtPositioning.coordinate(place.latitude, place.longitude)
+        if (place.displayText && place.displayText.length > 0) {
+            destinationSearchText = place.displayText
+        } else if (place.title && place.title.length > 0) {
+            destinationSearchText = place.title
         } else {
-            destinationSearchText = resultCoordinate.latitude.toFixed(5) + ", " + resultCoordinate.longitude.toFixed(5)
+            destinationSearchText = place.latitude.toFixed(5) + ", " + place.longitude.toFixed(5)
         }
 
         searchPanelVisible = false
+        MapboxSearch.clearSuggestions()
         liveRouteReady = false
         navigationActive = false
         osrmRetryCount = 0
@@ -656,6 +645,23 @@ Item {
         }
     }
 
+    Connections {
+        target: MapboxSearch
+        function onSuggestionsChanged() {
+            navMapRoot.searchPanelVisible = MapboxSearch.suggestions.length > 0
+                                            && navMapRoot.destinationSearchText.trim().length >= navMapRoot.searchMinQueryLength
+        }
+        function onPlaceRetrieved(place) {
+            navMapRoot.chooseDestinationFromPlace(place)
+        }
+        function onErrorChanged() {
+            if (MapboxSearch.errorString.length > 0) {
+                navMapRoot.searchPanelVisible = false
+                console.warn("[NavMap] Search failed:", MapboxSearch.errorString)
+            }
+        }
+    }
+
     /*
      * Mapbox GL native plugin — requires access token.
      * Uses a single style URL from env (MAPBOX_STYLE_URL).
@@ -670,31 +676,6 @@ Item {
         PluginParameter {
             name: "mapboxgl.mapping.additional_style_urls"
             value: mapboxStyleUrl
-        }
-    }
-
-    Plugin {
-        id: geocodePlugin
-        name: "mapbox"
-        PluginParameter { name: "mapbox.access_token"; value: mapboxTokenFromEnv }
-        PluginParameter {
-            name: "mapbox.geocoding.proximity"
-            value: {
-                var c = navMapRoot.effectiveSearchCenter()
-                return c.longitude + "," + c.latitude
-            }
-        }
-    }
-
-    GeocodeModel {
-        id: destinationGeocode
-        plugin: geocodePlugin
-        autoUpdate: false
-        limit: 6
-        onStatusChanged: {
-            if (status === GeocodeModel.Ready) {
-                navMapRoot.searchPanelVisible = count > 0
-            }
         }
     }
 
@@ -776,54 +757,38 @@ Item {
                 navMapRoot.overviewMode = false
             }
 
-            /* Full route shadow — always visible as a dim guide line */
+            /* Past segment — muted but still clean, without any dark background casing */
             MapPolyline {
-                line.width: 6
-                line.color: "#3366aadd"
-                path: navMapRoot.routePath
-                smooth: true
-                opacity: 0.55
-            }
-
-            /* Past: already traveled — slightly dimmer */
-            MapPolyline {
-                line.width: 7
-                line.color: "#4488bb"
+                line.width: navMapRoot.routePastWidth
+                line.color: navMapRoot.routePastColor
                 path: navMapRoot.pastPath
                 smooth: true
-                opacity: 0.45
+                opacity: 0.72
             }
 
-            /* Main segment outer glow */
+            /* Active route — single bright color, no shadow or dark background */
             MapPolyline {
-                line.width: 12
-                line.color: "#19395b"
+                line.width: navMapRoot.routeActiveWidth
+                line.color: navMapRoot.routeActiveColor
                 path: navMapRoot.mainPath
                 smooth: true
+                opacity: 1.0
             }
 
-            /* Main segment — bright cyan route ahead */
             MapPolyline {
-                line.width: 7
-                line.color: "#7ef2d0"
-                path: navMapRoot.mainPath
-                smooth: true
-            }
-
-            /* Caution segment — yellow approaching turn */
-            MapPolyline {
-                line.width: 7
-                line.color: "#f7df65"
+                line.width: navMapRoot.routeActiveWidth
+                line.color: navMapRoot.routeActiveColor
                 path: navMapRoot.cautionPath
                 smooth: true
+                opacity: 1.0
             }
 
-            /* Final segment — red near destination */
             MapPolyline {
-                line.width: 7
-                line.color: "#ff7665"
+                line.width: navMapRoot.routeActiveWidth
+                line.color: navMapRoot.routeActiveColor
                 path: navMapRoot.finalPath
                 smooth: true
+                opacity: 1.0
             }
 
             /* Destination pin marker */
@@ -1093,7 +1058,11 @@ Item {
         border.color: "#33FFFFFF"
         border.width: 1
         z: 50
-        height: Math.max(40, destinationInput.height + (navMapRoot.searchPanelVisible ? Math.min(6, destinationGeocode.count) * 40 + 8 : 8))
+        height: Math.max(40, destinationInput.height
+                              + (navMapRoot.searchPanelVisible
+                                 ? Math.min(navMapRoot.maxSearchResultsVisible, MapboxSearch.suggestions.length)
+                                   * navMapRoot.searchResultRowHeight + 8
+                                 : 8))
 
         Column {
             anchors.fill: parent
@@ -1122,7 +1091,7 @@ Item {
                     id: destinationInput
                     width: parent.width - 40
                     height: 32
-                    placeholderText: "Search destination (Da Nang)"
+                    placeholderText: "Search destination"
                     text: navMapRoot.destinationSearchText
                     color: "#FFFFFF"
                     placeholderTextColor: "#88FFFFFF"
@@ -1147,29 +1116,68 @@ Item {
                 id: geocodeResults
                 width: parent.width - 8
                 anchors.horizontalCenter: parent.horizontalCenter
-                height: navMapRoot.searchPanelVisible ? Math.min(6, destinationGeocode.count) * 40 : 0
+                height: navMapRoot.searchPanelVisible
+                        ? Math.min(navMapRoot.maxSearchResultsVisible, MapboxSearch.suggestions.length)
+                          * navMapRoot.searchResultRowHeight
+                        : 0
                 visible: navMapRoot.searchPanelVisible
                 clip: true
                 spacing: 2
-                model: destinationGeocode
+                model: MapboxSearch.suggestions
                 delegate: Rectangle {
                     width: geocodeResults.width
-                    height: 38
+                    height: navMapRoot.searchResultRowHeight - geocodeResults.spacing
                     radius: 12
                     color: itemMouseArea.pressed ? "#44FFFFFF" : (itemMouseArea.containsMouse ? "#22FFFFFF" : "transparent")
-                    
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
+
+                    Column {
                         anchors.left: parent.left
                         anchors.leftMargin: 12
                         anchors.right: parent.right
+                        anchors.rightMargin: 74
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 2
+
+                        Text {
+                            width: parent.width
+                            elide: Text.ElideRight
+                            color: "#FFFFFF"
+                            font.pixelSize: 12
+                            font.bold: true
+                            text: modelData.title || ""
+                        }
+
+                        Text {
+                            width: parent.width
+                            elide: Text.ElideRight
+                            color: "#A9BED3"
+                            font.pixelSize: 10
+                            visible: text.length > 0 && text !== (modelData.title || "")
+                            text: modelData.subtitle || ""
+                        }
+                    }
+
+                    Column {
+                        anchors.right: parent.right
                         anchors.rightMargin: 12
-                        elide: Text.ElideRight
-                        color: "#FFFFFF"
-                        font.pixelSize: 12
-                        text: (locationData.address && locationData.address.text)
-                                ? locationData.address.text
-                                : (locationData.coordinate.latitude.toFixed(5) + ", " + locationData.coordinate.longitude.toFixed(5))
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 2
+
+                        Text {
+                            horizontalAlignment: Text.AlignRight
+                            color: "#7ef2d0"
+                            font.pixelSize: 10
+                            font.bold: true
+                            text: modelData.featureTypeLabel || "Place"
+                        }
+
+                        Text {
+                            horizontalAlignment: Text.AlignRight
+                            color: "#7C93AA"
+                            font.pixelSize: 10
+                            visible: modelData.distanceMeters >= 0
+                            text: navMapRoot.formatMeters(modelData.distanceMeters)
+                        }
                     }
 
                     MouseArea {
@@ -1177,7 +1185,8 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         onClicked: {
-                            navMapRoot.chooseDestinationFromResult(locationData.address, locationData.coordinate)
+                            navMapRoot.searchPanelVisible = false
+                            MapboxSearch.retrieveSuggestion(modelData.mapboxId || "")
                         }
                     }
                 }

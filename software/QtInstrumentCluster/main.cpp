@@ -14,6 +14,7 @@
 #include "src/serialreceiver.h"
 #include "src/weatherprovider.h"
 #include "src/osrmrouteprovider.h"
+#include "src/mapboxsearchprovider.h"
 #include "src/systemsettingscontroller.h"
 
 int main(int argc, char *argv[])
@@ -82,6 +83,11 @@ int main(int argc, char *argv[])
             return OsrmRouteProvider::instance();
         });
 
+    qmlRegisterSingletonType<MapboxSearchProvider>("MapboxSearch", 1, 0, "MapboxSearch",
+        [](QQmlEngine*, QJSEngine*) -> QObject* {
+            return MapboxSearchProvider::instance();
+        });
+
     qmlRegisterSingletonType<ExternalMediaController>("ExternalMedia", 1, 0, "ExternalMedia",
         [](QQmlEngine*, QJSEngine*) -> QObject* {
             return ExternalMediaController::instance();
@@ -114,6 +120,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("mapboxTokenFromEnv", mapboxToken);
     engine.rootContext()->setContextProperty("mapboxTokenConfigured", !mapboxToken.trimmed().isEmpty());
     engine.rootContext()->setContextProperty("virtualKeyboardLocaleFromEnv", virtualKeyboardLocale);
+    MapboxSearchProvider::instance()->setAccessToken(mapboxToken);
 
     // Use fixed Qt5-compatible style to avoid Mapbox Standard/import incompatibilities.
     const QString mapboxStyleUrl = QStringLiteral("mapbox://styles/mapbox/navigation-guidance-night-v2");

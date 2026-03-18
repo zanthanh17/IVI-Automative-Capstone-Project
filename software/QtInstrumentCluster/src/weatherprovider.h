@@ -12,8 +12,8 @@ class WeatherProvider : public QObject
 {
     Q_OBJECT
 
-    Q_PROPERTY(QString cityName READ cityName CONSTANT)
-    Q_PROPERTY(QString detailText READ detailText CONSTANT)
+    Q_PROPERTY(QString cityName READ cityName NOTIFY weatherChanged)
+    Q_PROPERTY(QString detailText READ detailText NOTIFY weatherChanged)
     Q_PROPERTY(int temperature READ temperature NOTIFY weatherChanged)
     Q_PROPERTY(QString conditionText READ conditionText NOTIFY weatherChanged)
     Q_PROPERTY(QString iconType READ iconType NOTIFY weatherChanged)
@@ -34,6 +34,7 @@ public:
     QString errorString() const;
 
     Q_INVOKABLE void refresh();
+    Q_INVOKABLE void setVehiclePosition(double latitude, double longitude);
 
 signals:
     void weatherChanged();
@@ -46,7 +47,11 @@ private slots:
 private:
     explicit WeatherProvider(QObject *parent = nullptr);
     bool hasConfiguredLocation() const;
-    void applyWeatherCode(int weatherCode);
+    bool shouldRefreshForVehicleMove(double latitude, double longitude) const;
+    void applyWeatherCode(int weatherCode, bool isDay);
+    void requestOpenMeteo();
+    void handleOpenMeteoReply(const QByteArray &payload);
+    QString formattedVehicleLocationLabel() const;
     void setLoading(bool loading);
     void setErrorString(const QString &error);
 
@@ -63,6 +68,10 @@ private:
     QString m_lastUpdated;
     bool m_loading = false;
     QString m_errorString;
+    double m_lastRequestedLatitude = std::numeric_limits<double>::quiet_NaN();
+    double m_lastRequestedLongitude = std::numeric_limits<double>::quiet_NaN();
+    qint64 m_lastRequestMs = 0;
+    bool m_hasVehiclePosition = false;
 };
 
 #endif // WEATHERPROVIDER_H

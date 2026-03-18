@@ -21,14 +21,15 @@ linux: QT += dbus
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
-        src/bluetoothcontroller.cpp \
-        main.cpp \
-        src/externalmediacontroller.cpp \
-        src/mainmodel.cpp \
-        src/osrmrouteprovider.cpp \
-        src/serialreceiver.cpp \
-        src/systemsettingscontroller.cpp \
-        src/weatherprovider.cpp
+    src/bluetoothcontroller.cpp \
+    main.cpp \
+    src/externalmediacontroller.cpp \
+    src/mapboxsearchprovider.cpp \
+    src/mainmodel.cpp \
+    src/osrmrouteprovider.cpp \
+    src/serialreceiver.cpp \
+    src/systemsettingscontroller.cpp \
+    src/weatherprovider.cpp
 
 RESOURCES += qml.qrc
 
@@ -51,6 +52,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 HEADERS += \
     src/bluetoothcontroller.h \
     src/externalmediacontroller.h \
+    src/mapboxsearchprovider.h \
     src/mainmodel.h \
     src/mathutils.h \
     src/osrmrouteprovider.h \

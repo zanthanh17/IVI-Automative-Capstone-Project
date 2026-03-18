@@ -1,6 +1,7 @@
 import QtQuick 2.12
 import Style 1.0
 import Weather 1.0
+import NavigationFeed 1.0
 
 NormalModeContentItem {
     id: weatherRoot
@@ -60,7 +61,18 @@ NormalModeContentItem {
     }
 
     Component.onCompleted: {
-        Weather.refresh()
+        if (NavigationFeed.hasPositionFix) {
+            Weather.setVehiclePosition(NavigationFeed.currentLatitude, NavigationFeed.currentLongitude)
+        } else {
+            Weather.refresh()
+        }
+    }
+
+    Connections {
+        target: NavigationFeed
+        function onPositionUpdated(latitude, longitude, speedKmh, headingDeg, timestampMs) {
+            Weather.setVehiclePosition(latitude, longitude)
+        }
     }
 
     Item {
