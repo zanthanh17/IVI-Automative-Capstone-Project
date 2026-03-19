@@ -18,6 +18,7 @@ class GpsPositionProvider : public QObject
     Q_PROPERTY(bool hasFix READ hasFix NOTIFY hasFixChanged)
     Q_PROPERTY(double latitude READ latitude NOTIFY positionDataChanged)
     Q_PROPERTY(double longitude READ longitude NOTIFY positionDataChanged)
+    Q_PROPERTY(double horizontalAccuracyMeters READ horizontalAccuracyMeters NOTIFY positionDataChanged)
     Q_PROPERTY(double speedKmh READ speedKmh NOTIFY positionDataChanged)
     Q_PROPERTY(double headingDeg READ headingDeg NOTIFY positionDataChanged)
     Q_PROPERTY(qint64 timestampMs READ timestampMs NOTIFY positionDataChanged)
@@ -33,6 +34,7 @@ public:
     bool hasFix() const;
     double latitude() const;
     double longitude() const;
+    double horizontalAccuracyMeters() const;
     double speedKmh() const;
     double headingDeg() const;
     qint64 timestampMs() const;
@@ -62,6 +64,7 @@ private:
     void setErrorString(const QString &error);
     void processLine(const QByteArray &line);
     void handleGpsdObject(const QJsonObject &object);
+    double parseHorizontalAccuracyMeters(const QJsonObject &object) const;
     qint64 parseTimestampMs(const QJsonValue &value) const;
     void sendWatchCommand();
 
@@ -76,6 +79,7 @@ private:
     bool m_hasFix;
     double m_latitude;
     double m_longitude;
+    double m_horizontalAccuracyMeters;
     double m_speedKmh;
     double m_headingDeg;
     qint64 m_timestampMs;

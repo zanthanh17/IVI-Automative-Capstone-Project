@@ -24,6 +24,7 @@ SOURCES += \
     src/gpspositionprovider.cpp \
     src/bluetoothcontroller.cpp \
     main.cpp \
+    src/mapboxmapmatcher.cpp \
     src/externalmediacontroller.cpp \
     src/mapboxsearchprovider.cpp \
     src/mainmodel.cpp \
@@ -54,6 +55,7 @@ HEADERS += \
     src/gpspositionprovider.h \
     src/bluetoothcontroller.h \
     src/externalmediacontroller.h \
+    src/mapboxmapmatcher.h \
     src/mapboxsearchprovider.h \
     src/mainmodel.h \
     src/mathutils.h \

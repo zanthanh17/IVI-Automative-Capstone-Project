@@ -3,7 +3,9 @@
 
 #include <QObject>
 #include <QNetworkAccessManager>
+#include <QProcess>
 #include <QTimer>
+#include <QUrl>
 #include <limits>
 
 class QNetworkReply;
@@ -43,20 +45,28 @@ signals:
 
 private slots:
     void onReplyFinished(QNetworkReply *reply);
+    void onCurlFinished(int exitCode, QProcess::ExitStatus exitStatus);
+    void onCurlErrorOccurred(QProcess::ProcessError error);
 
 private:
     explicit WeatherProvider(QObject *parent = nullptr);
+    QUrl buildOpenMeteoUrl() const;
     bool hasConfiguredLocation() const;
     bool shouldRefreshForVehicleMove(double latitude, double longitude) const;
+    bool shouldUseCurlTransport() const;
+    bool shouldRetryWithCurl(QNetworkReply *reply, const QString &networkErrorText) const;
     void applyWeatherCode(int weatherCode, bool isDay);
     void requestOpenMeteo();
+    void requestOpenMeteoViaCurl(const QUrl &url, const QString &reason);
     void handleOpenMeteoReply(const QByteArray &payload);
     QString formattedVehicleLocationLabel() const;
+    void logSslEnvironment();
     void setLoading(bool loading);
     void setErrorString(const QString &error);
 
     QNetworkAccessManager m_networkManager;
     QTimer m_refreshTimer;
+    QProcess m_curlProcess;
 
     double m_latitude = std::numeric_limits<double>::quiet_NaN();
     double m_longitude = std::numeric_limits<double>::quiet_NaN();
@@ -71,6 +81,9 @@ private:
     double m_lastRequestedLatitude = std::numeric_limits<double>::quiet_NaN();
     double m_lastRequestedLongitude = std::numeric_limits<double>::quiet_NaN();
     qint64 m_lastRequestMs = 0;
+    QUrl m_activeWeatherUrl;
+    bool m_loggedSslEnvironment = false;
+    bool m_usingCurlFallback = false;
 };
 
 #endif // WEATHERPROVIDER_H

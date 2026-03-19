@@ -7,6 +7,8 @@ import NavigationModel 1.0
 import NavigationFeed 1.0
 import OsrmRoute 1.0
 import MapboxSearch 1.0
+import MapboxMapMatcher 1.0
+import VehicleGps 1.0
 
 Item {
     id: navMapRoot
@@ -71,11 +73,24 @@ Item {
                && Number.isFinite(NavigationFeed.currentLongitude)
     }
 
-    function vehicleCoordinate() {
+    function rawVehicleCoordinate() {
         if (!hasVehicleFix()) {
             return QtPositioning.coordinate()
         }
         return QtPositioning.coordinate(NavigationFeed.currentLatitude, NavigationFeed.currentLongitude)
+    }
+
+    function vehicleCoordinate() {
+        if (!hasVehicleFix()) {
+            return QtPositioning.coordinate()
+        }
+        if (MapboxMapMatcher.hasMatch
+                && Number.isFinite(MapboxMapMatcher.matchedLatitude)
+                && Number.isFinite(MapboxMapMatcher.matchedLongitude)) {
+            return QtPositioning.coordinate(MapboxMapMatcher.matchedLatitude,
+                                            MapboxMapMatcher.matchedLongitude)
+        }
+        return rawVehicleCoordinate()
     }
 
     function formatMeters(meters) {
@@ -531,6 +546,14 @@ Item {
         logSupportedMapTypes()
         rebuildRouteFromActiveSource()
         applyPreferredMapType()
+        if (hasVehicleFix()) {
+            MapboxMapMatcher.submitTracePoint(NavigationFeed.currentLatitude,
+                                              NavigationFeed.currentLongitude,
+                                              NavigationFeed.currentSpeedKmh,
+                                              NavigationFeed.currentHeadingDeg,
+                                              VehicleGps.timestampMs,
+                                              VehicleGps.horizontalAccuracyMeters)
+        }
         syncCameraToVehicle(true)
         if (!hasVehicleFix()) {
             console.log("[NavMap] No GPS fix yet. Map keeps provider default center until first valid position.")
@@ -563,7 +586,13 @@ Item {
 
     Connections {
         target: NavigationFeed
-        function onPositionUpdated() {
+        function onPositionUpdated(latitude, longitude, speedKmh, headingDeg, timestampMs) {
+            MapboxMapMatcher.submitTracePoint(latitude,
+                                              longitude,
+                                              speedKmh,
+                                              headingDeg,
+                                              timestampMs,
+                                              VehicleGps.horizontalAccuracyMeters)
             if (!navMapRoot.centeredOnFirstFix && navMapRoot.hasVehicleFix()) {
                 navMap.zoomLevel = navMapRoot.clamp(navMapRoot.defaultZoomLevel,
                                                     navMapRoot.minZoomLevel,
@@ -577,6 +606,27 @@ Item {
                 navMapRoot.maybeRerouteIfOffRoute()
             }
             navMapRoot.syncCameraToVehicle(false)
+        }
+
+        function onHasPositionFixChanged() {
+            if (!NavigationFeed.hasPositionFix) {
+                MapboxMapMatcher.reset()
+            }
+        }
+    }
+
+    Connections {
+        target: MapboxMapMatcher
+        function onMatchChanged() {
+            if (!navMapRoot.hasVehicleFix()) {
+                return
+            }
+            navMapRoot.syncCameraToVehicle(false)
+            if (!navMapRoot.liveRouteReady) {
+                navMapRoot.requestRouteToDestination()
+            } else {
+                navMapRoot.maybeRerouteIfOffRoute()
+            }
         }
     }
 

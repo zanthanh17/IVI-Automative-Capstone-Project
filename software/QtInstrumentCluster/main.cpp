@@ -12,6 +12,7 @@
 #include "src/bluetoothcontroller.h"
 #include "src/gpspositionprovider.h"
 #include "src/mainmodel.h"
+#include "src/mapboxmapmatcher.h"
 #include "src/serialreceiver.h"
 #include "src/weatherprovider.h"
 #include "src/osrmrouteprovider.h"
@@ -92,6 +93,10 @@ int main(int argc, char *argv[])
         [](QQmlEngine*, QJSEngine*) -> QObject* {
             return MapboxSearchProvider::instance();
         });
+    qmlRegisterSingletonType<MapboxMapMatcher>("MapboxMapMatcher", 1, 0, "MapboxMapMatcher",
+        [](QQmlEngine*, QJSEngine*) -> QObject* {
+            return MapboxMapMatcher::instance();
+        });
 
     qmlRegisterSingletonType<ExternalMediaController>("ExternalMedia", 1, 0, "ExternalMedia",
         [](QQmlEngine*, QJSEngine*) -> QObject* {
@@ -128,6 +133,9 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("mapboxTokenConfigured", !mapboxToken.trimmed().isEmpty());
     engine.rootContext()->setContextProperty("virtualKeyboardLocaleFromEnv", virtualKeyboardLocale);
     MapboxSearchProvider::instance()->setAccessToken(mapboxToken);
+    MapboxMapMatcher::instance()->setAccessToken(mapboxToken);
+    MapboxMapMatcher::instance()->setBaseUrl(QStringLiteral("https://api.mapbox.com"));
+    MapboxMapMatcher::instance()->setProfile(QStringLiteral("mapbox/driving-traffic"));
 
     // Use fixed Qt5-compatible style to avoid Mapbox Standard/import incompatibilities.
     const QString mapboxStyleUrl = QStringLiteral("mapbox://styles/mapbox/navigation-guidance-night-v2");
