@@ -16,17 +16,27 @@ NormalModeContentItem {
     property string weatherError: Weather.errorString
     readonly property color accentColor: accentColorForType(iconType)
     readonly property bool offline: weatherError.length > 0
-    readonly property string resolvedCityName: cityName.length > 0 ? cityName : "Unknown location"
-    readonly property string resolvedCondition: loading
+    readonly property bool waitingForGps: !NavigationFeed.hasPositionFix
+                                          && !offline
+                                          && !loading
+                                          && lastUpdated.length === 0
+    readonly property string resolvedCityName: cityName.length > 0 ? cityName : "Vehicle location"
+    readonly property string resolvedCondition: waitingForGps
+                                               ? "Waiting for GPS"
+                                               : loading
                                                ? "Refreshing weather"
                                                : (conditionText.length > 0 ? conditionText : "--")
     readonly property string resolvedDetail: offline
                                             ? weatherError
-                                            : (detailText.length > 0 ? detailText : "Outdoor conditions unavailable")
+                                            : (waitingForGps
+                                               ? "Weather will load after live vehicle position is available"
+                                               : (detailText.length > 0 ? detailText : "Outdoor conditions unavailable"))
     readonly property string statusLabel: offline ? "Weather offline"
-                                                  : (loading
-                                                     ? "Refreshing"
-                                                     : (lastUpdated.length > 0 ? ("Updated " + lastUpdated) : "Live weather"))
+                                                  : (waitingForGps
+                                                     ? "Waiting for GPS"
+                                                     : (loading
+                                                        ? "Refreshing"
+                                                        : (lastUpdated.length > 0 ? ("Updated " + lastUpdated) : "Live weather")))
 
     function iconSourceForType(type) {
         if (type === "sun") {
@@ -63,8 +73,6 @@ NormalModeContentItem {
     Component.onCompleted: {
         if (NavigationFeed.hasPositionFix) {
             Weather.setVehiclePosition(NavigationFeed.currentLatitude, NavigationFeed.currentLongitude)
-        } else {
-            Weather.refresh()
         }
     }
 

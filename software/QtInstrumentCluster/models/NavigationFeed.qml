@@ -5,24 +5,7 @@ import VehicleGps 1.0
 QtObject {
     id: navigationFeed
 
-    // Source switch: keep the same signal pipeline and swap only producer.
-    // Real GPS is the default on Raspberry Pi; mock mode remains available for demos/tests.
-    property bool useMockGps: (typeof gpsUseMockDefault === "boolean") ? gpsUseMockDefault : false
-    property bool running: true
-    property bool loopMockRoute: true
-
-    property int tickMs: 200
-    property real mockSpeedKmh: 0.0
-
-    // Default fallback vehicle position in Da Nang, Vietnam (stationary).
-    property var mockRoute: [
-        { lat: 16.061911, lon: 108.219773 } // Nguyen Van Linh, Da Nang
-    ]
-
-    property real mockRouteLengthMeters: 0
-
     property bool hasPositionFix: false
-    property real mockTraveledMeters: 0
     property real currentLatitude: 0
     property real currentLongitude: 0
     property real currentHeadingDeg: 0
@@ -30,7 +13,6 @@ QtObject {
 
     signal positionUpdated(real latitude, real longitude, real speedKmh, real headingDeg, real timestampMs)
     signal sourceChanged(string source)
-    signal routeLooped()
 
     function clearPositionFix() {
         hasPositionFix = false
@@ -38,44 +20,6 @@ QtObject {
         currentLongitude = 0
         currentHeadingDeg = 0
         currentSpeedKmh = 0
-    }
-
-    function start() {
-        running = true
-    }
-
-    function stop() {
-        running = false
-    }
-
-    function resetMockRoute() {
-        if (!mockRoute || mockRoute.length === 0) {
-            return
-        }
-        mockTraveledMeters = 0
-        var startPoint = pointOnRoute(0)
-        publishPosition(startPoint.lat, startPoint.lon, mockSpeedKmh, startPoint.heading, Date.now())
-    }
-
-    function setRouteFromCoordinates(coordList) {
-        if (!coordList || coordList.length === 0) return
-        var newlyMapped = []
-        for (var i = 0; i < coordList.length; ++i) {
-            var c = coordList[i]
-            if (c && c.isValid) {
-                newlyMapped.push({ lat: c.latitude, lon: c.longitude })
-            }
-        }
-        mockRoute = newlyMapped
-        mockRouteLengthMeters = routeLengthMeters()
-        resetMockRoute()
-    }
-
-    function injectHardwarePosition(latitude, longitude, speedKmh, headingDeg, timestampMs) {
-        if (useMockGps) {
-            return
-        }
-        publishPosition(latitude, longitude, speedKmh, headingDeg, timestampMs)
     }
 
     function publishPosition(latitude, longitude, speedKmh, headingDeg, timestampMs) {
@@ -91,152 +35,30 @@ QtObject {
         positionUpdated(latitude, longitude, speedKmh, headingDeg, timestampMs)
     }
 
-    function toRad(degrees) {
-        return degrees * Math.PI / 180.0
-    }
-
-    function toDeg(radians) {
-        return radians * 180.0 / Math.PI
-    }
-
-    function haversineMeters(lat1, lon1, lat2, lon2) {
-        var R = 6371000.0
-        var dLat = toRad(lat2 - lat1)
-        var dLon = toRad(lon2 - lon1)
-        var a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2))
-                * Math.sin(dLon / 2) * Math.sin(dLon / 2)
-        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-        return R * c
-    }
-
-    function headingDeg(lat1, lon1, lat2, lon2) {
-        var phi1 = toRad(lat1)
-        var phi2 = toRad(lat2)
-        var dLon = toRad(lon2 - lon1)
-        var y = Math.sin(dLon) * Math.cos(phi2)
-        var x = Math.cos(phi1) * Math.sin(phi2)
-                - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLon)
-        return (toDeg(Math.atan2(y, x)) + 360) % 360
-    }
-
-    function routeLengthMeters() {
-        var total = 0
-        for (var i = 0; i < mockRoute.length - 1; ++i) {
-            total += haversineMeters(
-                        mockRoute[i].lat, mockRoute[i].lon,
-                        mockRoute[i + 1].lat, mockRoute[i + 1].lon)
-        }
-        return total
-    }
-
-    function pointOnRoute(distanceMeters) {
-        if (mockRoute.length === 0) {
-            return { lat: 0, lon: 0, heading: 0 }
-        }
-        if (mockRoute.length === 1) {
-            return { lat: mockRoute[0].lat, lon: mockRoute[0].lon, heading: 0 }
-        }
-
-        var remaining = Math.max(0, distanceMeters)
-        for (var i = 0; i < mockRoute.length - 1; ++i) {
-            var from = mockRoute[i]
-            var to = mockRoute[i + 1]
-            var segment = haversineMeters(from.lat, from.lon, to.lat, to.lon)
-            if (remaining <= segment || i === mockRoute.length - 2) {
-                var t = segment > 0 ? Math.min(1, remaining / segment) : 0
-                return {
-                    lat: from.lat + (to.lat - from.lat) * t,
-                    lon: from.lon + (to.lon - from.lon) * t,
-                    heading: headingDeg(from.lat, from.lon, to.lat, to.lon)
-                }
-            }
-            remaining -= segment
-        }
-
-        var last = mockRoute[mockRoute.length - 1]
-        return { lat: last.lat, lon: last.lon, heading: 0 }
-    }
-
-    function advanceMock() {
-        if (!running || !useMockGps || mockRouteLengthMeters <= 0) {
-            return
-        }
-
-        var deltaMeters = Math.max(0.8, mockSpeedKmh * 1000.0 / 3600.0 * tickMs / 1000.0)
-        var nextDistance = mockTraveledMeters + deltaMeters
-        if (nextDistance >= mockRouteLengthMeters) {
-            if (loopMockRoute) {
-                nextDistance -= mockRouteLengthMeters
-                routeLooped()
-            } else {
-                nextDistance = mockRouteLengthMeters
-                stop()
-            }
-        }
-
-        mockTraveledMeters = nextDistance
-        var point = pointOnRoute(nextDistance)
-        publishPosition(point.lat, point.lon, mockSpeedKmh, point.heading, Date.now())
-    }
-
-    onUseMockGpsChanged: {
-        sourceChanged(useMockGps ? "mock" : "hardware")
-        if (useMockGps) {
-            VehicleGps.stop()
-            resetMockRoute()
-        } else if (VehicleGps.hasFix) {
-            VehicleGps.start()
-            publishPosition(VehicleGps.latitude,
-                            VehicleGps.longitude,
-                            VehicleGps.speedKmh,
-                            VehicleGps.headingDeg,
-                            VehicleGps.timestampMs)
-        } else {
-            VehicleGps.start()
-            clearPositionFix()
-        }
-    }
-
     property var _gpsConnections: Connections {
         target: VehicleGps
 
         function onPositionChanged(latitude, longitude, speedKmh, headingDeg, timestampMs) {
-            if (!navigationFeed.useMockGps) {
-                navigationFeed.publishPosition(latitude, longitude, speedKmh, headingDeg, timestampMs)
-            }
+            navigationFeed.publishPosition(latitude, longitude, speedKmh, headingDeg, timestampMs)
         }
 
         function onHasFixChanged() {
-            if (!navigationFeed.useMockGps && !VehicleGps.hasFix) {
+            if (!VehicleGps.hasFix) {
                 navigationFeed.clearPositionFix()
             }
         }
     }
 
-    property var _mockTimer: Timer {
-        interval: navigationFeed.tickMs
-        repeat: true
-        running: navigationFeed.running && navigationFeed.useMockGps
-        triggeredOnStart: true
-        onTriggered: navigationFeed.advanceMock()
-    }
-
     Component.onCompleted: {
-        mockRouteLengthMeters = routeLengthMeters()
-        sourceChanged(useMockGps ? "mock" : "hardware")
-        if (useMockGps) {
-            VehicleGps.stop()
-            resetMockRoute()
-        } else if (VehicleGps.hasFix) {
-            VehicleGps.start()
+        sourceChanged("hardware")
+        if (VehicleGps.hasFix) {
             publishPosition(VehicleGps.latitude,
                             VehicleGps.longitude,
                             VehicleGps.speedKmh,
                             VehicleGps.headingDeg,
                             VehicleGps.timestampMs)
         } else {
-            VehicleGps.start()
+            clearPositionFix()
         }
     }
 }

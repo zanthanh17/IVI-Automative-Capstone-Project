@@ -308,29 +308,6 @@ Item {
         requestRouteToDestination()
     }
 
-    function buildRoutePath() {
-        var list = []
-        var raw = NavigationFeed.mockRoute
-        if (raw.length === 0) {
-            return list
-        }
-
-        for (var i = 0; i < raw.length - 1; ++i) {
-            var from = raw[i]
-            var to = raw[i + 1]
-            list.push(QtPositioning.coordinate(from.lat, from.lon))
-            for (var step = 1; step <= 6; ++step) {
-                var t = step / 7.0
-                var lat = from.lat + (to.lat - from.lat) * t
-                var lon = from.lon + (to.lon - from.lon) * t
-                list.push(QtPositioning.coordinate(lat, lon))
-            }
-        }
-
-        list.push(QtPositioning.coordinate(raw[raw.length - 1].lat, raw[raw.length - 1].lon))
-        return list
-    }
-
     function rebuildRouteFromActiveSource() {
         if (liveRouteReady && OsrmRoute.routePath.length > 1) {
             routePath = OsrmRoute.routePath
@@ -338,7 +315,7 @@ Item {
             return
         }
 
-        routePath = buildRoutePath()
+        routePath = []
         updateSegmentedPath()
     }
 
@@ -554,7 +531,6 @@ Item {
         logSupportedMapTypes()
         rebuildRouteFromActiveSource()
         applyPreferredMapType()
-        requestRouteToDestination()
         syncCameraToVehicle(true)
         if (!hasVehicleFix()) {
             console.log("[NavMap] No GPS fix yet. Map keeps provider default center until first valid position.")
@@ -601,13 +577,6 @@ Item {
                 navMapRoot.maybeRerouteIfOffRoute()
             }
             navMapRoot.syncCameraToVehicle(false)
-        }
-        function onRouteLooped() {
-            console.log("[NavMap] Route looped, rebuilding path")
-            navMapRoot.rebuildRouteFromActiveSource()
-            if (navMapRoot.overviewMode) {
-                navMapRoot.showRouteOverview()
-            }
         }
     }
 

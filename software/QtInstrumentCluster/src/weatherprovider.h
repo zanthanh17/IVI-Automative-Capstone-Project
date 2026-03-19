@@ -61,7 +61,7 @@ private:
     double m_latitude = std::numeric_limits<double>::quiet_NaN();
     double m_longitude = std::numeric_limits<double>::quiet_NaN();
     QString m_cityName = QStringLiteral("Unknown location");
-    QString m_detailText = QStringLiteral("Outdoor Temperature");
+    QString m_detailText = QStringLiteral("Live weather");
     int m_temperature = 0;
     QString m_conditionText = QStringLiteral("--");
     QString m_iconType = QStringLiteral("partly");
@@ -71,7 +71,6 @@ private:
     double m_lastRequestedLatitude = std::numeric_limits<double>::quiet_NaN();
     double m_lastRequestedLongitude = std::numeric_limits<double>::quiet_NaN();
     qint64 m_lastRequestMs = 0;
-    bool m_hasVehiclePosition = false;
 };
 
 #endif // WEATHERPROVIDER_H

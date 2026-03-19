@@ -101,8 +101,6 @@ if [[ -n "${MAPBOX_ACCESS_TOKEN:-}" ]]; then
 else
     echo "[WARN] MAPBOX_ACCESS_TOKEN is not set (Mapbox map/routing/geocode will fail)."
 fi
-echo "[INFO] GPS_SOURCE=${GPS_SOURCE:-gpsd}"
-echo "[INFO] GPS_USE_MOCK=${GPS_USE_MOCK:-0}"
 echo "[INFO] GPSD endpoint=${GPSD_HOST:-127.0.0.1}:${GPSD_PORT:-2947}"
 echo "[INFO] MAPBOX_STYLE_URL=${MAPBOX_STYLE_URL:-mapbox://styles/mapbox/navigation-guidance-night-v2}"
 echo "[INFO] Launching: ${APP_BIN}"

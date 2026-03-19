@@ -30,9 +30,8 @@ The following events are handled using key press:
 1. `Left` / `Right`: previous or next media item
 2. `N` / `M`: switch dashboard menu
 3. `Q`, `E`, `W`, `R`, `T`, `Y`: toggle telltales for quick UI validation
-4. `G`: toggle navigation feed source (mock GPS / hardware GPS)
-5. `H`: toggle external media host mode
-6. `B`: rescan local host media tracks
+4. `H`: toggle external media host mode
+5. `B`: rescan local host media tracks
 
 ## Raspberry Pi (Native Qt6)
 
@@ -81,8 +80,6 @@ If `cgps` / `gpsmon` already shows a valid fix on the Pi, the dashboard now read
 Recommended `.env` values:
 
 ```bash
-GPS_SOURCE=gpsd
-GPS_USE_MOCK=0
 GPSD_HOST=127.0.0.1
 GPSD_PORT=2947
 ```
@@ -93,8 +90,6 @@ Quick checks:
 cgps -s
 ss -ltn sport = :2947
 ```
-
-Press `G` in the dashboard if you want to switch between live GPS and mock GPS for testing.
 
 If no desktop/X11 session is available, run:
 

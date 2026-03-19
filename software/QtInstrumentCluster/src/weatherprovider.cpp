@@ -47,24 +47,6 @@ WeatherProvider *WeatherProvider::instance()
 WeatherProvider::WeatherProvider(QObject *parent)
     : QObject(parent)
 {
-    bool latOk = false;
-    bool lonOk = false;
-    const QString latEnv = qEnvironmentVariable("WEATHER_LATITUDE");
-    const QString lonEnv = qEnvironmentVariable("WEATHER_LONGITUDE");
-    m_latitude = latEnv.toDouble(&latOk);
-    m_longitude = lonEnv.toDouble(&lonOk);
-    if (!latOk || !lonOk) {
-        m_latitude = std::numeric_limits<double>::quiet_NaN();
-        m_longitude = std::numeric_limits<double>::quiet_NaN();
-    }
-
-    const QString cityEnv = qEnvironmentVariable("WEATHER_CITY").trimmed();
-    if (!cityEnv.isEmpty()) {
-        m_cityName = cityEnv;
-    } else if (hasConfiguredLocation()) {
-        m_cityName = formattedVehicleLocationLabel();
-    }
-
     connect(&m_networkManager, &QNetworkAccessManager::finished,
             this, &WeatherProvider::onReplyFinished);
 
@@ -72,8 +54,6 @@ WeatherProvider::WeatherProvider(QObject *parent)
     connect(&m_refreshTimer, &QTimer::timeout,
             this, &WeatherProvider::refresh);
     m_refreshTimer.start();
-
-    refresh();
 }
 
 QString WeatherProvider::cityName() const
@@ -143,7 +123,7 @@ void WeatherProvider::refresh()
     }
 
     if (!hasConfiguredLocation()) {
-        setErrorString(QStringLiteral("Waiting for vehicle position"));
+        setErrorString(QStringLiteral("Waiting for live GPS position"));
         return;
     }
 
@@ -165,7 +145,6 @@ void WeatherProvider::setVehiclePosition(double latitude, double longitude)
                                  || !qFuzzyCompare(m_latitude + 1.0, latitude + 1.0)
                                  || !qFuzzyCompare(m_longitude + 1.0, longitude + 1.0);
 
-    m_hasVehiclePosition = true;
     m_latitude = latitude;
     m_longitude = longitude;
 
@@ -245,9 +224,7 @@ void WeatherProvider::handleOpenMeteoReply(const QByteArray &payload)
         return;
     }
 
-    if (m_hasVehiclePosition || m_cityName.trimmed().isEmpty() || m_cityName == QStringLiteral("Unknown location")) {
-        m_cityName = formattedVehicleLocationLabel();
-    }
+    m_cityName = formattedVehicleLocationLabel();
 
     m_temperature = qRound(tempValue);
 
@@ -259,7 +236,7 @@ void WeatherProvider::handleOpenMeteoReply(const QByteArray &payload)
         detailParts.push_back(QStringLiteral("Humidity %1%").arg(humidityValue));
     }
     m_detailText = detailParts.isEmpty()
-                   ? QStringLiteral("Vehicle location weather")
+                   ? QStringLiteral("Live vehicle weather")
                    : detailParts.join(QStringLiteral(" | "));
 
     applyWeatherCode(weatherCode, isDay);
@@ -309,16 +286,10 @@ void WeatherProvider::applyWeatherCode(int weatherCode, bool isDay)
 QString WeatherProvider::formattedVehicleLocationLabel() const
 {
     if (!hasConfiguredLocation()) {
-        return QStringLiteral("Unknown location");
-    }
-
-    if (m_hasVehiclePosition) {
         return QStringLiteral("Vehicle location");
     }
 
-    return QStringLiteral("%1, %2")
-           .arg(QString::number(m_latitude, 'f', 3))
-           .arg(QString::number(m_longitude, 'f', 3));
+    return QStringLiteral("Vehicle location");
 }
 
 void WeatherProvider::setLoading(bool loading)

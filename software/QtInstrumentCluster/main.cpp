@@ -18,38 +18,6 @@
 #include "src/mapboxsearchprovider.h"
 #include "src/systemsettingscontroller.h"
 
-namespace {
-
-bool envFlagEnabled(const char *name, bool defaultValue = false)
-{
-    if (!qEnvironmentVariableIsSet(name)) {
-        return defaultValue;
-    }
-
-    const QString value = qEnvironmentVariable(name).trimmed().toLower();
-    if (value.isEmpty()) {
-        return true;
-    }
-
-    if (value == QStringLiteral("1")
-            || value == QStringLiteral("true")
-            || value == QStringLiteral("yes")
-            || value == QStringLiteral("on")) {
-        return true;
-    }
-
-    if (value == QStringLiteral("0")
-            || value == QStringLiteral("false")
-            || value == QStringLiteral("no")
-            || value == QStringLiteral("off")) {
-        return false;
-    }
-
-    return defaultValue;
-}
-
-} // namespace
-
 int main(int argc, char *argv[])
 {
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
@@ -144,15 +112,9 @@ int main(int argc, char *argv[])
             return WeatherProvider::instance();
         });
 
-    const QString gpsSourceEnv = qEnvironmentVariable("GPS_SOURCE", "gpsd").trimmed().toLower();
-    const bool gpsUseMockDefault = envFlagEnabled("GPS_USE_MOCK", false)
-                                   || gpsSourceEnv == QStringLiteral("mock");
-    qInfo() << "[Main] GPS feed default:" << (gpsUseMockDefault ? "mock" : "gpsd");
-
     MainModel::instance()->initSerialReceiver();
-    if (!gpsUseMockDefault) {
-        GpsPositionProvider::instance()->start();
-    }
+    qInfo() << "[Main] GPS feed source: gpsd";
+    GpsPositionProvider::instance()->start();
 
     QQmlApplicationEngine engine;
 
@@ -165,7 +127,6 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("mapboxTokenFromEnv", mapboxToken);
     engine.rootContext()->setContextProperty("mapboxTokenConfigured", !mapboxToken.trimmed().isEmpty());
     engine.rootContext()->setContextProperty("virtualKeyboardLocaleFromEnv", virtualKeyboardLocale);
-    engine.rootContext()->setContextProperty("gpsUseMockDefault", gpsUseMockDefault);
     MapboxSearchProvider::instance()->setAccessToken(mapboxToken);
 
     // Use fixed Qt5-compatible style to avoid Mapbox Standard/import incompatibilities.

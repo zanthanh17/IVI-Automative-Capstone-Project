@@ -7,9 +7,8 @@ QtObject {
 
     enum Maneuver { TurnLeft, TurnRight, GoStraight, UTurn, Arrive }
 
-    property bool active: true
-    property bool loopRouteDemo: true
-    property string source: "mock"
+    property bool active: false
+    property string source: "hardware"
 
     property string currentStreet: ""
     property string nextStreet: ""
@@ -34,15 +33,7 @@ QtObject {
     property real _lastLon: 0
     property real _lastTimestampMs: 0
 
-    property var route: [
-        { street: "Nguyen Van Linh", next: "2 Thang 9",      maneuver: NavigationModel.TurnRight,  dist: 420 },
-        { street: "2 Thang 9",       next: "Tran Hung Dao",  maneuver: NavigationModel.GoStraight, dist: 560 },
-        { street: "Tran Hung Dao",   next: "Pham Van Dong",  maneuver: NavigationModel.TurnLeft,   dist: 390 },
-        { street: "Pham Van Dong",   next: "Vo Nguyen Giap", maneuver: NavigationModel.TurnRight,  dist: 340 },
-        { street: "Vo Nguyen Giap",  next: "Nguyen Van Thoai", maneuver: NavigationModel.GoStraight, dist: 610 },
-        { street: "Nguyen Van Thoai", next: "Le Quang Dao",  maneuver: NavigationModel.TurnLeft,   dist: 300 },
-        { street: "Le Quang Dao",    next: "Destination",    maneuver: NavigationModel.Arrive,     dist: 70  }
-    ]
+    property var route: []
 
     property real totalRouteMeters: computeTotalRouteMeters()
 
@@ -74,6 +65,7 @@ QtObject {
         if (!stepsVariantList || stepsVariantList.length === 0) {
             route = []
             totalRouteMeters = 0
+            resetRouteProgress()
             return
         }
         
@@ -102,7 +94,7 @@ QtObject {
     }
 
     function resetRouteProgress() {
-        active = true
+        active = totalRouteMeters > 0
         hasFix = false
         traveledMeters = 0
         remainingMeters = totalRouteMeters
@@ -159,8 +151,6 @@ QtObject {
     }
 
     function updateFromPosition(lat, lon, speed, heading, timestampMs) {
-        source = NavigationFeed.useMockGps ? "mock" : "hardware"
-
         latitude = lat
         longitude = lon
         speedKmh = speed
@@ -189,13 +179,9 @@ QtObject {
         }
 
         if (traveledMeters >= totalRouteMeters) {
-            if (loopRouteDemo) {
-                resetRouteProgress()
-            } else {
-                traveledMeters = totalRouteMeters
-                active = false
-                updateFromDistance(traveledMeters)
-            }
+            traveledMeters = totalRouteMeters
+            active = false
+            updateFromDistance(traveledMeters)
         } else {
             updateFromDistance(traveledMeters)
         }
@@ -216,19 +202,10 @@ QtObject {
             navigationModel.source = source
             navigationModel.resetRouteProgress()
         }
-
-        function onRouteLooped() {
-            if (navigationModel.loopRouteDemo) {
-                navigationModel.resetRouteProgress()
-            }
-        }
     }
 
     Component.onCompleted: {
-        source = NavigationFeed.useMockGps ? "mock" : "hardware"
+        source = "hardware"
         resetRouteProgress()
-        if (NavigationFeed.useMockGps) {
-            NavigationFeed.start()
-        }
     }
 }
