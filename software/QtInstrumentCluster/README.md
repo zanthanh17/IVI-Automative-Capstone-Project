@@ -74,6 +74,28 @@ ls -l /dev/ttyAMA0
 ls -l /dev/ttyUSB*
 ```
 
+### Live GPS on Raspberry Pi
+
+If `cgps` / `gpsmon` already shows a valid fix on the Pi, the dashboard now reads that live position directly from `gpsd` and feeds it into Navigation + Weather.
+
+Recommended `.env` values:
+
+```bash
+GPS_SOURCE=gpsd
+GPS_USE_MOCK=0
+GPSD_HOST=127.0.0.1
+GPSD_PORT=2947
+```
+
+Quick checks:
+
+```bash
+cgps -s
+ss -ltn sport = :2947
+```
+
+Press `G` in the dashboard if you want to switch between live GPS and mock GPS for testing.
+
 If no desktop/X11 session is available, run:
 
 ```bash

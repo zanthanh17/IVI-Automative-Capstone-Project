@@ -1,13 +1,13 @@
 pragma Singleton
 import QtQuick 2.15
+import VehicleGps 1.0
 
 QtObject {
     id: navigationFeed
 
     // Source switch: keep the same signal pipeline and swap only producer.
-    // Demo mode default: force GPS fix in Da Nang so navigation map always renders.
-    // Set this to false when using real GNSS hardware.
-    property bool useMockGps: true
+    // Real GPS is the default on Raspberry Pi; mock mode remains available for demos/tests.
+    property bool useMockGps: (typeof gpsUseMockDefault === "boolean") ? gpsUseMockDefault : false
     property bool running: true
     property bool loopMockRoute: true
 
@@ -31,6 +31,14 @@ QtObject {
     signal positionUpdated(real latitude, real longitude, real speedKmh, real headingDeg, real timestampMs)
     signal sourceChanged(string source)
     signal routeLooped()
+
+    function clearPositionFix() {
+        hasPositionFix = false
+        currentLatitude = 0
+        currentLongitude = 0
+        currentHeadingDeg = 0
+        currentSpeedKmh = 0
+    }
 
     function start() {
         running = true
@@ -175,7 +183,34 @@ QtObject {
     onUseMockGpsChanged: {
         sourceChanged(useMockGps ? "mock" : "hardware")
         if (useMockGps) {
+            VehicleGps.stop()
             resetMockRoute()
+        } else if (VehicleGps.hasFix) {
+            VehicleGps.start()
+            publishPosition(VehicleGps.latitude,
+                            VehicleGps.longitude,
+                            VehicleGps.speedKmh,
+                            VehicleGps.headingDeg,
+                            VehicleGps.timestampMs)
+        } else {
+            VehicleGps.start()
+            clearPositionFix()
+        }
+    }
+
+    property var _gpsConnections: Connections {
+        target: VehicleGps
+
+        function onPositionChanged(latitude, longitude, speedKmh, headingDeg, timestampMs) {
+            if (!navigationFeed.useMockGps) {
+                navigationFeed.publishPosition(latitude, longitude, speedKmh, headingDeg, timestampMs)
+            }
+        }
+
+        function onHasFixChanged() {
+            if (!navigationFeed.useMockGps && !VehicleGps.hasFix) {
+                navigationFeed.clearPositionFix()
+            }
         }
     }
 
@@ -191,7 +226,17 @@ QtObject {
         mockRouteLengthMeters = routeLengthMeters()
         sourceChanged(useMockGps ? "mock" : "hardware")
         if (useMockGps) {
+            VehicleGps.stop()
             resetMockRoute()
+        } else if (VehicleGps.hasFix) {
+            VehicleGps.start()
+            publishPosition(VehicleGps.latitude,
+                            VehicleGps.longitude,
+                            VehicleGps.speedKmh,
+                            VehicleGps.headingDeg,
+                            VehicleGps.timestampMs)
+        } else {
+            VehicleGps.start()
         }
     }
 }

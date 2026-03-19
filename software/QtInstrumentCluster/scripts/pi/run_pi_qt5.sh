@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 BUILD_DIR="${PROJECT_DIR}/build-pi-qt5"
 ENV_FILE="${PROJECT_DIR}/.env"
+LEGACY_ENV_FILE="${PROJECT_DIR}/.env "
 
 APP_BIN=""
 if [[ -x "${BUILD_DIR}/QtInstrumentCluster" ]]; then
@@ -17,6 +18,10 @@ if [[ -z "${APP_BIN}" ]]; then
     echo "[ERROR] Qt5 executable not found in ${BUILD_DIR}."
     echo "        Please run: ./scripts/pi/build_pi_qt5.sh"
     exit 1
+fi
+
+if [[ ! -f "${ENV_FILE}" && -f "${LEGACY_ENV_FILE}" ]]; then
+    ENV_FILE="${LEGACY_ENV_FILE}"
 fi
 
 if [[ -f "${ENV_FILE}" ]]; then
@@ -96,6 +101,9 @@ if [[ -n "${MAPBOX_ACCESS_TOKEN:-}" ]]; then
 else
     echo "[WARN] MAPBOX_ACCESS_TOKEN is not set (Mapbox map/routing/geocode will fail)."
 fi
+echo "[INFO] GPS_SOURCE=${GPS_SOURCE:-gpsd}"
+echo "[INFO] GPS_USE_MOCK=${GPS_USE_MOCK:-0}"
+echo "[INFO] GPSD endpoint=${GPSD_HOST:-127.0.0.1}:${GPSD_PORT:-2947}"
 echo "[INFO] MAPBOX_STYLE_URL=${MAPBOX_STYLE_URL:-mapbox://styles/mapbox/navigation-guidance-night-v2}"
 echo "[INFO] Launching: ${APP_BIN}"
 echo "[HINT] Framebuffer mode: QT_QPA_PLATFORM=eglfs ./scripts/pi/run_pi_qt5.sh"

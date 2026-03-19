@@ -5,6 +5,7 @@ import MainModel 1.0
 import MediaPlayerModel 1.0
 import TellTalesModel 1.0
 import NormalModeModel 1.0
+import NavigationFeed 1.0
 import Style 1.0
 import "view" as View
 
@@ -86,6 +87,13 @@ Window {
             TellTalesModel.airbagActive = !TellTalesModel.airbagActive
         } else if (key === Qt.Key_U) {
             TellTalesModel.indicatorOpacity = TellTalesModel.indicatorOpacity > 0 ? 0 : 1
+        } else if (key === Qt.Key_G) {
+            NavigationFeed.useMockGps = !NavigationFeed.useMockGps
+            if (NavigationFeed.useMockGps) {
+                NavigationFeed.start()
+            } else {
+                NavigationFeed.stop()
+            }
         } else if (key === Qt.Key_N) {
             NormalModeModel.nextMenu()
         } else if (key === Qt.Key_M) {
@@ -105,6 +113,7 @@ Window {
     Shortcut { sequence: "T"; onActivated: handleKey(Qt.Key_T) }
     Shortcut { sequence: "Y"; onActivated: handleKey(Qt.Key_Y) }
     Shortcut { sequence: "U"; onActivated: handleKey(Qt.Key_U) }
+    Shortcut { sequence: "G"; onActivated: handleKey(Qt.Key_G) }
     Shortcut { sequence: "N"; onActivated: handleKey(Qt.Key_N) }
     Shortcut { sequence: "M"; onActivated: handleKey(Qt.Key_M) }
 

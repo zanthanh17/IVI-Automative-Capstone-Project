@@ -21,6 +21,7 @@ linux: QT += dbus
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    src/gpspositionprovider.cpp \
     src/bluetoothcontroller.cpp \
     main.cpp \
     src/externalmediacontroller.cpp \
@@ -50,6 +51,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 HEADERS += \
+    src/gpspositionprovider.h \
     src/bluetoothcontroller.h \
     src/externalmediacontroller.h \
     src/mapboxsearchprovider.h \

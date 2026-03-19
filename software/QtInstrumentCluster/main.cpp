@@ -10,12 +10,45 @@
 
 #include "src/externalmediacontroller.h"
 #include "src/bluetoothcontroller.h"
+#include "src/gpspositionprovider.h"
 #include "src/mainmodel.h"
 #include "src/serialreceiver.h"
 #include "src/weatherprovider.h"
 #include "src/osrmrouteprovider.h"
 #include "src/mapboxsearchprovider.h"
 #include "src/systemsettingscontroller.h"
+
+namespace {
+
+bool envFlagEnabled(const char *name, bool defaultValue = false)
+{
+    if (!qEnvironmentVariableIsSet(name)) {
+        return defaultValue;
+    }
+
+    const QString value = qEnvironmentVariable(name).trimmed().toLower();
+    if (value.isEmpty()) {
+        return true;
+    }
+
+    if (value == QStringLiteral("1")
+            || value == QStringLiteral("true")
+            || value == QStringLiteral("yes")
+            || value == QStringLiteral("on")) {
+        return true;
+    }
+
+    if (value == QStringLiteral("0")
+            || value == QStringLiteral("false")
+            || value == QStringLiteral("no")
+            || value == QStringLiteral("off")) {
+        return false;
+    }
+
+    return defaultValue;
+}
+
+} // namespace
 
 int main(int argc, char *argv[])
 {
@@ -77,6 +110,10 @@ int main(int argc, char *argv[])
         });
     qmlRegisterSingletonType(QUrl("qrc:///models/NavigationFeed.qml"), "NavigationFeed", 1, 0, "NavigationFeed");
     qmlRegisterSingletonType(QUrl("qrc:///models/NavigationModel.qml"), "NavigationModel", 1, 0, "NavigationModel");
+    qmlRegisterSingletonType<GpsPositionProvider>("VehicleGps", 1, 0, "VehicleGps",
+        [](QQmlEngine*, QJSEngine*) -> QObject* {
+            return GpsPositionProvider::instance();
+        });
 
     qmlRegisterSingletonType<OsrmRouteProvider>("OsrmRoute", 1, 0, "OsrmRoute",
         [](QQmlEngine*, QJSEngine*) -> QObject* {
@@ -107,7 +144,15 @@ int main(int argc, char *argv[])
             return WeatherProvider::instance();
         });
 
+    const QString gpsSourceEnv = qEnvironmentVariable("GPS_SOURCE", "gpsd").trimmed().toLower();
+    const bool gpsUseMockDefault = envFlagEnabled("GPS_USE_MOCK", false)
+                                   || gpsSourceEnv == QStringLiteral("mock");
+    qInfo() << "[Main] GPS feed default:" << (gpsUseMockDefault ? "mock" : "gpsd");
+
     MainModel::instance()->initSerialReceiver();
+    if (!gpsUseMockDefault) {
+        GpsPositionProvider::instance()->start();
+    }
 
     QQmlApplicationEngine engine;
 
@@ -120,6 +165,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("mapboxTokenFromEnv", mapboxToken);
     engine.rootContext()->setContextProperty("mapboxTokenConfigured", !mapboxToken.trimmed().isEmpty());
     engine.rootContext()->setContextProperty("virtualKeyboardLocaleFromEnv", virtualKeyboardLocale);
+    engine.rootContext()->setContextProperty("gpsUseMockDefault", gpsUseMockDefault);
     MapboxSearchProvider::instance()->setAccessToken(mapboxToken);
 
     // Use fixed Qt5-compatible style to avoid Mapbox Standard/import incompatibilities.
