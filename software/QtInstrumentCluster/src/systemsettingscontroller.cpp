@@ -190,18 +190,25 @@ void SystemSettingsController::setVolumeLevel(qreal level)
 void SystemSettingsController::setBrightnessLevel(qreal level)
 {
     const qreal clamped = qBound<qreal>(0.0, level, 1.0);
-    if (qFuzzyCompare(m_brightnessLevel, clamped))
+    
+    qreal snapped = 1.0;
+    if (clamped <= 0.375) snapped = 0.25;
+    else if (clamped <= 0.625) snapped = 0.50;
+    else if (clamped <= 0.875) snapped = 0.75;
+    else snapped = 1.0;
+
+    if (qFuzzyCompare(m_brightnessLevel, snapped))
         return;
 
-    m_brightnessLevel = clamped;
+    m_brightnessLevel = snapped;
     emit brightnessLevelChanged();
 
 #if defined(Q_OS_LINUX)
     // Throttle: ghi sysfs sau 30 ms (đủ nhanh cho cảm giác real-time)
-    m_pendingBrightness = clamped;
+    m_pendingBrightness = snapped;
     m_brightnessThrottle->start();
 #else
-    applyBrightnessToSystem(clamped);
+    applyBrightnessToSystem(snapped);
 #endif
 }
 
@@ -536,49 +543,28 @@ void SystemSettingsController::applyBrightnessToSystem(qreal level)
 {
 #if defined(Q_OS_LINUX)
     const int value = qMax(1, static_cast<int>(level * qMax(1, m_maxBrightness)));
+    QByteArray data = QByteArray::number(value) + "\n";
 
-    // ── Fast path: direct sysfs write via cached fd (< 0.1 ms) ──
-    if (m_brightnessFd >= 0) {
-        QByteArray data = QByteArray::number(value);
-        // seek to beginning and write
-        if (::lseek(m_brightnessFd, 0, SEEK_SET) == 0) {
-            ssize_t written = ::write(m_brightnessFd, data.constData(), data.size());
-            if (written > 0) {
-                // Truncate file to new data length (handles shorter numbers)
-                if (::ftruncate(m_brightnessFd, data.size()) != 0) {
-                    // non-fatal
-                }
-                return;
-            }
-        }
-        qWarning() << "[SystemSettings] sysfs fd write failed, retrying open…";
-        ::close(m_brightnessFd);
-        m_brightnessFd = -1;
-        openBrightnessFd();
-        if (m_brightnessFd >= 0) {
-            ::lseek(m_brightnessFd, 0, SEEK_SET);
-            QByteArray d2 = QByteArray::number(value);
-            ::write(m_brightnessFd, d2.constData(), d2.size());
-            ::ftruncate(m_brightnessFd, d2.size());
-            return;
-        }
-    }
-
-    // ── Fallback: QFile write (slightly slower, needs permissions) ──
+    // ── Safe path: QFile write (safe for sysfs) ──
     if (!m_backlightPath.isEmpty()) {
         QFile f(m_backlightPath + QStringLiteral("/brightness"));
-        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            f.write(QByteArray::number(value));
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+            f.write(data);
             f.close();
             return;
         }
-        qWarning() << "[SystemSettings] QFile write failed:" << f.errorString();
+        qWarning() << "[SystemSettings] sysfs write failed:" << f.errorString() << "Trying fallback...";
     }
 
-    // ── Last resort: brightnessctl (spawns process, ~50 ms) ──
+    // ── Last resort: brightnessctl or sudo bash ──
     const int percent = qMax(1, static_cast<int>(level * 100.0));
-    QProcess::startDetached(QStringLiteral("brightnessctl"),
-        { QStringLiteral("set"), QStringLiteral("%1%").arg(percent) });
+    if (system("which brightnessctl > /dev/null 2>&1") == 0) {
+        QProcess::startDetached(QStringLiteral("brightnessctl"),
+            { QStringLiteral("set"), QStringLiteral("%1%").arg(percent) });
+    } else if (!m_backlightPath.isEmpty()) {
+        QProcess::startDetached(QStringLiteral("sh"),
+            { QStringLiteral("-c"), QString::asprintf("echo %d | sudo tee %s/brightness > /dev/null", value, qPrintable(m_backlightPath)) });
+    }
 #else
     Q_UNUSED(level);
 #endif
@@ -763,16 +749,7 @@ int SystemSettingsController::readMaxBrightness() const
 void SystemSettingsController::openBrightnessFd()
 {
 #if defined(Q_OS_LINUX)
-    if (m_backlightPath.isEmpty() || m_maxBrightness <= 0)
-        return;
-    const QString path = m_backlightPath + QStringLiteral("/brightness");
-    m_brightnessFd = ::open(path.toLocal8Bit().constData(), O_WRONLY);
-    if (m_brightnessFd < 0) {
-        qWarning() << "[SystemSettings] Cannot open brightness fd:" << path
-                   << "— Run setup_brightness.sh or: sudo chmod a+w" << path;
-    } else {
-        qDebug() << "[SystemSettings] brightness fd opened:" << path << "fd=" << m_brightnessFd;
-    }
+    // Deprecated. Kept empty to avoid crashing or hanging on sysfs.
 #endif
 }
 
@@ -808,17 +785,19 @@ qreal SystemSettingsController::readSystemVolume() const
 qreal SystemSettingsController::readSystemBrightness() const
 {
 #if defined(Q_OS_LINUX)
+    qreal result = -1.0;
     if (!m_backlightPath.isEmpty() && m_maxBrightness > 0) {
         QFile curFile(m_backlightPath + QStringLiteral("/brightness"));
         if (curFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
             int cur = QString::fromUtf8(curFile.readAll().trimmed()).toInt();
             curFile.close();
             if (cur >= 0)
-                return static_cast<qreal>(cur) / static_cast<qreal>(m_maxBrightness);
+                result = static_cast<qreal>(cur) / static_cast<qreal>(m_maxBrightness);
         }
     }
+    
     // Fallback: brightnessctl
-    {
+    if (result < 0.0) {
         QProcess proc;
         proc.start(QStringLiteral("brightnessctl"), { QStringLiteral("info") });
         proc.waitForFinished(1500);
@@ -826,7 +805,14 @@ qreal SystemSettingsController::readSystemBrightness() const
         static const QRegularExpression rx(QStringLiteral("\\((\\d+)%\\)"));
         QRegularExpressionMatch match = rx.match(out);
         if (match.hasMatch())
-            return match.captured(1).toDouble() / 100.0;
+            result = match.captured(1).toDouble() / 100.0;
+    }
+
+    if (result >= 0.0) {
+        if (result <= 0.375) return 0.25;
+        if (result <= 0.625) return 0.50;
+        if (result <= 0.875) return 0.75;
+        return 1.0;
     }
 #endif
     return -1.0;

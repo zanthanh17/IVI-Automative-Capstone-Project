@@ -26,17 +26,6 @@ NormalModeContentItem {
                                                : loading
                                                ? "Refreshing weather"
                                                : (conditionText.length > 0 ? conditionText : "--")
-    readonly property string resolvedDetail: offline
-                                            ? weatherError
-                                            : (waitingForGps
-                                               ? "Weather will load after live vehicle position is available"
-                                               : (detailText.length > 0 ? detailText : "Outdoor conditions unavailable"))
-    readonly property string statusLabel: offline ? "Weather offline"
-                                                  : (waitingForGps
-                                                     ? "Waiting for GPS"
-                                                     : (loading
-                                                        ? "Refreshing"
-                                                        : (lastUpdated.length > 0 ? ("Updated " + lastUpdated) : "Live weather")))
 
     function iconSourceForType(type) {
         if (type === "sun") {
@@ -119,88 +108,14 @@ NormalModeContentItem {
             }
         }
 
-        Rectangle {
-            anchors.right: parent.right
-            width: Math.min(154, statusText.implicitWidth + 24)
-            height: 30
-            radius: 15
-            color: Qt.rgba(0.05, 0.07, 0.10, 0.30)
-            border.width: 1
-            border.color: offline ? Qt.rgba(1, 0.5, 0.44, 0.36)
-                                  : Qt.rgba(weatherRoot.accentColor.r, weatherRoot.accentColor.g, weatherRoot.accentColor.b, 0.26)
-
-            Text {
-                id: statusText
-                anchors.centerIn: parent
-                width: parent.width - 18
-                horizontalAlignment: Text.AlignHCenter
-                text: weatherRoot.statusLabel
-                color: offline ? "#ff9d90" : weatherRoot.accentColor
-                font.pixelSize: 11
-                font.bold: true
-                elide: Text.ElideRight
-            }
-        }
-
         Item {
             id: contentArea
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.bottom: footer.top
+            anchors.bottom: parent.bottom
             anchors.topMargin: 26
             anchors.bottomMargin: 18
-
-            Rectangle {
-                id: auraGlow
-                width: 248
-                height: 248
-                radius: 124
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.verticalCenterOffset: -8
-                color: Qt.rgba(weatherRoot.accentColor.r, weatherRoot.accentColor.g, weatherRoot.accentColor.b, offline ? 0.05 : 0.10)
-                opacity: 0.92
-                scale: 1.0
-
-                SequentialAnimation on scale {
-                    running: weatherRoot.selected && weatherRoot.visible && !weatherRoot.loading
-                    loops: Animation.Infinite
-                    NumberAnimation { to: 1.05; duration: 2400; easing.type: Easing.InOutQuad }
-                    NumberAnimation { to: 0.97; duration: 2400; easing.type: Easing.InOutQuad }
-                }
-
-                SequentialAnimation on opacity {
-                    running: weatherRoot.selected && weatherRoot.visible && !weatherRoot.loading
-                    loops: Animation.Infinite
-                    NumberAnimation { to: 0.76; duration: 2400; easing.type: Easing.InOutQuad }
-                    NumberAnimation { to: 0.96; duration: 2400; easing.type: Easing.InOutQuad }
-                }
-            }
-
-            Rectangle {
-                width: 182
-                height: 182
-                radius: 91
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.verticalCenterOffset: -8
-                color: Qt.rgba(0.02, 0.04, 0.06, 0.24)
-                border.width: 1
-                border.color: Qt.rgba(weatherRoot.accentColor.r, weatherRoot.accentColor.g, weatherRoot.accentColor.b, 0.20)
-            }
-
-            Rectangle {
-                width: 134
-                height: 134
-                radius: 67
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.verticalCenterOffset: -8
-                color: Qt.rgba(0.01, 0.03, 0.05, 0.22)
-                border.width: 1
-                border.color: Qt.rgba(1, 1, 1, 0.08)
-            }
 
             Item {
                 width: 120
@@ -238,13 +153,6 @@ NormalModeContentItem {
                 anchors.verticalCenterOffset: 18
                 spacing: 6
 
-                Text {
-                    text: "OUTSIDE"
-                    color: Qt.rgba(1, 1, 1, 0.56)
-                    font.pixelSize: 11
-                    font.bold: true
-                }
-
                 Row {
                     spacing: 4
 
@@ -274,59 +182,6 @@ NormalModeContentItem {
                     font.bold: true
                     elide: Text.ElideRight
                 }
-
-                Text {
-                    width: parent.width
-                    text: weatherRoot.resolvedDetail
-                    color: "#92a8bc"
-                    font.pixelSize: 14
-                    elide: Text.ElideRight
-                }
-            }
-        }
-
-        Rectangle {
-            id: footerLine
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: footer.top
-            anchors.bottomMargin: 12
-            height: 1
-            color: Qt.rgba(1, 1, 1, 0.08)
-        }
-
-        Row {
-            id: footer
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            spacing: 8
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: offline ? "Offline weather" : "Open-Meteo"
-                color: offline ? "#ff9d90" : weatherRoot.accentColor
-                font.pixelSize: 12
-                font.bold: true
-            }
-
-            Rectangle {
-                width: 4
-                height: 4
-                radius: 2
-                color: "#5d7084"
-                anchors.verticalCenter: parent.verticalCenter
-            }
-
-            Text {
-                width: parent.width - 116
-                anchors.verticalCenter: parent.verticalCenter
-                text: offline
-                      ? weatherRoot.weatherError
-                      : (weatherRoot.lastUpdated.length > 0 ? ("Updated " + weatherRoot.lastUpdated) : "Awaiting refresh")
-                color: "#8ea4b9"
-                font.pixelSize: 12
-                elide: Text.ElideRight
             }
         }
     }

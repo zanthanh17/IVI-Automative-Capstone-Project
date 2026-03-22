@@ -5,6 +5,7 @@ import MainModel 1.0
 import MediaPlayerModel 1.0
 import TellTalesModel 1.0
 import NormalModeModel 1.0
+import SystemSettings 1.0
 import Style 1.0
 import "view" as View
 
@@ -218,7 +219,7 @@ Window {
                 MouseArea {
                     anchors.fill: quickStatusRow
                     anchors.margins: -10
-                    onClicked: NormalModeModel.menu = NormalModeModel.CarStatusMenu
+                    onClicked: SystemSettings.launchDrowsyCamera()
                 }
 
                 Row {
@@ -227,35 +228,10 @@ Window {
                     anchors.right: parent.right
                     anchors.rightMargin: 24
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: NormalModeModel.quickControlsEnabled
                     opacity: 0.9
 
                     Image {
-                        source: "qrc:/images/others/wifi.png"
-                        width: 24
-                        height: 24
-                        visible: NormalModeModel.wifiEnabled
-                        fillMode: Image.PreserveAspectFit
-                    }
-                    Image {
-                        source: "qrc:/images/others/bluetooth.png"
-                        width: 24
-                        height: 24
-                        sourceSize.width: 24
-                        sourceSize.height: 24
-                        visible: NormalModeModel.bluetoothEnabled
-                        fillMode: Image.PreserveAspectFit
-                    }
-                    Image {
-                        source: "qrc:/images/others/volume.png"
-                        width: 24
-                        height: 24
-                        sourceSize.width: 24
-                        sourceSize.height: 24
-                        fillMode: Image.PreserveAspectFit
-                    }
-                    Image {
-                        source: "qrc:/images/others/brightness.png"
+                        source: "qrc:/images/menu/camera.png"
                         width: 24
                         height: 24
                         sourceSize.width: 24

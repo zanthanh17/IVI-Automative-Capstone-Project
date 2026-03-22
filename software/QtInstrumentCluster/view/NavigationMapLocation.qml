@@ -738,6 +738,7 @@ Item {
             anchors.fill: parent
             plugin: darkMapPlugin
             color: "#00091a"
+            copyrightsVisible: false
             minimumZoomLevel: navMapRoot.minZoomLevel
             maximumZoomLevel: navMapRoot.maxZoomLevel
             zoomLevel: navMapRoot.defaultZoomLevel

@@ -13,7 +13,6 @@ Row {
             ListElement { text: "Play"; image: "qrc:/images/menu/music.png"; menuIndex: 0; action: "" }
             ListElement { text: "Navi"; image: "qrc:/images/menu/navi.png"; menuIndex: 1; action: "" }
             ListElement { text: "Weather"; image: "qrc:/images/menu/weather.png"; menuIndex: 2; action: "" }
-            ListElement { text: "Camera"; image: "qrc:/images/menu/camera.png"; menuIndex: -1; action: "launchCamera" }
             ListElement { text: "Setup"; image: "qrc:/images/menu/setup.png"; menuIndex: 3; action: "" }
         }
 
