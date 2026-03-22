@@ -25,6 +25,7 @@ LiveCameraItem::LiveCameraItem(QQuickItem *parent)
         req["cmd"] = "stream";
         QJsonDocument doc(req);
         m_socket->write(doc.toJson(QJsonDocument::Compact) + "\n");
+        m_socket->flush();
         m_running = true;
         emit runningChanged();
     });
@@ -64,6 +65,10 @@ void LiveCameraItem::stopStream()
     m_reconnectTimer->stop();
     m_socket->disconnectFromServer();
     m_buffer.clear();
+    if (m_hasFrames) {
+        m_hasFrames = false;
+        emit hasFramesChanged();
+    }
 }
 
 void LiveCameraItem::connectToDaemon()
@@ -121,6 +126,10 @@ void LiveCameraItem::onReadyRead()
         m_buffer.remove(0, 8 + payloadSize);
 
         if (m_currentImage.loadFromData(jpeg, "JPG")) {
+            if (!m_hasFrames) {
+                m_hasFrames = true;
+                emit hasFramesChanged();
+            }
             update();
         }
     }

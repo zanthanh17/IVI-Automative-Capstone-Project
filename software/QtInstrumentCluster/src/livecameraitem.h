@@ -9,12 +9,14 @@ class LiveCameraItem : public QQuickPaintedItem
 {
     Q_OBJECT
     Q_PROPERTY(bool running READ running NOTIFY runningChanged)
+    Q_PROPERTY(bool hasFrames READ hasFrames NOTIFY hasFramesChanged)
 public:
     explicit LiveCameraItem(QQuickItem *parent = nullptr);
     ~LiveCameraItem() override;
 
     void paint(QPainter *painter) override;
     bool running() const { return m_running; }
+    bool hasFrames() const { return m_hasFrames; }
 
 public slots:
     void startStream();
@@ -22,6 +24,7 @@ public slots:
 
 signals:
     void runningChanged();
+    void hasFramesChanged();
 
 private slots:
     void onReadyRead();
@@ -34,4 +37,5 @@ private:
     QImage m_currentImage;
     QByteArray m_buffer;
     bool m_running = false;
+    bool m_hasFrames = false;
 };

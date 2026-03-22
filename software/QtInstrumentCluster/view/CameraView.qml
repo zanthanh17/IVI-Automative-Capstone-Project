@@ -12,14 +12,14 @@ Item {
         LiveCameraItem {
             id: cameraItem
             anchors.fill: parent
-            
-            Text {
-                text: "Connecting to Camera Daemon..."
-                color: Style.textColor
-                anchors.centerIn: parent
-                font.pixelSize: 20
-                visible: !cameraItem.running
-            }
+        }
+
+        Text {
+            text: cameraItem.running ? "AI Model Warming up (Wait 5-10s)..." : "Connecting to Camera Daemon..."
+            color: "white"
+            anchors.centerIn: parent
+            font.pixelSize: 20
+            visible: !cameraItem.hasFrames
         }
 
         // Tap to dismiss
