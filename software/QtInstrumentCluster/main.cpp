@@ -28,14 +28,6 @@ int main(int argc, char *argv[])
     // QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling); // Disabled to fix "zoomed in" bug on RPi EDID
 #endif
 
-    // [DELAY HACK FOR RASPBERRY PI COLD BOOT (Rút cáp điện)]
-    // Raspberry Pi boots significantly faster than typical 7-inch HDMI screens.
-    // If Qt starts BEFORE the monitor finishes advertising its 1024x600 EDID,
-    // the Linux kernel uses a fallback resolution (like 800x600 or 1080p).
-    // This forcibly freezes the app for 5 seconds to ensure the monitor is awake
-    // and Qt negotiates the correct physical size from the KMS Driver.
-    QThread::sleep(5);
-
     /*
      * Mapbox GL plugin requires the basic render loop (single-threaded).
      * Without this, the plugin warns "Threaded rendering is not optimal"
