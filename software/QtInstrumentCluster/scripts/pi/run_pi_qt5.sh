@@ -66,7 +66,7 @@ export DROWSY_VIEWER_FULLSCREEN="${DROWSY_VIEWER_FULLSCREEN:-0}"
 export DROWSY_VIEWER_TITLE="${DROWSY_VIEWER_TITLE:-}"
 export DROWSY_VIEWER_WIDTH="${DROWSY_VIEWER_WIDTH:-1024}"
 export DROWSY_VIEWER_HEIGHT="${DROWSY_VIEWER_HEIGHT:-600}"
-export DROWSY_DAEMON_SOCKET="${DROWSY_DAEMON_SOCKET:-}"
+export DROWSY_DAEMON_SOCKET="${DROWSY_DAEMON_SOCKET:-/tmp/drowsy-camera-daemon.sock}"
 
 # Root sessions often use /run/user/0 with wrong permissions (0755).
 # Force a private runtime dir to satisfy Qt's 0700 requirement.
