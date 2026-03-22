@@ -15,8 +15,10 @@ Window {
     height: 600;
     visible: true
     title: qsTr("Instrument Cluster Demo")
+    visibility: Window.FullScreen
     readonly property real designWidth: 1024
     readonly property real designHeight: 600
+    readonly property real sceneScale: Math.min(width / designWidth, height / designHeight)
     readonly property string virtualKeyboardLocale: (virtualKeyboardLocaleFromEnv && virtualKeyboardLocaleFromEnv.length > 0)
                                                   ? virtualKeyboardLocaleFromEnv
                                                   : "vi_VN"
@@ -112,8 +114,13 @@ Window {
         id: sceneRoot
         width: window.designWidth
         height: window.designHeight
-        anchors.left: parent.left
-        anchors.top: parent.top
+        anchors.centerIn: parent
+        transform: Scale {
+            origin.x: sceneRoot.width / 2
+            origin.y: sceneRoot.height / 2
+            xScale: window.sceneScale
+            yScale: window.sceneScale
+        }
 
         Rectangle {
             id: root
