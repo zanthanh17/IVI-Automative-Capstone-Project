@@ -101,12 +101,13 @@ def spawn_daemon(args: argparse.Namespace, socket_path: str) -> None:
     if args.viewer_fullscreen:
         cmd.append("--viewer-fullscreen")
 
+    log_file = open("/tmp/drowsy-daemon.log", "a")
     subprocess.Popen(
         cmd,
         cwd=str(ROOT_DIR),
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
         start_new_session=True,
     )
 
