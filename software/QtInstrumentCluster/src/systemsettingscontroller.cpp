@@ -218,7 +218,7 @@ void SystemSettingsController::systemReboot()
 {
 #if defined(Q_OS_LINUX)
     qDebug() << "[SystemSettings] REBOOT requested";
-    QProcess::startDetached(QStringLiteral("systemctl"), { QStringLiteral("reboot") });
+    QProcess::startDetached(QStringLiteral("sudo"), { QStringLiteral("systemctl"), QStringLiteral("reboot") });
 #endif
 }
 
@@ -226,7 +226,7 @@ void SystemSettingsController::systemShutdown()
 {
 #if defined(Q_OS_LINUX)
     qDebug() << "[SystemSettings] SHUTDOWN requested";
-    QProcess::startDetached(QStringLiteral("systemctl"), { QStringLiteral("poweroff") });
+    QProcess::startDetached(QStringLiteral("sudo"), { QStringLiteral("systemctl"), QStringLiteral("poweroff") });
 #endif
 }
 
@@ -234,9 +234,7 @@ void SystemSettingsController::restartApp()
 {
 #if defined(Q_OS_LINUX)
     qDebug() << "[SystemSettings] RESTART APP requested";
-    // Lấy đường dẫn binary hiện tại, khởi động lại rồi thoát
-    const QString appPath = QCoreApplication::applicationFilePath();
-    QProcess::startDetached(appPath, QCoreApplication::arguments());
+    QProcess::startDetached(QStringLiteral("sudo"), { QStringLiteral("systemctl"), QStringLiteral("restart"), QStringLiteral("qt-cluster.service") });
     QCoreApplication::quit();
 #endif
 }
@@ -342,8 +340,8 @@ void SystemSettingsController::scanWifiNetworks()
         m_scanProcess = nullptr;
     });
 
-    m_scanProcess->start(QStringLiteral("nmcli"),
-        { QStringLiteral("-t"), QStringLiteral("-f"),
+    m_scanProcess->start(QStringLiteral("sudo"),
+        { QStringLiteral("nmcli"), QStringLiteral("-t"), QStringLiteral("-f"),
           QStringLiteral("SSID,SIGNAL,SECURITY,ACTIVE"),
           QStringLiteral("dev"), QStringLiteral("wifi"), QStringLiteral("list"),
           QStringLiteral("--rescan"), QStringLiteral("yes") });
@@ -392,11 +390,11 @@ void SystemSettingsController::connectToWifi(const QString &ssid, const QString 
     });
 
     if (password.isEmpty()) {
-        proc->start(QStringLiteral("nmcli"),
-            { QStringLiteral("con"), QStringLiteral("up"), ssid });
+        proc->start(QStringLiteral("sudo"),
+            { QStringLiteral("nmcli"), QStringLiteral("con"), QStringLiteral("up"), ssid });
     } else {
-        proc->start(QStringLiteral("nmcli"),
-            { QStringLiteral("dev"), QStringLiteral("wifi"), QStringLiteral("connect"), ssid,
+        proc->start(QStringLiteral("sudo"),
+            { QStringLiteral("nmcli"), QStringLiteral("dev"), QStringLiteral("wifi"), QStringLiteral("connect"), ssid,
               QStringLiteral("password"), password });
     }
 #else
@@ -416,8 +414,8 @@ void SystemSettingsController::disconnectWifi()
         emit connectedWifiSSIDChanged();
         proc->deleteLater();
     });
-    proc->start(QStringLiteral("nmcli"),
-        { QStringLiteral("dev"), QStringLiteral("disconnect"), QStringLiteral("wlan0") });
+    proc->start(QStringLiteral("sudo"),
+        { QStringLiteral("nmcli"), QStringLiteral("dev"), QStringLiteral("disconnect"), QStringLiteral("wlan0") });
 #endif
 }
 
