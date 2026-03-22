@@ -47,13 +47,6 @@ int main(int argc, char *argv[])
     qputenv("QT_AUTO_SCREEN_SCALE_FACTOR", "0");
     qputenv("QT_ENABLE_HIGHDPI_SCALING", "0");
 
-    /* EGLFS absolute overrides to prevent DPI zoom on systemd boot */
-    qputenv("QT_QPA_EGLFS_WIDTH", "1024");
-    qputenv("QT_QPA_EGLFS_HEIGHT", "600");
-    qputenv("QT_QPA_EGLFS_PHYSICAL_WIDTH", "154");
-    qputenv("QT_QPA_EGLFS_PHYSICAL_HEIGHT", "90");
-    qputenv("QT_QPA_EGLFS_ALWAYS_SET_MODE", "1");
-
     /* Disable QSG texture atlas to avoid GL_STACK_OVERFLOW (501) on Intel GPUs */
     qputenv("QSG_NO_ATLAS_TEXTURES", "1");
 
