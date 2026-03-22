@@ -37,17 +37,12 @@ export QT_IM_MODULE="${QT_IM_MODULE:-qtvirtualkeyboard}"
 export QT_VIRTUALKEYBOARD_LOCALE="${QT_VIRTUALKEYBOARD_LOCALE:-vi_VN}"
 
 # Fix for "Could not queue DRM page flip" on Raspberry Pi 4/5 with Bookworm/Wayland
-export QT_QPA_EGLFS_ALWAYS_SET_MODE="${QT_QPA_EGLFS_ALWAYS_SET_MODE:-1}"
 export QT_QPA_EGLFS_KMS_ATOMIC="${QT_QPA_EGLFS_KMS_ATOMIC:-1}"
 export QT_QPA_EGLFS_HIDECURSOR="${QT_QPA_EGLFS_HIDECURSOR:-1}"
 
 # Fix for "Zoomed in" UI issue on standard HDMI displays
 export QT_AUTO_SCREEN_SCALE_FACTOR=0
 export QT_ENABLE_HIGHDPI_SCALING=0
-export QT_QPA_EGLFS_WIDTH=1024
-export QT_QPA_EGLFS_HEIGHT=600
-export QT_QPA_EGLFS_PHYSICAL_WIDTH=154
-export QT_QPA_EGLFS_PHYSICAL_HEIGHT=90
 
 # Drowsiness detector launcher defaults (external app)
 DEFAULT_DROWSY_ROOT="${PROJECT_DIR}/../Driver-Drowsy-Detection"
