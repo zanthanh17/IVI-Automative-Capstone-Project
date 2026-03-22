@@ -103,6 +103,7 @@
         <file>view/Navigation.qml</file>
         <file>view/NavigationMapLocation.qml</file>
         <file>view/VirtualKeyboardOverlay.qml</file>
+        <file>view/CameraView.qml</file>
         <file>view/Menu.qml</file>
         <file>view/NormalMode.qml</file>
         <file>view/NormalModeContentItem.qml</file>

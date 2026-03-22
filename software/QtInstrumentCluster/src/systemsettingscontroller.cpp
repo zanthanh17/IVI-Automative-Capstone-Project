@@ -653,7 +653,7 @@ QString SystemSettingsController::resolveDrowsyCameraPython(const QString &camer
 QStringList SystemSettingsController::buildDrowsyCameraControlArguments() const
 {
     QStringList args;
-    args << "show"
+    args << "status"
          << "--start-daemon-if-needed"
          << "--backend" << readEnvOrDefault("DROWSY_BACKEND", QStringLiteral("v4l2"))
          << "--width" << readEnvOrDefault("DROWSY_WIDTH", QStringLiteral("1024"))

@@ -18,6 +18,7 @@
 #include "src/osrmrouteprovider.h"
 #include "src/mapboxsearchprovider.h"
 #include "src/systemsettingscontroller.h"
+#include "src/livecameraitem.h"
 
 int main(int argc, char *argv[])
 {
@@ -62,6 +63,8 @@ int main(int argc, char *argv[])
             break;
         }
     }
+
+    qmlRegisterType<LiveCameraItem>("LiveCamera", 1, 0, "LiveCameraItem");
 
     qmlRegisterSingletonType<MainModel>("MainModelData", 1, 0, "MainModelData", [](QQmlEngine*, QJSEngine*) -> QObject* {
             return MainModel::instance();

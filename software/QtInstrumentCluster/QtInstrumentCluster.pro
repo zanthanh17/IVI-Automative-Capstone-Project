@@ -23,6 +23,7 @@ linux: QT += dbus
 SOURCES += \
     src/gpspositionprovider.cpp \
     src/bluetoothcontroller.cpp \
+    src/livecameraitem.cpp \
     main.cpp \
     src/mapboxmapmatcher.cpp \
     src/externalmediacontroller.cpp \
@@ -54,6 +55,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 HEADERS += \
     src/gpspositionprovider.h \
     src/bluetoothcontroller.h \
+    src/livecameraitem.h \
     src/externalmediacontroller.h \
     src/mapboxmapmatcher.h \
     src/mapboxsearchprovider.h \

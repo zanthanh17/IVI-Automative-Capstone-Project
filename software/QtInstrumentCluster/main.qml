@@ -219,7 +219,10 @@ Window {
                 MouseArea {
                     anchors.fill: quickStatusRow
                     anchors.margins: -10
-                    onClicked: SystemSettings.launchDrowsyCamera()
+                    onClicked: {
+                        SystemSettings.launchDrowsyCamera()
+                        cameraView.visible = true
+                    }
                 }
 
                 Row {
@@ -253,6 +256,13 @@ Window {
                 x: normalMode.leftPaneX + (normalMode.leftPaneWidth - width) / 2
                 y: normalMode.leftPaneY + 16
                 z: 11
+            }
+
+            View.CameraView {
+                id: cameraView
+                anchors.fill: parent
+                z: 100
+                visible: false
             }
 
             Component.onCompleted: {
