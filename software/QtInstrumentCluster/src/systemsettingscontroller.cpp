@@ -78,6 +78,9 @@ SystemSettingsController::SystemSettingsController(QObject *parent)
     , m_volumeLevel(0.6)
     , m_brightnessLevel(0.7)
 {
+    // Load saved brightness level
+    QSettings settings(QStringLiteral("CustomIVI"), QStringLiteral("InstrumentCluster"));
+    m_brightnessLevel = settings.value(QStringLiteral("brightnessLevel"), 0.7).toReal();
 #if defined(Q_OS_LINUX)
     // Detect available backends once at startup
     m_audioBackend  = detectAudioBackend();
@@ -201,6 +204,8 @@ void SystemSettingsController::setBrightnessLevel(qreal level)
         return;
 
     m_brightnessLevel = snapped;
+    QSettings settings(QStringLiteral("CustomIVI"), QStringLiteral("InstrumentCluster"));
+    settings.setValue(QStringLiteral("brightnessLevel"), m_brightnessLevel);
     emit brightnessLevelChanged();
 
 #if defined(Q_OS_LINUX)
