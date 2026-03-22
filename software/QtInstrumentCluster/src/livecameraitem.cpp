@@ -21,6 +21,7 @@ LiveCameraItem::LiveCameraItem(QQuickItem *parent)
 #endif
 
     connect(m_socket, &QLocalSocket::connected, this, [this]() {
+        qInfo() << "[LiveCamera] Connected to daemon socket!";
         QJsonObject req;
         req["cmd"] = "stream";
         QJsonDocument doc(req);
@@ -31,6 +32,7 @@ LiveCameraItem::LiveCameraItem(QQuickItem *parent)
     });
 
     connect(m_socket, &QLocalSocket::disconnected, this, [this]() {
+        qInfo() << "[LiveCamera] Disconnected from daemon socket.";
         m_running = false;
         emit runningChanged();
         if (isVisible()) {
@@ -41,6 +43,7 @@ LiveCameraItem::LiveCameraItem(QQuickItem *parent)
     connect(m_reconnectTimer, &QTimer::timeout, this, &LiveCameraItem::connectToDaemon);
 
     connect(this, &QQuickItem::visibleChanged, this, [this]() {
+        qInfo() << "[LiveCamera] visibleChanged: " << isVisible();
         if (isVisible()) {
             startStream();
         } else {
@@ -86,13 +89,16 @@ void LiveCameraItem::connectToDaemon()
     }
 
     if (m_socket->state() == QLocalSocket::UnconnectedState) {
+        qInfo() << "[LiveCamera] Attempting to connect to:" << socketPath;
         m_socket->connectToServer(socketPath);
+    } else {
+        qInfo() << "[LiveCamera] Socket state is not Unconnected:" << m_socket->state();
     }
 }
 
 void LiveCameraItem::onSocketError(QLocalSocket::LocalSocketError error)
 {
-    Q_UNUSED(error);
+    qWarning() << "[LiveCamera] Socket error:" << error << m_socket->errorString();
     m_socket->disconnectFromServer();
     if (isVisible()) {
         m_reconnectTimer->start();
