@@ -294,4 +294,13 @@ Window {
             }
         }
     }
+
+    Rectangle {
+        id: dimmingOverlay
+        anchors.fill: parent
+        color: "black"
+        opacity: 1.0 - SystemSettings.brightnessLevel
+        z: 9998
+        enabled: false // Let touches pass through
+    }
 }

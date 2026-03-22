@@ -119,6 +119,9 @@ LOG_DIR="${PROJECT_DIR}/logs"
 mkdir -p "${LOG_DIR}"
 LOG_FILE="${LOG_DIR}/qt_cluster_$(date +'%Y%m%d_%H%M%S').log"
 
+echo "[INFO] Waiting 2 seconds for DRM/KMS to settle..."
+sleep 2
+
 echo "[INFO] App output behaves normally but is also logged to ${LOG_FILE}"
 cd "${PROJECT_DIR}"
 exec "${APP_BIN}" 2>&1 | tee "${LOG_FILE}"

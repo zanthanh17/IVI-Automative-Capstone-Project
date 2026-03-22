@@ -506,14 +506,14 @@ void SystemSettingsController::applyBluetoothToSystem(bool on)
 #if defined(Q_OS_LINUX)
     qDebug() << "[SystemSettings] Bluetooth:" << on;
     if (on) {
-        QProcess::startDetached(QStringLiteral("rfkill"),
-            { QStringLiteral("unblock"), QStringLiteral("bluetooth") });
+        QProcess::startDetached(QStringLiteral("sudo"),
+            { QStringLiteral("rfkill"), QStringLiteral("unblock"), QStringLiteral("bluetooth") });
     }
     auto *proc = new QProcess();
     connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             proc, &QProcess::deleteLater);
-    proc->start(QStringLiteral("bluetoothctl"),
-        { QStringLiteral("power"), on ? QStringLiteral("on") : QStringLiteral("off") });
+    proc->start(QStringLiteral("sudo"),
+        { QStringLiteral("bluetoothctl"), QStringLiteral("power"), on ? QStringLiteral("on") : QStringLiteral("off") });
 #else
     Q_UNUSED(on);
 #endif
@@ -554,12 +554,9 @@ void SystemSettingsController::applyBrightnessToSystem(qreal level)
         qWarning() << "[SystemSettings] sysfs write failed:" << f.errorString() << "Trying fallback...";
     }
 
-    // ── Last resort: brightnessctl or sudo bash ──
+    // ── Last resort: sudo bash ──
     const int percent = qMax(1, static_cast<int>(level * 100.0));
-    if (system("which brightnessctl > /dev/null 2>&1") == 0) {
-        QProcess::startDetached(QStringLiteral("brightnessctl"),
-            { QStringLiteral("set"), QStringLiteral("%1%").arg(percent) });
-    } else if (!m_backlightPath.isEmpty()) {
+    if (!m_backlightPath.isEmpty()) {
         QProcess::startDetached(QStringLiteral("sh"),
             { QStringLiteral("-c"), QString::asprintf("echo %d | sudo tee %s/brightness > /dev/null", value, qPrintable(m_backlightPath)) });
     }
