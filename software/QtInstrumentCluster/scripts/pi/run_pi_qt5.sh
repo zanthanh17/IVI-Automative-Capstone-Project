@@ -36,6 +36,10 @@ export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 export QT_IM_MODULE="${QT_IM_MODULE:-qtvirtualkeyboard}"
 export QT_VIRTUALKEYBOARD_LOCALE="${QT_VIRTUALKEYBOARD_LOCALE:-vi_VN}"
 
+# Fix for "Could not queue DRM page flip" on Raspberry Pi 4/5 with Bookworm/Wayland
+export QT_QPA_EGLFS_ALWAYS_SET_MODE="${QT_QPA_EGLFS_ALWAYS_SET_MODE:-1}"
+export QT_QPA_EGLFS_KMS_ATOMIC="${QT_QPA_EGLFS_KMS_ATOMIC:-1}"
+
 # Drowsiness detector launcher defaults (external app)
 DEFAULT_DROWSY_ROOT="${PROJECT_DIR}/../Driver-Drowsy-Detection"
 DEFAULT_DROWSY_PYTHON="${DEFAULT_DROWSY_ROOT}/.venv-pi/bin/python3"
@@ -106,5 +110,10 @@ echo "[INFO] MAPBOX_STYLE_URL=${MAPBOX_STYLE_URL:-mapbox://styles/mapbox/navigat
 echo "[INFO] Launching: ${APP_BIN}"
 echo "[HINT] Framebuffer mode: QT_QPA_PLATFORM=eglfs ./scripts/pi/run_pi_qt5.sh"
 
+LOG_DIR="${PROJECT_DIR}/logs"
+mkdir -p "${LOG_DIR}"
+LOG_FILE="${LOG_DIR}/qt_cluster_$(date +'%Y%m%d_%H%M%S').log"
+
+echo "[INFO] App output behaves normally but is also logged to ${LOG_FILE}"
 cd "${PROJECT_DIR}"
-exec "${APP_BIN}"
+exec "${APP_BIN}" 2>&1 | tee "${LOG_FILE}"
