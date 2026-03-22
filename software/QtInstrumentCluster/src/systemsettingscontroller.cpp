@@ -791,18 +791,6 @@ qreal SystemSettingsController::readSystemBrightness() const
         }
     }
     
-    // Fallback: brightnessctl
-    if (result < 0.0) {
-        QProcess proc;
-        proc.start(QStringLiteral("brightnessctl"), { QStringLiteral("info") });
-        proc.waitForFinished(1500);
-        const QString out = QString::fromUtf8(proc.readAllStandardOutput());
-        static const QRegularExpression rx(QStringLiteral("\\((\\d+)%\\)"));
-        QRegularExpressionMatch match = rx.match(out);
-        if (match.hasMatch())
-            result = match.captured(1).toDouble() / 100.0;
-    }
-
     if (result >= 0.0) {
         if (result <= 0.375) return 0.25;
         if (result <= 0.625) return 0.50;
