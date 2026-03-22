@@ -22,6 +22,7 @@ LiveCameraItem::LiveCameraItem(QQuickItem *parent)
 
     connect(m_socket, &QLocalSocket::connected, this, [this]() {
         qInfo() << "[LiveCamera] Connected to daemon socket!";
+        m_reconnectTimer->stop();
         QJsonObject req;
         req["cmd"] = "stream";
         QJsonDocument doc(req);
