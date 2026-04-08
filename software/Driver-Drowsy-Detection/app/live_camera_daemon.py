@@ -426,24 +426,6 @@ class DrowsyCameraDaemon:
         )
 
         camera_path = self.args.camera_path
-        
-        # Bypass V4L2 string capture bug by converting /dev/videoX to integer index X
-        if camera_path.startswith("/dev/video") and camera_path[10:].isdigit():
-            extracted_idx = int(camera_path[10:])
-            self.log(f"Translating {camera_path} to index {extracted_idx} for V4L2 compatibility.")
-            self.args.camera_index = extracted_idx
-            camera_path = ""
-        # if platform.system().lower() == "linux" and not camera_path:
-        #     nodes = list_linux_video_nodes()
-        #     if nodes:
-        #         self.log("Detected camera nodes: " + ", ".join(str(n) for n in nodes))
-        #         # camera_path = str(nodes[0])
-        #     else:
-        #         self.log("No /dev/video* device found.")
-        #         if looks_like_wsl():
-        #             self.log("WSL2 detected. Attach USB webcam to WSL first (usbipd), then run again.")
-        #         else:
-        #             self.log("Check webcam connection and permissions, then retry.")
 
         cap, actual_index, backend_name = open_camera(
             camera_index=self.args.camera_index,

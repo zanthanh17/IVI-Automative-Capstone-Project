@@ -78,10 +78,12 @@ def open_camera(
     camera_path: str,
     backend_mode: str,
 ):
-    backend_candidates = _video_backends(backend_mode)
+    primary_backends = _video_backends(backend_mode)
+    # Always include DEFAULT as a fallback so FFMPEG/GStreamer can try when V4L2 fails
+    fallback_backends = [] if backend_mode == "default" else [(None, "DEFAULT")]
 
     if camera_path:
-        for backend, backend_name in backend_candidates:
+        for backend, backend_name in primary_backends + fallback_backends:
             cap = _try_open(camera_path, backend, width, height, fps)
             if cap is not None:
                 return cap, camera_path, backend_name
@@ -91,10 +93,24 @@ def open_camera(
     attempts.extend(i for i in range(scan_max + 1) if i != camera_index)
 
     for idx in attempts:
-        for backend, backend_name in backend_candidates:
+        for backend, backend_name in primary_backends + fallback_backends:
             cap = _try_open(idx, backend, width, height, fps)
             if cap is not None:
                 return cap, idx, backend_name
+
+    # Last resort on Linux: scan /dev/video* by string path (handles ISP node layouts on Pi)
+    if platform.system().lower() == "linux":
+        tried_indices = set(attempts)
+        for node in list_linux_video_nodes():
+            node_str = str(node)
+            node_suffix = node.name[len("video"):]
+            node_idx = int(node_suffix) if node_suffix.isdigit() else -1
+            if node_idx in tried_indices:
+                continue
+            for backend, backend_name in fallback_backends or primary_backends:
+                cap = _try_open(node_str, backend, width, height, fps)
+                if cap is not None:
+                    return cap, node_str, backend_name
 
     return None, camera_index, "N/A"
 

@@ -112,6 +112,7 @@ private:
     QTimer *m_brightnessThrottle = nullptr; // debounce brightness changes
     qreal m_pendingVolume = -1.0;
     qreal m_pendingBrightness = -1.0;
+    bool m_btApplying = false;  // suppress syncFromSystem override during BT toggle
 #endif
 };
 

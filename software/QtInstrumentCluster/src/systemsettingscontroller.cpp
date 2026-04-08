@@ -435,10 +435,12 @@ void SystemSettingsController::syncFromSystem()
         emit wifiEnabledChanged();
     }
 
-    const bool sysBt = readSystemBluetoothState();
-    if (m_bluetoothEnabled != sysBt) {
-        m_bluetoothEnabled = sysBt;
-        emit bluetoothEnabledChanged();
+    if (!m_btApplying) {
+        const bool sysBt = readSystemBluetoothState();
+        if (m_bluetoothEnabled != sysBt) {
+            m_bluetoothEnabled = sysBt;
+            emit bluetoothEnabledChanged();
+        }
     }
 
     const qreal sysVol = readSystemVolume();
@@ -510,13 +512,18 @@ void SystemSettingsController::applyBluetoothToSystem(bool on)
 {
 #if defined(Q_OS_LINUX)
     qDebug() << "[SystemSettings] Bluetooth:" << on;
+    m_btApplying = true;
     if (on) {
         QProcess::startDetached(QStringLiteral("sudo"),
             { QStringLiteral("rfkill"), QStringLiteral("unblock"), QStringLiteral("bluetooth") });
     }
-    auto *proc = new QProcess();
+    auto *proc = new QProcess(this);
     connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            proc, &QProcess::deleteLater);
+            this, [this, proc](int, QProcess::ExitStatus) {
+        proc->deleteLater();
+        // Allow syncFromSystem to read BT state again after 3s (BlueZ needs time to apply)
+        QTimer::singleShot(3000, this, [this]() { m_btApplying = false; });
+    });
     proc->start(QStringLiteral("sudo"),
         { QStringLiteral("bluetoothctl"), QStringLiteral("power"), on ? QStringLiteral("on") : QStringLiteral("off") });
 #else
