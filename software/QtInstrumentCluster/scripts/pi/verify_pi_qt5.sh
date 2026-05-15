@@ -83,6 +83,7 @@ if command -v dpkg-query >/dev/null 2>&1; then
         qtdeclarative5-dev
         qtmultimedia5-dev
         libqt5serialport5-dev
+        can-utils
         qml-module-qtqml
         qml-module-qtqml-models2
         qml-module-qtqml-workerscript2
@@ -227,6 +228,23 @@ if id -nG | grep -qw dialout; then
     ok "User '${USER}' is in dialout group."
 else
     warn "User '${USER}' is not in dialout group. Serial access may fail."
+fi
+
+CAN_IFACE="${IVI_CAN_IFACE:-can0}"
+if command -v ip >/dev/null 2>&1; then
+    if ip -details link show "${CAN_IFACE}" >/dev/null 2>&1; then
+        ok "SocketCAN interface detected: ${CAN_IFACE}"
+    else
+        warn "SocketCAN interface ${CAN_IFACE} not detected. Run scripts/pi/setup_socketcan_mcp2515.sh and reboot the Pi."
+    fi
+else
+    warn "ip command not found; skipping SocketCAN interface check."
+fi
+
+if command -v candump >/dev/null 2>&1; then
+    ok "candump available for CAN bus debugging."
+else
+    warn "candump not found. Install can-utils for CAN bus debugging."
 fi
 
 if ls /dev/ttyAMA* /dev/ttyUSB* /dev/ttyACM* >/dev/null 2>&1; then

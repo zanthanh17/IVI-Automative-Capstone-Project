@@ -47,6 +47,7 @@ BASE_PACKAGES=(
     libpulse0
     bluez
     bluez-tools
+    can-utils
 )
 
 MAP_OPTIONAL_PACKAGES=(

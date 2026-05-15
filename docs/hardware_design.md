@@ -20,10 +20,10 @@ trên Dashboard UI (Qt Instrument Cluster).
    Encoder CLK ──┤ PA6  (TIM3_CH1)  │
    Encoder DT  ──┤ PA7  (TIM3_CH2)  │
   Drive Switch ──┤ PA8  (GPIO IN)   │
-    UART TX ─────┤ PA9  (USART1_TX) │──── → Raspberry Pi RX
-    UART RX ─────┤ PA10 (USART1_RX) │──── ← Raspberry Pi TX
-                  │ PA11             │
-                  │ PA12             │
+  UART Debug TX ─┤ PA9  (USART1_TX) │──── → Debug UART RX
+  UART Debug RX ─┤ PA10 (USART1_RX) │──── ← Debug UART TX
+    CAN RX  ─────┤ PA11 (CAN1_RX)   │──── ← SN65HVD230 CRX/RXD
+    CAN TX  ─────┤ PA12 (CAN1_TX)   │──── → SN65HVD230 CTX/TXD
     SWD IO ──────┤ PA13 (SWDIO)     │
     SWD CLK ─────┤ PA14 (SWCLK)     │
                   │ PA15             │
@@ -84,17 +84,38 @@ trên Dashboard UI (Qt Instrument Cluster).
 |-----------|-----|-------------------|-----------|
 | Công tắc gạt | PA8 | Drive Mode / Gear | Chế độ lái (P ↔ D) |
 
-## Giao thức UART (115200 baud, 8N1)
+## Giao thức CAN Bus (500 kbps, Standard ID)
 
-### Frame dữ liệu cảm biến (gửi mỗi 100ms):
-```
-DATA:speed=<0-200>,rpm=<0-7000>,fuel=<0-100>,batt=<0-100>,gear=<P|D>\n
-```
+### Frame `0x100` - `VEHICLE_TELEMETRY` (gửi mỗi 100ms)
 
-### Frame sự kiện nút nhấn (gửi khi có thay đổi):
-```
-BTN:<name>=<ON|OFF>\n
-```
+| Byte | Nội dung |
+|---|---|
+| 0-1 | Speed km/h, uint16 big-endian |
+| 2-3 | RPM, uint16 big-endian |
+| 4 | Fuel %, 0-100 |
+| 5 | Battery %, 0-100 |
+| 6 | Gear ASCII: `P`, `D`, `N`, `R` |
+| 7 | Alive counter |
+
+### Frame `0x101` - `BUTTON_STATE` (snapshot mỗi 100ms)
+
+| Byte | Nội dung |
+|---|---|
+| 0 | Bitfield: bit0 left, bit1 right, bit2 beam, bit3 high beams, bit4 parked, bit5 airbag, bit6 media play, bit7 media next |
+| 1 | Drive mode: `0=P`, `1=D` |
+| 2 | Alive counter |
+| 3-7 | Reserved |
+
+### Frame `0x102` - `BUTTON_EVENT` (gửi ngay khi nhấn nút)
+
+| Byte | Nội dung |
+|---|---|
+| 0 | Button ID: 1..8 |
+| 1 | Button state: `0=OFF`, `1=ON` |
+| 2 | Event counter |
+| 3 | Button bitfield snapshot |
+| 4 | Drive mode snapshot |
+| 5-7 | Reserved |
 
 Tên nút: `left_signal`, `right_signal`, `beam`, `high_beams`, `parked`, `airbag`, `media_play`, `media_next`
 
@@ -133,13 +154,28 @@ PA7 ───── DT  (B)
 - TIM3 Encoder Mode, đếm 2 chiều
 - Xoay phải: tăng tốc, xoay trái: giảm tốc
 
-### UART kết nối Raspberry Pi
+### CAN kết nối Raspberry Pi 4 qua MCP2515
 ```
-STM32 PA9  (TX) ──── Raspberry Pi RX (GPIO15)
-STM32 PA10 (RX) ──── Raspberry Pi TX (GPIO14)
-GND ──────────────── GND
+STM32 PA12 (CAN_TX) ─── SN65HVD230 CTX/TXD
+STM32 PA11 (CAN_RX) ─── SN65HVD230 CRX/RXD
+STM32 3.3V ──────────── SN65HVD230 3V3
+STM32 GND ───────────── SN65HVD230 GND
+
+SN65HVD230 CANH ─────── MCP2515 CANH
+SN65HVD230 CANL ─────── MCP2515 CANL
+
+Raspberry Pi GPIO8  CE0  ─── MCP2515 CS
+Raspberry Pi GPIO9  MISO ─── MCP2515 SO
+Raspberry Pi GPIO10 MOSI ─── MCP2515 SI
+Raspberry Pi GPIO11 SCLK ─── MCP2515 SCK
+Raspberry Pi GPIO25      ─── MCP2515 INT
+Raspberry Pi 3.3V/5V     ─── MCP2515 VCC (theo module)
+Raspberry Pi GND         ─── MCP2515 GND
 ```
-- Baud: 115200, 8 data bits, No parity, 1 stop bit
+- CAN bitrate: 500 kbps
+- MCP2515 oscillator: 8 MHz
+- Linux interface: `can0`
+- UART PA9/PA10 vẫn có thể giữ làm debug/fallback, không còn là đường dữ liệu chính.
 
 ## Danh sách linh kiện
 
@@ -150,9 +186,10 @@ GND ──────────────── GND
 | 3 | Biến trở 10kΩ | 2 | Fuel + Battery level |
 | 4 | Nút nhấn 4 chân | 8 | Tell-tales + Media |
 | 5 | Công tắc gạt (toggle switch) | 1 | Drive mode |
-| 6 | USB-TTL (CP2102/CH340) | 1 | UART ↔ Raspberry Pi |
-| 7 | Breadboard + dây jumper | - | Prototype |
-| 8 | Nguồn 3.3V / USB | 1 | Cấp nguồn |
+| 6 | SN65HVD230 CAN transceiver | 1 | STM32 CAN_TX/RX ↔ CANH/CANL |
+| 7 | MCP2515 CAN module | 1 | Raspberry Pi SPI ↔ CANH/CANL |
+| 8 | Breadboard + dây jumper | - | Prototype |
+| 9 | Nguồn 3.3V / USB | 1 | Cấp nguồn |
 
 ## Cấu trúc firmware
 
@@ -163,13 +200,15 @@ firmware/Core/
 │   ├── gpio_handler.h      ← 8 nút + 1 switch, ánh xạ Tell-Tales
 │   ├── encoder_handler.h   ← Speed encoder (TIM3)
 │   ├── adc_handler.h       ← [MỚI] Fuel + Battery (ADC1)
-│   └── uart_protocol.h     ← [MỚI] Protocol gửi data cho Qt app
+│   ├── can_protocol.h      ← [MỚI] CAN frames gửi data cho Qt app
+│   └── uart_protocol.h     ← Debug/fallback UART
 ├── Src/
 │   ├── main.c              ← Main loop tích hợp tất cả module
 │   ├── gpio_handler.c      ← Cập nhật: 8 buttons thay vì 6
 │   ├── encoder_handler.c   ← Giữ nguyên
 │   ├── adc_handler.c       ← [MỚI] Đọc ADC với lọc trung bình
-│   └── uart_protocol.c     ← [MỚI] Giao thức UART có cấu trúc
+│   ├── can_protocol.c      ← [MỚI] Giao thức CAN 0x100/0x101/0x102
+│   └── uart_protocol.c     ← Debug/fallback UART
 ```
 
 ## Cấu trúc Qt Software (phía nhận)
@@ -177,7 +216,8 @@ firmware/Core/
 ```
 software/QtInstrumentCluster/
 ├── src/
-│   ├── serialreceiver.h/cpp  ← [MỚI] Nhận UART, parse DATA/BTN frames
+│   ├── canreceiver.h/cpp     ← [MỚI] Nhận Raw SocketCAN can0, parse 0x100/0x101/0x102
+│   ├── serialreceiver.h/cpp  ← UART fallback/debug
 │   ├── mainmodel.h/cpp       ← Cập nhật: thêm fuelLevel, batteryLevel, gearText
 │   └── ...
 ├── models/
@@ -190,42 +230,42 @@ software/QtInstrumentCluster/
 └── main.qml                   ← Cập nhật: Connections{} binding HW → QML models
 ```
 
-## Kiến trúc hệ thống: PC Host → Raspberry Pi
+## Kiến trúc hệ thống CAN: STM32 → Raspberry Pi → Qt
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  GIAI ĐOẠN 1: Phát triển trên PC Host                   │
 │                                                         │
-│  STM32 ──(UART)──→ USB-TTL ──(USB)──→ PC (COMx)        │
+│  STM32 ──(CAN)──→ USB/CAN hoặc vcan0 test frame        │
 │                                        │                │
 │                                  Qt Dashboard App       │
-│                                  SerialReceiver          │
-│                                  auto-detect: COMx      │
+│                                  CanReceiver            │
+│                                  IVI_CAN_IFACE=vcan0    │
 └─────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────┐
 │  GIAI ĐOẠN 2: Deploy trên Raspberry Pi                   │
 │                                                         │
-│  STM32 ──(UART trực tiếp)──→ Pi /dev/ttyAMA0            │
-│   PA9 TX ─────────────────→ GPIO15 RX                   │
-│   PA10 RX ←────────────────── GPIO14 TX                 │
-│   GND ──────────────────── GND                          │
+│  STM32 PA12/PA11 ─→ SN65HVD230 ─→ CANH/CANL             │
+│  CANH/CANL ─→ MCP2515 ─→ SPI Raspberry Pi 4             │
+│  Linux SocketCAN: can0, 500 kbps                         │
 │                                        │                │
 │                                  Qt Dashboard App       │
-│                                  SerialReceiver          │
-│                                  auto-detect: ttyAMA0   │
+│                                  CanReceiver            │
+│                                  UART fallback optional │
 │                                                         │
-│  *** CODE KHÔNG THAY ĐỔI - chỉ khác platform ***       │
+│  *** Qt ưu tiên CAN, UART chỉ dùng debug/fallback ***   │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ### Khi chuyển sang Raspberry Pi, chỉ cần:
 
 1. **Cross-compile Qt app** cho ARM (hoặc build trực tiếp trên Pi)
-2. **Nối dây UART trực tiếp** (không cần USB-TTL):
-   - STM32 PA9 (TX) → Pi GPIO15 (RX)
-   - STM32 PA10 (RX) → Pi GPIO14 (TX)
-   - GND → GND
-3. **Bật UART trên Pi**: `sudo raspi-config` → Interface → Serial
-4. **Chạy app**: `./QtInstrumentCluster` — SerialReceiver tự detect `/dev/ttyAMA0`
-5. **KHÔNG cần sửa code** — `autoConnect()` tự tìm đúng port
+2. **Nối dây CAN + SPI** theo sơ đồ SN65HVD230/MCP2515 ở trên.
+3. **Cấu hình MCP2515 SocketCAN**:
+   - `./scripts/pi/setup_socketcan_mcp2515.sh`
+   - reboot Raspberry Pi
+4. **Kiểm tra CAN**:
+   - `ip -details link show can0`
+   - `candump can0`
+5. **Chạy app**: `./scripts/pi/run_pi_qt5.sh` — `CanReceiver` mở `can0` mặc định.

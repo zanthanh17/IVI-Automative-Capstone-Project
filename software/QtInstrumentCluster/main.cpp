@@ -13,6 +13,7 @@
 #include "src/gpspositionprovider.h"
 #include "src/mainmodel.h"
 #include "src/mapboxmapmatcher.h"
+#include "src/canreceiver.h"
 #include "src/serialreceiver.h"
 #include "src/weatherprovider.h"
 #include "src/osrmrouteprovider.h"
@@ -134,6 +135,8 @@ int main(int argc, char *argv[])
 
     engine.rootContext()->setContextProperty(
         "serialReceiver", MainModel::instance()->serialReceiver());
+    engine.rootContext()->setContextProperty(
+        "canReceiver", MainModel::instance()->canReceiver());
 
     // Mapbox access token: read from environment variable MAPBOX_ACCESS_TOKEN
     // Set before running: export MAPBOX_ACCESS_TOKEN="pk.eyJ1..."

@@ -25,6 +25,7 @@
 #include "encoder_handler.h"
 #include "adc_handler.h"
 #include "uart_protocol.h"
+#include "can_protocol.h"
 #include <stdio.h>
 #include <string.h>
 /* USER CODE END Includes */
@@ -54,6 +55,8 @@ UART_HandleTypeDef huart1;
 
 ADC_HandleTypeDef hadc1;
 
+CAN_HandleTypeDef hcan;
+
 /* USER CODE BEGIN PV */
 static uint32_t s_data_send_tick = 0;
 static uint32_t s_adc_update_tick = 0;
@@ -66,6 +69,7 @@ static void MX_GPIO_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_CAN_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -107,11 +111,13 @@ int main(void)
   MX_TIM3_Init();
   MX_USART1_UART_Init();
   MX_ADC1_Init();
+  MX_CAN_Init();
   /* USER CODE BEGIN 2 */
   GPIO_Handler_Init();
   Encoder_Init();
   ADC_Handler_Init();
   UART_Protocol_Init();
+  CAN_Protocol_Init();
 
   /* USER CODE END 2 */
 
@@ -137,30 +143,36 @@ int main(void)
     /* === 3. Đọc công tắc gạt (polling) === */
     GPIO_Handler_PollSwitches();
 
-    /* === 4. Xử lý sự kiện nút nhấn → gửi BTN frame qua UART === */
+    /* === 4. Xử lý sự kiện nút nhấn → gửi CAN event + UART fallback === */
     {
       uint8_t button_id;
       uint8_t button_state;
       if (GPIO_Handler_PopButtonEvent(&button_id, &button_state) != 0U)
       {
+        CAN_Protocol_SendButtonEvent(button_id, button_state, &g_buttons);
         UART_Protocol_SendButtonEvent(button_id, button_state);
       }
     }
 
-    /* === 5. Gửi DATA frame định kỳ (mỗi 100ms) === */
+    /* === 5. Gửi telemetry định kỳ qua CAN + UART fallback (mỗi 100ms) === */
     if ((now - s_data_send_tick) >= UART_DATA_SEND_MS)
     {
       /* Tính RPM từ speed (mô phỏng đơn giản: RPM = speed * 35) */
       uint16_t rpm = (uint16_t)((uint32_t)g_encoder.speed_kmh * 35U);
       if (rpm > 7000U) rpm = 7000U;
 
-      /* Gear: P nếu speed=0, D nếu đang chạy */
-      char gear = (g_encoder.speed_kmh == 0U) ? 'P' : 'D';
+      uint8_t fuel_pct = (uint8_t)(g_adc.fuel_percent * 100.0f);
+      uint8_t batt_pct = (uint8_t)(g_adc.battery_percent * 100.0f);
+      char gear = (g_buttons.drive_mode != 0U) ? 'D' : 'P';
 
-      /* Ghi đè gear bằng drive_mode switch nếu cần */
-      if (g_buttons.drive_mode != 0U && g_encoder.speed_kmh == 0U) {
-        gear = 'P';
-      }
+      CAN_Protocol_SendTelemetry(
+        g_encoder.speed_kmh,
+        rpm,
+        fuel_pct,
+        batt_pct,
+        gear
+      );
+      CAN_Protocol_SendButtonState(&g_buttons);
 
       UART_Protocol_SendData(
         g_encoder.speed_kmh,
@@ -212,6 +224,31 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
+  * @brief CAN Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_CAN_Init(void)
+{
+  hcan.Instance = CAN1;
+  hcan.Init.Prescaler = 4;
+  hcan.Init.Mode = CAN_MODE_NORMAL;
+  hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
+  hcan.Init.TimeSeg1 = CAN_BS1_13TQ;
+  hcan.Init.TimeSeg2 = CAN_BS2_2TQ;
+  hcan.Init.TimeTriggeredMode = DISABLE;
+  hcan.Init.AutoBusOff = ENABLE;
+  hcan.Init.AutoWakeUp = DISABLE;
+  hcan.Init.AutoRetransmission = ENABLE;
+  hcan.Init.ReceiveFifoLocked = DISABLE;
+  hcan.Init.TransmitFifoPriority = DISABLE;
+  if (HAL_CAN_Init(&hcan) != HAL_OK)
   {
     Error_Handler();
   }

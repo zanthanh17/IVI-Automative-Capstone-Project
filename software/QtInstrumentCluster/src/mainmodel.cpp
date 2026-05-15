@@ -1,4 +1,5 @@
 #include "mainmodel.h"
+#include "canreceiver.h"
 #include "serialreceiver.h"
 #include <QDebug>
 #include <QSettings>
@@ -13,6 +14,7 @@ MainModel::MainModel(QObject* parent)
     , m_fuelLevel(0.2f)
     , m_batteryLevel(0.2f)
     , m_gearText("P")
+    , m_canReceiver(nullptr)
     , m_serialReceiver(nullptr)
 {
     QSettings settings("QtInstrumentCluster", "Dashboard");
@@ -42,7 +44,8 @@ QString MainModel::gearText() const  { return m_gearText; }
 
 bool MainModel::hardwareConnected() const
 {
-    return m_serialReceiver && m_serialReceiver->isConnected();
+    return (m_canReceiver && m_canReceiver->isConnected())
+        || (m_serialReceiver && m_serialReceiver->isConnected());
 }
 
 void MainModel::setSpeed(float newValue) {
@@ -108,50 +111,96 @@ SerialReceiver* MainModel::serialReceiver() const
     return m_serialReceiver;
 }
 
+CanReceiver* MainModel::canReceiver() const
+{
+    return m_canReceiver;
+}
+
 void MainModel::initSerialReceiver()
 {
-    if (m_serialReceiver) return;
+    if (m_canReceiver || m_serialReceiver) return;
 
+    m_canReceiver = new CanReceiver(this);
     m_serialReceiver = new SerialReceiver(this);
 
     /*
-     * Kết nối signals từ SerialReceiver → MainModel
-     * Khi nhận DATA frame từ STM32, cập nhật properties và emit modelUpdated()
+     * CAN is the primary STM32 transport. Serial remains as debug/fallback and
+     * is ignored while CAN is connected to avoid duplicate model updates.
      */
+    connect(m_canReceiver, &CanReceiver::speedReceived, this, [this](int speed) {
+        setSpeed(static_cast<float>(speed));
+        emit modelUpdated();
+    });
+
+    connect(m_canReceiver, &CanReceiver::rpmReceived, this, [this](int rpm) {
+        setRPM(static_cast<float>(rpm));
+        emit modelUpdated();
+    });
+
+    connect(m_canReceiver, &CanReceiver::fuelLevelReceived, this, [this](float level) {
+        setFuelLevel(level);
+        emit modelUpdated();
+    });
+
+    connect(m_canReceiver, &CanReceiver::batteryLevelReceived, this, [this](float level) {
+        setBatteryLevel(level);
+        emit modelUpdated();
+    });
+
+    connect(m_canReceiver, &CanReceiver::gearReceived, this, [this](QString gear) {
+        setGearText(gear);
+        emit modelUpdated();
+    });
+
+    connect(m_canReceiver, &CanReceiver::connectedChanged, this, [this]() {
+        emit hardwareConnectedChanged();
+        if (m_canReceiver->isConnected()) {
+            qDebug() << "[MainModel] CAN hardware connected, serial fallback will be ignored";
+        } else if (m_serialReceiver && !m_serialReceiver->isConnected()) {
+            m_serialReceiver->autoConnect();
+        }
+    });
+
     connect(m_serialReceiver, &SerialReceiver::speedReceived, this, [this](int speed) {
+        if (m_canReceiver && m_canReceiver->isConnected()) return;
         setSpeed(static_cast<float>(speed));
         emit modelUpdated();
     });
 
     connect(m_serialReceiver, &SerialReceiver::rpmReceived, this, [this](int rpm) {
+        if (m_canReceiver && m_canReceiver->isConnected()) return;
         setRPM(static_cast<float>(rpm));
         emit modelUpdated();
     });
 
     connect(m_serialReceiver, &SerialReceiver::fuelLevelReceived, this, [this](float level) {
+        if (m_canReceiver && m_canReceiver->isConnected()) return;
         setFuelLevel(level);
         emit modelUpdated();
     });
 
     connect(m_serialReceiver, &SerialReceiver::batteryLevelReceived, this, [this](float level) {
+        if (m_canReceiver && m_canReceiver->isConnected()) return;
         setBatteryLevel(level);
         emit modelUpdated();
     });
 
     connect(m_serialReceiver, &SerialReceiver::gearReceived, this, [this](QString gear) {
+        if (m_canReceiver && m_canReceiver->isConnected()) return;
         setGearText(gear);
         emit modelUpdated();
     });
 
     connect(m_serialReceiver, &SerialReceiver::connectedChanged, this, [this]() {
         emit hardwareConnectedChanged();
-        if (m_serialReceiver->isConnected()) {
-            qDebug() << "[MainModel] Hardware connected, simulation data will be ignored";
-        }
+        if (m_serialReceiver->isConnected())
+            qDebug() << "[MainModel] Serial fallback connected";
     });
 
-    qDebug() << "[MainModel] SerialReceiver initialized";
-    /* Try once silently — if no hardware, dashboard runs normally.
-     * QFileSystemWatcher in SerialReceiver will detect future USB insertions. */
-    m_serialReceiver->autoConnect();
+    qDebug() << "[MainModel] CAN receiver initialized on" << m_canReceiver->interfaceName();
+    m_canReceiver->autoConnect();
+
+    qDebug() << "[MainModel] SerialReceiver initialized as fallback";
+    if (!m_canReceiver->isConnected())
+        m_serialReceiver->autoConnect();
 }

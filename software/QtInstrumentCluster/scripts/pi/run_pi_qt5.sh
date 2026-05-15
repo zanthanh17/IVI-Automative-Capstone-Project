@@ -35,6 +35,7 @@ fi
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 export QT_IM_MODULE="${QT_IM_MODULE:-qtvirtualkeyboard}"
 export QT_VIRTUALKEYBOARD_LOCALE="${QT_VIRTUALKEYBOARD_LOCALE:-vi_VN}"
+export IVI_CAN_IFACE="${IVI_CAN_IFACE:-can0}"
 
 # Fix for "Could not queue DRM page flip" on Raspberry Pi 4/5 with Bookworm/Wayland
 export QT_QPA_EGLFS_KMS_ATOMIC="${QT_QPA_EGLFS_KMS_ATOMIC:-1}"
@@ -83,6 +84,7 @@ fi
 echo "[INFO] QT_QPA_PLATFORM=${QT_QPA_PLATFORM}"
 echo "[INFO] QT_IM_MODULE=${QT_IM_MODULE}"
 echo "[INFO] QT_VIRTUALKEYBOARD_LOCALE=${QT_VIRTUALKEYBOARD_LOCALE}"
+echo "[INFO] IVI_CAN_IFACE=${IVI_CAN_IFACE}"
 echo "[INFO] XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-"(not set)"}"
 echo "[INFO] DROWSY python=${DROWSY_PYTHON:-"(auto-resolve virtualenv in app)"}"
 if [[ -n "${DROWSY_CAMERA_CTL_SCRIPT:-}" ]]; then

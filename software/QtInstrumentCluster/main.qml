@@ -23,46 +23,85 @@ Window {
                                                   ? virtualKeyboardLocaleFromEnv
                                                   : "vi_VN"
 
+    function canHardwareConnected() {
+        return canReceiver && canReceiver.connected
+    }
+
+    function serialFallbackActive() {
+        return serialReceiver && serialReceiver.connected && !canHardwareConnected()
+    }
+
+    function applyTurnLeft(active)  { TellTalesModel.turnLeftActive = active;  TellTalesModel.turnLeftBlinking = active; }
+    function applyTurnRight(active) { TellTalesModel.turnRightActive = active; TellTalesModel.turnRightBlinking = active; }
+    function applyBeam(active)      { TellTalesModel.beamActive = active; }
+    function applyHighBeams(active) { TellTalesModel.highBeamsActive = active; }
+    function applyParked(active)    { TellTalesModel.parkedActive = active; }
+    function applyAirbag(active)    { TellTalesModel.airbagActive = active; }
+    function applySpeed(speed)      { MainModel.speed = speed }
+    function applyRpm(rpm)          { MainModel.rpm = rpm }
+    function applyFuel(level)       { MainModel.fuelLevel = level }
+    function applyBattery(level)    { MainModel.batteryLevel = level }
+    function applyGear(gear)        { MainModel.gearShiftText = gear }
+
+    function applyMediaPlayToggle() {
+        if (MediaPlayerModel.mediaPlayback) MediaPlayerModel.stop()
+        else MediaPlayerModel.play()
+    }
+
     /*
-     * Kết nối SerialReceiver signals → QML Models
-     * Đây là cầu nối giữa phần cứng STM32 và Dashboard UI
-     * Code này chạy GIỐNG HỆT trên PC host và Raspberry Pi
+     * CAN is the primary STM32 transport. Serial remains as UART fallback/debug
+     * and is ignored while CAN is connected.
      */
+    Connections {
+        target: canReceiver
+
+        function onConnectedChanged() {
+            if (canReceiver.connected) {
+                console.log("[QML] CAN hardware connected on interface: " + canReceiver.interfaceName)
+            } else if (!serialFallbackActive()) {
+                console.log("[QML] CAN hardware disconnected")
+            }
+        }
+
+        function onTurnLeftChanged(active)   { applyTurnLeft(active) }
+        function onTurnRightChanged(active)  { applyTurnRight(active) }
+        function onBeamChanged(active)       { applyBeam(active) }
+        function onHighBeamsChanged(active)  { applyHighBeams(active) }
+        function onParkedChanged(active)     { applyParked(active) }
+        function onAirbagChanged(active)     { applyAirbag(active) }
+        function onMediaPlayToggled()        { applyMediaPlayToggle() }
+        function onMediaNextTriggered()      { MediaPlayerModel.nextSong() }
+        function onSpeedReceived(speed)      { applySpeed(speed) }
+        function onRpmReceived(rpm)          { applyRpm(rpm) }
+        function onFuelLevelReceived(level)  { applyFuel(level) }
+        function onBatteryLevelReceived(level) { applyBattery(level) }
+        function onGearReceived(gear)        { applyGear(gear) }
+    }
+
     Connections {
         target: serialReceiver
 
-        /* Khi phần cứng kết nối, log trạng thái */
         function onConnectedChanged() {
-            if (serialReceiver.connected) {
-                console.log("[QML] Hardware connected on port: " + serialReceiver.portName)
-            } else {
+            if (serialReceiver.connected && !canHardwareConnected()) {
+                console.log("[QML] UART fallback connected on port: " + serialReceiver.portName)
+            } else if (!serialReceiver.connected && !canHardwareConnected()) {
                 console.log("[QML] Hardware disconnected")
             }
         }
 
-        /* === Tell-Tales: nút nhấn phần cứng → đèn cảnh báo trên dashboard === */
-        function onTurnLeftChanged(active)  { TellTalesModel.turnLeftActive = active;  TellTalesModel.turnLeftBlinking = active; }
-        function onTurnRightChanged(active) { TellTalesModel.turnRightActive = active; TellTalesModel.turnRightBlinking = active; }
-        function onBeamChanged(active)      { TellTalesModel.beamActive = active; }
-        function onHighBeamsChanged(active)  { TellTalesModel.highBeamsActive = active; }
-        function onParkedChanged(active)    { TellTalesModel.parkedActive = active; }
-        function onAirbagChanged(active)    { TellTalesModel.airbagActive = active; }
-
-        /* === Media Player: nút nhấn phần cứng → điều khiển nhạc === */
-        function onMediaPlayToggled()   {
-            if (MediaPlayerModel.mediaPlayback) MediaPlayerModel.stop()
-            else MediaPlayerModel.play()
-        }
-        function onMediaNextTriggered() { MediaPlayerModel.nextSong(); }
-
-        /* === Sensor Data: cập nhật speed, rpm từ phần cứng === */
-        function onSpeedReceived(speed) {
-            MainModel.speed = speed
-        }
-        function onRpmReceived(rpm)       { MainModel.rpm = rpm }
-        function onFuelLevelReceived(level)    { MainModel.fuelLevel = level }
-        function onBatteryLevelReceived(level) { MainModel.batteryLevel = level }
-        function onGearReceived(gear)     { MainModel.gearShiftText = gear }
+        function onTurnLeftChanged(active)   { if (!canHardwareConnected()) applyTurnLeft(active) }
+        function onTurnRightChanged(active)  { if (!canHardwareConnected()) applyTurnRight(active) }
+        function onBeamChanged(active)       { if (!canHardwareConnected()) applyBeam(active) }
+        function onHighBeamsChanged(active)  { if (!canHardwareConnected()) applyHighBeams(active) }
+        function onParkedChanged(active)     { if (!canHardwareConnected()) applyParked(active) }
+        function onAirbagChanged(active)     { if (!canHardwareConnected()) applyAirbag(active) }
+        function onMediaPlayToggled()        { if (!canHardwareConnected()) applyMediaPlayToggle() }
+        function onMediaNextTriggered()      { if (!canHardwareConnected()) MediaPlayerModel.nextSong() }
+        function onSpeedReceived(speed)      { if (!canHardwareConnected()) applySpeed(speed) }
+        function onRpmReceived(rpm)          { if (!canHardwareConnected()) applyRpm(rpm) }
+        function onFuelLevelReceived(level)  { if (!canHardwareConnected()) applyFuel(level) }
+        function onBatteryLevelReceived(level) { if (!canHardwareConnected()) applyBattery(level) }
+        function onGearReceived(gear)        { if (!canHardwareConnected()) applyGear(gear) }
     }
 
     function handleKey(key : int) {
@@ -268,8 +307,10 @@ Window {
 
             Component.onCompleted: {
                 root.forceActiveFocus()
-                if (serialReceiver.connected) {
-                    console.log("[QML] Hardware already connected")
+                if (canHardwareConnected()) {
+                    console.log("[QML] CAN hardware already connected")
+                } else if (serialFallbackActive()) {
+                    console.log("[QML] UART fallback already connected")
                 } else {
                     console.log("[QML] No hardware detected, waiting for connection...")
                 }

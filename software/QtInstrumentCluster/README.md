@@ -10,7 +10,7 @@ The main focus points are to prove the following skills:
 2. Integrating QML and C++
 3. Usage of signals and slots
 4. Usage of Singleton classes
-5. Hardware telemetry integration (UART)
+5. Hardware telemetry integration (CAN bus with UART fallback)
 6. Keyboard event handling
 
 <img src="https://github.com/ShanavasPS/QtInstrumentCluster/assets/8370662/be0ccb51-98ff-49fd-9172-367892e94344" width="800" height="480" alt="Image Alt Text">
@@ -66,7 +66,16 @@ After setup, re-login (or run `newgrp dialout`), then:
 - Mapbox API network reachability
 - serial permission (`dialout`) and device node presence
 
-If you use UART from STM32, verify serial devices:
+For STM32 CAN integration, configure MCP2515/SocketCAN and verify `can0`:
+
+```bash
+./scripts/pi/setup_socketcan_mcp2515.sh
+sudo reboot
+ip -details link show can0
+candump can0
+```
+
+If you use UART fallback from STM32, verify serial devices:
 
 ```bash
 ls -l /dev/ttyAMA0
@@ -199,6 +208,7 @@ chmod +x scripts/pi/*.sh
 
 # Or install Qt5 directly (without removing Qt6):
 ./scripts/pi/setup_pi_native_qt5.sh
+./scripts/pi/setup_socketcan_mcp2515.sh
 ./scripts/pi/build_pi_qt5.sh
 ./scripts/pi/verify_pi_qt5.sh
 ./scripts/pi/run_pi_qt5.sh
@@ -208,6 +218,8 @@ Notes:
 - Qt5 build output is isolated in `build-pi-qt5/` (does not overwrite Qt6 build output).
 - If both Qt5 and Qt6 are installed, `build_pi_qt5.sh` explicitly resolves a Qt5 qmake.
 - Put `MAPBOX_ACCESS_TOKEN` in `.env` (or export in shell) for Mapbox map + Search Box + routing on Qt5.
+- CAN defaults to SocketCAN `can0`. Override with `IVI_CAN_IFACE=vcan0` for desktop simulation or a USB-CAN adapter.
+- MCP2515 setup defaults: 500 kbps CAN, 8 MHz oscillator, GPIO25 interrupt.
 - `MAPBOX_STYLE_URL` is optional; Qt5 flow defaults to `mapbox://styles/mapbox/navigation-guidance-night-v2
 
 

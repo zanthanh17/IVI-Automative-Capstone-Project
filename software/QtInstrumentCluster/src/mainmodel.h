@@ -3,6 +3,7 @@
 
 #include <QObject>
 
+class CanReceiver;
 class SerialReceiver;
 
 class MainModel : public QObject
@@ -36,11 +37,14 @@ public:
     void setBatteryLevel(float newValue);
     void setGearText(const QString &text);
 
-    /** Khởi tạo SerialReceiver và kết nối signals */
+    /** Khởi tạo CAN receiver và SerialReceiver fallback */
     void initSerialReceiver();
 
     /** Trả về con trỏ SerialReceiver (để QML truy cập nếu cần) */
     SerialReceiver* serialReceiver() const;
+
+    /** Trả về con trỏ CanReceiver (để QML truy cập nếu cần) */
+    CanReceiver* canReceiver() const;
 
 signals:
     void modelUpdated();
@@ -62,6 +66,7 @@ private:
     float m_fuelLevel;
     float m_batteryLevel;
     QString m_gearText;
+    CanReceiver *m_canReceiver;
     SerialReceiver *m_serialReceiver;
 };
 

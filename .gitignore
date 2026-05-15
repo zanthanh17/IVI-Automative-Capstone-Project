@@ -36,3 +36,4 @@ firmware/*.launch
 
 # Qt build artifacts
 software/**/build-pi-qt5/
+software/QtInstrumentCluster/.env

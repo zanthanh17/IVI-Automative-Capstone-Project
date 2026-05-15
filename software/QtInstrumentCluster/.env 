@@ -1,0 +1,37 @@
+# Copy this file to .env and fill in your values
+# .env is gitignored — never commit real tokens
+
+# Mapbox access token (public token, starts with pk.)
+# Get yours at: https://account.mapbox.com/access-tokens/
+MAPBOX_ACCESS_TOKEN=pk.eyJ1IjoidGhhbmhwbTE3NSIsImEiOiJjbW1scW5nMmcwNnpwMnFxNmxxeGhtbWVsIn0.zedrk0pzwOBiwkAGk66z6w
+# Qt5 navigation uses fixed style: mapbox://styles/mapbox/navigation-guidance-night-v2
+# (MAPBOX_STYLE_URL kept only for backward compatibility with scripts/tools)
+MAPBOX_STYLE_URL=mapbox://styles/mapbox/navigation-guidance-night-v2
+# Map mode is Mapbox-only:
+# - Map style, geocoding, and directions all require this token.
+
+# On-screen keyboard locale for text boxes (Qt Virtual Keyboard)
+# vi_VN = Vietnamese layout
+QT_VIRTUALKEYBOARD_LOCALE=vi_VN
+
+# Optional weather location (required for Weather API refresh)
+WEATHER_LATITUDE=
+WEATHER_LONGITUDE=
+WEATHER_CITY=
+
+# Driver drowsiness worker (Camera page)
+# Prefer venv python from Driver-Drowsy-Detection:
+# DROWSY_PYTHON=/home/pi/IVI-Automative-Capstone-Project/software/Driver-Drowsy-Detection/.venv-pi/bin/python3
+# DROWSY_LIVE_CAMERA_SCRIPT=/home/pi/IVI-Automative-Capstone-Project/software/Driver-Drowsy-Detection/app/live_camera.py
+# DROWSY_CAMERA_PATH=/dev/video0
+# DROWSY_CAMERA_INDEX=0
+# DROWSY_FALLBACK_SCAN_MAX=6
+# DROWSY_FRAME_TRANSPORT=file
+# DROWSY_WIDTH=960
+# DROWSY_HEIGHT=540
+# DROWSY_FPS=30
+# DROWSY_EXPORT_FRAME=/tmp/drowsy_live_frame.jpg
+# DROWSY_EXPORT_QUALITY=70
+# DROWSY_EXPORT_EVERY_N=1
+# DROWSY_METRICS_EVERY_N=10
+# DROWSY_PERSIST_WORKER=1
