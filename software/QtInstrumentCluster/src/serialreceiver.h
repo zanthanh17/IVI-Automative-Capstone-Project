@@ -12,7 +12,7 @@
  *
  * Kiến trúc linh hoạt:
  *   - Trên PC host:  STM32 → USB-TTL (CP2102/CH340) → COMx    → Qt SerialReceiver
- *   - Trên Raspberry Pi: STM32 → UART trực tiếp → /dev/ttyAMA0 → Qt SerialReceiver
+ *   - Trên Raspberry Pi: telemetry ưu tiên CAN; Pi UART (/dev/ttyAMA0) dành cho GPS/gpsd
  *
  * Giao thức firmware gửi:
  *   DATA:speed=<0-200>,rpm=<0-7000>,fuel=<0-100>,batt=<0-100>,gear=<P|D>\n
@@ -45,7 +45,7 @@ public:
     bool hardwareMode() const;
     void setHardwareMode(bool enabled);
 
-    /** Tự động tìm và mở port STM32 (USB-TTL hoặc /dev/ttyAMA0) */
+    /** Tự động tìm và mở port STM32 (USB-TTL hoặc IVI_SERIAL_PORT nếu chỉ định) */
     Q_INVOKABLE bool autoConnect();
 
     /** Đóng kết nối serial */
@@ -76,6 +76,7 @@ signals:
     void highBeamsChanged(bool active);
     void parkedChanged(bool active);
     void airbagChanged(bool active);
+    void hornChanged(bool active);
     void mediaPlayToggled();
     void mediaNextTriggered();
 

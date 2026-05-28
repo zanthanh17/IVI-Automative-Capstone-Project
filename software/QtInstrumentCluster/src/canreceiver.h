@@ -47,8 +47,11 @@ signals:
     void highBeamsChanged(bool active);
     void parkedChanged(bool active);
     void airbagChanged(bool active);
+    void hornChanged(bool active);
     void mediaPlayToggled();
     void mediaNextTriggered();
+    void bodyStatusReceived(int commandMask, int outputMask, int flags, int counter);
+    void bodyRxTimeoutChanged(bool timedOut);
 
     void canError(QString errorMessage);
 
@@ -62,6 +65,7 @@ private:
     void processTelemetryFrame(const QByteArray &payload);
     void processButtonStateFrame(const QByteArray &payload);
     void processButtonEventFrame(const QByteArray &payload);
+    void processBodyStatusFrame(const QByteArray &payload);
     void emitButtonSignal(quint8 buttonId, bool active, bool triggerMedia);
     QString buttonName(quint8 buttonId) const;
 

@@ -2,6 +2,29 @@
 #include <QDebug>
 #include <QDir>
 #include <QFileSystemWatcher>
+#include <QtGlobal>
+
+namespace {
+
+bool serialFallbackEnabled()
+{
+    const QByteArray value = qgetenv("IVI_SERIAL_FALLBACK").trimmed().toLower();
+    if (value.isEmpty()) {
+        return false;
+    }
+    return value != "0" && value != "false" && value != "no" && value != "off";
+}
+
+QString normalizedSerialPortName(QString portName)
+{
+    portName = portName.trimmed();
+    if (portName.startsWith(QStringLiteral("/dev/"))) {
+        portName.remove(0, 5);
+    }
+    return portName;
+}
+
+} // namespace
 
 SerialReceiver::SerialReceiver(QObject *parent)
     : QObject(parent)
@@ -10,6 +33,8 @@ SerialReceiver::SerialReceiver(QObject *parent)
     , m_connected(false)
     , m_hardwareMode(false)
 {
+    m_portName = normalizedSerialPortName(QString::fromLocal8Bit(qgetenv("IVI_SERIAL_PORT")));
+
     /* Cấu hình serial mặc định: 115200 8N1 (giống firmware STM32) */
     m_serial->setBaudRate(QSerialPort::Baud115200);
     m_serial->setDataBits(QSerialPort::Data8);
@@ -25,7 +50,7 @@ SerialReceiver::SerialReceiver(QObject *parent)
     /* Watch /dev for new USB serial devices (ttyUSB*, ttyACM*, ttyAMA*) */
     auto *devWatcher = new QFileSystemWatcher({QStringLiteral("/dev")}, this);
     connect(devWatcher, &QFileSystemWatcher::directoryChanged, this, [this]() {
-        if (m_connected) return;
+        if (m_connected || !serialFallbackEnabled()) return;
         /* Small delay to let the device node fully appear */
         QTimer::singleShot(500, this, [this]() { autoConnect(); });
     });
@@ -93,6 +118,13 @@ QStringList SerialReceiver::availablePorts() const
 
 bool SerialReceiver::autoConnect()
 {
+    if (!serialFallbackEnabled()) {
+        if (m_serial->isOpen()) {
+            m_serial->close();
+        }
+        return false;
+    }
+
     /* Nếu đang kết nối, đóng trước */
     if (m_serial->isOpen()) {
         m_serial->close();
@@ -102,18 +134,17 @@ bool SerialReceiver::autoConnect()
 
     /*
      * Chiến lược tìm port:
-     * 1. Trên Raspberry Pi: ưu tiên /dev/ttyAMA0 (UART hardware)
-     * 2. Trên PC: tìm USB-TTL phổ biến (CP2102, CH340, FTDI) → ttyUSB* hoặc ttyACM*
-     * 3. Bỏ qua ttyS* (serial ảo trên PC, gây Permission denied và block UI)
+     * 1. Nếu chỉ định IVI_SERIAL_PORT, mở đúng port đó.
+     * 2. Tìm USB-TTL phổ biến (CP2102, CH340, FTDI) → ttyUSB* hoặc ttyACM*.
+     * 3. Không auto-scan ttyAMA*: trên Pi UART này dành cho GPS/gpsd.
+     * 4. Bỏ qua ttyS* (serial ảo trên PC, gây Permission denied và block UI).
      */
 
-    /* Ưu tiên 1: Raspberry Pi native UART */
-    for (const QSerialPortInfo &info : ports) {
-        if (info.portName().startsWith("ttyAMA")) {
-            if (tryOpenPort(info.portName())) {
-                qDebug() << "[SerialReceiver] Connected to Pi UART:" << info.portName();
-                return true;
-            }
+    /* Ưu tiên 1: Nếu có chỉ định portName cụ thể */
+    if (!m_portName.isEmpty() && !m_portName.startsWith("ttyS")) {
+        if (tryOpenPort(m_portName)) {
+            qDebug() << "[SerialReceiver] Connected to specified port:" << m_portName;
+            return true;
         }
     }
 
@@ -125,14 +156,6 @@ bool SerialReceiver::autoConnect()
                          << "-" << info.description();
                 return true;
             }
-        }
-    }
-
-    /* Ưu tiên 3: Nếu có chỉ định portName cụ thể */
-    if (!m_portName.isEmpty() && !m_portName.startsWith("ttyS")) {
-        if (tryOpenPort(m_portName)) {
-            qDebug() << "[SerialReceiver] Connected to specified port:" << m_portName;
-            return true;
         }
     }
 
@@ -219,7 +242,7 @@ void SerialReceiver::parseDataFrame(const QByteArray &payload)
 }
 
 /**
- * @brief Parse BTN frame: "left_signal=ON" hoặc "media_play=ON"
+ * @brief Parse BTN frame: "left_signal=ON" hoac "horn=ON"
  */
 void SerialReceiver::parseButtonFrame(const QByteArray &payload)
 {
@@ -246,6 +269,8 @@ void SerialReceiver::parseButtonFrame(const QByteArray &payload)
         emit parkedChanged(active);
     } else if (name == "airbag") {
         emit airbagChanged(active);
+    } else if (name == "horn") {
+        emit hornChanged(active);
     } else if (name == "media_play") {
         emit mediaPlayToggled();
     } else if (name == "media_next") {

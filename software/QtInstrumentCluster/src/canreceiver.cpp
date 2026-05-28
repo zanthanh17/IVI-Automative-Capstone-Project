@@ -21,6 +21,7 @@ namespace {
 constexpr quint32 CanIdVehicleTelemetry = 0x100U;
 constexpr quint32 CanIdButtonState = 0x101U;
 constexpr quint32 CanIdButtonEvent = 0x102U;
+constexpr quint32 CanIdBodyStatus = 0x201U;
 
 float percentToLevel(quint8 percent)
 {
@@ -252,6 +253,9 @@ void CanReceiver::processFrame(quint32 frameId, const QByteArray &payload)
     case CanIdButtonEvent:
         processButtonEventFrame(payload);
         break;
+    case CanIdBodyStatus:
+        processBodyStatusFrame(payload);
+        break;
     default:
         break;
     }
@@ -289,6 +293,7 @@ void CanReceiver::processButtonStateFrame(const QByteArray &payload)
     emitButtonSignal(4U, (mask & (1U << 3)) != 0U, false);
     emitButtonSignal(5U, (mask & (1U << 4)) != 0U, false);
     emitButtonSignal(6U, (mask & (1U << 5)) != 0U, false);
+    emitButtonSignal(7U, (mask & (1U << 6)) != 0U, false);
 
     const bool driveMode = static_cast<quint8>(payload.at(1)) != 0U;
     emit gearReceived(driveMode ? QStringLiteral("D") : QStringLiteral("P"));
@@ -302,6 +307,24 @@ void CanReceiver::processButtonEventFrame(const QByteArray &payload)
     const quint8 buttonId = static_cast<quint8>(payload.at(0));
     const bool active = static_cast<quint8>(payload.at(1)) != 0U;
     emitButtonSignal(buttonId, active, true);
+}
+
+void CanReceiver::processBodyStatusFrame(const QByteArray &payload)
+{
+    if (payload.size() < 4)
+        return;
+
+    const auto byteAt = [&payload](int index) -> quint8 {
+        return static_cast<quint8>(payload.at(index));
+    };
+
+    const int commandMask = static_cast<int>(byteAt(0));
+    const int outputMask = static_cast<int>(byteAt(1));
+    const int flags = static_cast<int>(byteAt(2));
+    const int counter = static_cast<int>(byteAt(3));
+
+    emit bodyStatusReceived(commandMask, outputMask, flags, counter);
+    emit bodyRxTimeoutChanged((flags & (1U << 1)) != 0U);
 }
 
 void CanReceiver::emitButtonSignal(quint8 buttonId, bool active, bool triggerMedia)
@@ -330,8 +353,7 @@ void CanReceiver::emitButtonSignal(quint8 buttonId, bool active, bool triggerMed
         emit airbagChanged(active);
         break;
     case 7U:
-        if (triggerMedia)
-            emit mediaPlayToggled();
+        emit hornChanged(active);
         break;
     case 8U:
         if (triggerMedia)
@@ -351,7 +373,7 @@ QString CanReceiver::buttonName(quint8 buttonId) const
     case 4U: return QStringLiteral("high_beams");
     case 5U: return QStringLiteral("parked");
     case 6U: return QStringLiteral("airbag");
-    case 7U: return QStringLiteral("media_play");
+    case 7U: return QStringLiteral("horn");
     case 8U: return QStringLiteral("media_next");
     default: return QString();
     }
