@@ -106,6 +106,18 @@ If no desktop/X11 session is available, run:
 QT_QPA_PLATFORM=eglfs ./scripts/pi/run_pi.sh
 ```
 
+If the physical Pi display is mounted inverted and Qt Quick does not follow the
+OS/display rotation, rotate the app scene itself:
+
+```bash
+IVI_DISPLAY_ROTATION=180 ./scripts/pi/run_pi.sh
+# or with direct framebuffer/KMS mode:
+IVI_DISPLAY_ROTATION=180 QT_QPA_PLATFORM=eglfs ./scripts/pi/run_pi.sh
+```
+
+`IVI_DISPLAY_ROTATION` currently supports `0` and `180`; other values fall back
+to `0`.
+
 ### Navigation map behavior
 
 - Navigation page is now **Mapbox-only** via QtLocation `mapboxgl` plugin (`NavigationMapLocation.qml`).
@@ -227,6 +239,7 @@ Notes:
 `.
 - Qt5 flow is Mapbox-only (no WebEngine fallback).
 - Qt Virtual Keyboard is enabled for text boxes (`QT_IM_MODULE=qtvirtualkeyboard`), default keyboard locale is Vietnamese (`QT_VIRTUALKEYBOARD_LOCALE=vi_VN`).
+- Rotate the Qt scene on an inverted Pi display with `IVI_DISPLAY_ROTATION=180 ./scripts/pi/run_pi_qt5.sh`.
 - If keyboard logs `module "Qt.labs.folderlistmodel" is not installed`, install:
   `sudo apt install -y qml-module-qt-labs-folderlistmodel qml-module-qt-labs-settings qml-module-qt-labs-platform`
 - Destination search now applies Vietnamese Telex normalization, uses the Mapbox Search Box `/suggest` + `/retrieve` flow, biases results to the live vehicle position when GPS is available, and uses routable points when present for better turn-by-turn routing.

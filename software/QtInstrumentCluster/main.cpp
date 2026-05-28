@@ -144,6 +144,9 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("mapboxTokenFromEnv", mapboxToken);
     engine.rootContext()->setContextProperty("mapboxTokenConfigured", !mapboxToken.trimmed().isEmpty());
     engine.rootContext()->setContextProperty("virtualKeyboardLocaleFromEnv", virtualKeyboardLocale);
+    engine.rootContext()->setContextProperty(
+        "displayRotationFromEnv",
+        qEnvironmentVariable("IVI_DISPLAY_ROTATION", "0"));
     MapboxSearchProvider::instance()->setAccessToken(mapboxToken);
     MapboxMapMatcher::instance()->setAccessToken(mapboxToken);
     MapboxMapMatcher::instance()->setBaseUrl(QStringLiteral("https://api.mapbox.com"));

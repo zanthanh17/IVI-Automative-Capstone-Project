@@ -35,6 +35,7 @@ fi
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 export QT_IM_MODULE="${QT_IM_MODULE:-qtvirtualkeyboard}"
 export QT_VIRTUALKEYBOARD_LOCALE="${QT_VIRTUALKEYBOARD_LOCALE:-vi_VN}"
+export IVI_DISPLAY_ROTATION="${IVI_DISPLAY_ROTATION:-0}"
 
 # Fix for "Could not queue DRM page flip" on Raspberry Pi 4/5 with Bookworm/Wayland
 export QT_QPA_EGLFS_KMS_ATOMIC="${QT_QPA_EGLFS_KMS_ATOMIC:-1}"
@@ -49,9 +50,11 @@ export DROWSY_DAEMON_SOCKET="${DROWSY_DAEMON_SOCKET:-/tmp/drowsy-camera-daemon.s
 echo "[INFO] QT_QPA_PLATFORM=${QT_QPA_PLATFORM}"
 echo "[INFO] QT_IM_MODULE=${QT_IM_MODULE}"
 echo "[INFO] QT_VIRTUALKEYBOARD_LOCALE=${QT_VIRTUALKEYBOARD_LOCALE}"
+echo "[INFO] IVI_DISPLAY_ROTATION=${IVI_DISPLAY_ROTATION}"
 echo "[INFO] GPSD endpoint=${GPSD_HOST:-127.0.0.1}:${GPSD_PORT:-2947}"
 echo "[INFO] Launching: ${APP_BIN}"
 echo "[HINT] For no-desktop framebuffer mode: QT_QPA_PLATFORM=eglfs ./scripts/pi/run_pi.sh"
+echo "[HINT] Invert Qt scene only: IVI_DISPLAY_ROTATION=180 ./scripts/pi/run_pi.sh"
 
 LOG_DIR="${PROJECT_DIR}/logs"
 mkdir -p "${LOG_DIR}"

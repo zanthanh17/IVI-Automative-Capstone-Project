@@ -35,6 +35,7 @@ fi
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 export QT_IM_MODULE="${QT_IM_MODULE:-qtvirtualkeyboard}"
 export QT_VIRTUALKEYBOARD_LOCALE="${QT_VIRTUALKEYBOARD_LOCALE:-vi_VN}"
+export IVI_DISPLAY_ROTATION="${IVI_DISPLAY_ROTATION:-0}"
 export IVI_CAN_IFACE="${IVI_CAN_IFACE:-can0}"
 
 # Fix for "Could not queue DRM page flip" on Raspberry Pi 4/5 with Bookworm/Wayland
@@ -84,6 +85,7 @@ fi
 echo "[INFO] QT_QPA_PLATFORM=${QT_QPA_PLATFORM}"
 echo "[INFO] QT_IM_MODULE=${QT_IM_MODULE}"
 echo "[INFO] QT_VIRTUALKEYBOARD_LOCALE=${QT_VIRTUALKEYBOARD_LOCALE}"
+echo "[INFO] IVI_DISPLAY_ROTATION=${IVI_DISPLAY_ROTATION}"
 echo "[INFO] IVI_CAN_IFACE=${IVI_CAN_IFACE}"
 echo "[INFO] XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-"(not set)"}"
 echo "[INFO] DROWSY python=${DROWSY_PYTHON:-"(auto-resolve virtualenv in app)"}"
@@ -115,6 +117,7 @@ echo "[INFO] GPSD endpoint=${GPSD_HOST:-127.0.0.1}:${GPSD_PORT:-2947}"
 echo "[INFO] MAPBOX_STYLE_URL=${MAPBOX_STYLE_URL:-mapbox://styles/mapbox/navigation-guidance-night-v2}"
 echo "[INFO] Launching: ${APP_BIN}"
 echo "[HINT] Framebuffer mode: QT_QPA_PLATFORM=eglfs ./scripts/pi/run_pi_qt5.sh"
+echo "[HINT] Invert Qt scene only: IVI_DISPLAY_ROTATION=180 ./scripts/pi/run_pi_qt5.sh"
 
 LOG_DIR="${PROJECT_DIR}/logs"
 mkdir -p "${LOG_DIR}"

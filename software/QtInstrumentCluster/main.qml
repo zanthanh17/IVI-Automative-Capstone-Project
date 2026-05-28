@@ -22,6 +22,7 @@ Window {
     readonly property string virtualKeyboardLocale: (virtualKeyboardLocaleFromEnv && virtualKeyboardLocaleFromEnv.length > 0)
                                                   ? virtualKeyboardLocaleFromEnv
                                                   : "vi_VN"
+    readonly property int displayRotation: Number(displayRotationFromEnv) === 180 ? 180 : 0
 
     function canHardwareConnected() {
         return canReceiver && canReceiver.connected
@@ -150,16 +151,25 @@ Window {
     Shortcut { sequence: "M"; onActivated: handleKey(Qt.Key_M) }
 
     Item {
-        id: sceneRoot
-        width: window.designWidth
-        height: window.designHeight
-        anchors.centerIn: parent
-        transform: Scale {
-            origin.x: sceneRoot.width / 2
-            origin.y: sceneRoot.height / 2
-            xScale: window.sceneScale
-            yScale: window.sceneScale
+        id: appRoot
+        anchors.fill: parent
+        transform: Rotation {
+            origin.x: appRoot.width / 2
+            origin.y: appRoot.height / 2
+            angle: window.displayRotation
         }
+
+        Item {
+            id: sceneRoot
+            width: window.designWidth
+            height: window.designHeight
+            anchors.centerIn: parent
+            transform: Scale {
+                origin.x: sceneRoot.width / 2
+                origin.y: sceneRoot.height / 2
+                xScale: window.sceneScale
+                yScale: window.sceneScale
+            }
 
         Rectangle {
             id: root
@@ -344,5 +354,6 @@ Window {
         opacity: 1.0 - SystemSettings.brightnessLevel
         z: 9998
         enabled: false // Let touches pass through
+    }
     }
 }
