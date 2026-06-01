@@ -18,6 +18,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from app.live_camera_common import (
+    MetricsCsvLogger,
     draw_overlay,
     export_jpeg_atomic,
     list_linux_video_nodes,
@@ -126,6 +127,17 @@ def parse_args() -> argparse.Namespace:
         help="Print a compact metric line every N processed frames.",
     )
     parser.add_argument(
+        "--metrics-csv",
+        default="",
+        help="Optional CSV path for detailed runtime metrics.",
+    )
+    parser.add_argument(
+        "--metrics-csv-every-n",
+        type=int,
+        default=1,
+        help="Write one detailed CSV metric row every N processed frames.",
+    )
+    parser.add_argument(
         "--stream-jpeg-stdout",
         action="store_true",
         help="Stream JPEG frames via stdout (binary packet protocol) for Qt image provider.",
@@ -215,6 +227,10 @@ def main() -> int:
 
     export_every_n = max(1, args.export_every_n)
     metrics_every_n = max(1, args.metrics_every_n)
+    metrics_csv_every_n = max(1, args.metrics_csv_every_n)
+    metrics_logger = MetricsCsvLogger(args.metrics_csv) if args.metrics_csv else None
+    if metrics_logger is not None:
+        log(f"Writing detailed metrics CSV: {metrics_logger.path}")
 
     if args.no_display:
         log(
@@ -263,6 +279,16 @@ def main() -> int:
             if export_path is not None and (frame_counter % export_every_n == 0):
                 export_jpeg_atomic(frame, export_path, args.export_quality)
 
+            if metrics_logger is not None and (frame_counter % metrics_csv_every_n == 0):
+                metrics_logger.write(
+                    result,
+                    fps_smooth,
+                    latency_ms,
+                    frame_counter,
+                    actual_index,
+                    backend_name,
+                )
+
             if frame_counter % metrics_every_n == 0:
                 log(
                     "[METRIC] "
@@ -285,6 +311,8 @@ def main() -> int:
         cap.release()
         if writer is not None:
             writer.release()
+        if metrics_logger is not None:
+            metrics_logger.close()
         if not args.no_display:
             cv2.destroyAllWindows()
 

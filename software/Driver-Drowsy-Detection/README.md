@@ -280,6 +280,28 @@ CAMERA_PATH=/dev/video0 WIDTH=960 HEIGHT=540 FPS=25 bash scripts/pi4_run_live.sh
 SAVE_VIDEO=results/pi4_live.mp4 bash scripts/pi4_run_live.sh
 ```
 
+### Xuất số liệu Edge AI cho báo cáo
+
+Khi chạy trên Pi4, app có thể ghi CSV chi tiết để lấy số liệu runtime và kết quả suy luận:
+
+```bash
+METRICS_CSV=results/pi4_edge_metrics.csv \
+METRICS_CSV_EVERY_N=1 \
+WIDTH=640 HEIGHT=480 FPS=20 \
+bash scripts/pi4_run_live.sh --no-display
+```
+
+Nếu chạy daemon nền:
+
+```bash
+METRICS_CSV=results/pi4_edge_metrics.csv bash scripts/pi4_run_daemon.sh
+bash scripts/pi4_camera_ctl.sh status
+```
+
+Các cột chính trong CSV gồm `fps`, `latency_ms`, `status`, `alert`, `fusion_score`, `ear`, `perclos`, `mar`, `eye_cnn_score`, `yawn_cnn_score`, `yawn_counter`, `head_pose_score`, `head_pitch/yaw/roll`, `cpu_process_percent`, `rss_mb`, `temperature_c`. Dùng `latency_ms`/`fps` cho hiệu năng edge, `rss_mb`/`cpu_process_percent`/`temperature_c` cho tài nguyên Pi, và các score còn lại để giải thích quyết định của mô hình.
+
+Lưu ý: CSV live chỉ cho biết runtime và kết quả dự đoán. Muốn báo cáo accuracy/precision/recall/F1 thì cần chạy trên tập video/ảnh đã có nhãn bằng `python scripts/10_evaluate.py` hoặc `python scripts/12_validate_pipeline.py`.
+
 ### Daemon nền + viewer on-demand
 
 - `scripts/pi4_run_daemon.sh`: giữ `VideoCapture`, detector/model, frame mới nhất và metrics luôn nóng trong nền.

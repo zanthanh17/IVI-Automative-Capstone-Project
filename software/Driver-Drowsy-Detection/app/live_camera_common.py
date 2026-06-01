@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import csv
 import os
 import platform
 import struct
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
@@ -15,6 +17,142 @@ import cv2
 
 FRAME_MAGIC = b"FRAM"
 FRAME_HEADER_SIZE = 8
+
+
+METRIC_CSV_FIELDS = [
+    "timestamp_iso",
+    "elapsed_s",
+    "frame",
+    "camera_source",
+    "backend",
+    "fps",
+    "latency_ms",
+    "status",
+    "alert",
+    "fusion_score",
+    "ear",
+    "perclos",
+    "mar",
+    "eye_cnn_score",
+    "yawn_cnn_score",
+    "yawn_counter",
+    "head_pose_score",
+    "head_pitch",
+    "head_yaw",
+    "head_roll",
+    "face_detected",
+    "cpu_process_percent",
+    "rss_mb",
+    "temperature_c",
+]
+
+
+def _round_metric(value, digits: int = 4):
+    if value is None or value == "":
+        return ""
+    try:
+        return round(float(value), digits)
+    except (TypeError, ValueError):
+        return value
+
+
+def _read_rss_mb():
+    try:
+        with open("/proc/self/status", "r", encoding="utf-8") as proc_status:
+            for line in proc_status:
+                if line.startswith("VmRSS:"):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        return round(float(parts[1]) / 1024.0, 2)
+    except OSError:
+        pass
+    return ""
+
+
+def _read_temperature_c():
+    for temp_path in ("/sys/class/thermal/thermal_zone0/temp",):
+        try:
+            raw_value = Path(temp_path).read_text(encoding="utf-8").strip()
+            value = float(raw_value)
+        except (OSError, ValueError):
+            continue
+
+        if value > 1000.0:
+            value /= 1000.0
+        return round(value, 2)
+    return ""
+
+
+class RuntimeMetricsSampler:
+    def __init__(self):
+        self.last_wall_s = None
+        self.last_process_s = None
+
+    def sample(self, now_s: float):
+        process_s = sum(os.times()[:2])
+        cpu_percent = ""
+        if self.last_wall_s is not None and self.last_process_s is not None:
+            wall_delta = now_s - self.last_wall_s
+            process_delta = process_s - self.last_process_s
+            if wall_delta > 0:
+                cpu_percent = round((process_delta / wall_delta) * 100.0, 2)
+
+        self.last_wall_s = now_s
+        self.last_process_s = process_s
+
+        return {
+            "cpu_process_percent": cpu_percent,
+            "rss_mb": _read_rss_mb(),
+            "temperature_c": _read_temperature_c(),
+        }
+
+
+class MetricsCsvLogger:
+    def __init__(self, csv_path: str, start_time_s: float | None = None):
+        self.path = Path(csv_path).expanduser()
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.file = self.path.open("w", encoding="utf-8", newline="")
+        self.writer = csv.DictWriter(self.file, fieldnames=METRIC_CSV_FIELDS)
+        self.writer.writeheader()
+        self.file.flush()
+        self.start_time_s = time.monotonic() if start_time_s is None else start_time_s
+        self.sampler = RuntimeMetricsSampler()
+
+    def write(self, result, fps, latency_ms, frame_counter, camera_source, backend_name):
+        now_s = time.monotonic()
+        pose = result.get("head_pose") or {}
+        if not isinstance(pose, dict):
+            pose = {}
+
+        row = {
+            "timestamp_iso": datetime.now().isoformat(timespec="milliseconds"),
+            "elapsed_s": round(now_s - self.start_time_s, 3),
+            "frame": frame_counter,
+            "camera_source": str(camera_source),
+            "backend": str(backend_name),
+            "fps": _round_metric(fps, 2),
+            "latency_ms": _round_metric(latency_ms, 2),
+            "status": result.get("status", ""),
+            "alert": int(bool(result.get("alert", False))),
+            "fusion_score": _round_metric(result.get("fusion_score")),
+            "ear": _round_metric(result.get("ear")),
+            "perclos": _round_metric(result.get("perclos")),
+            "mar": _round_metric(result.get("mar")),
+            "eye_cnn_score": _round_metric(result.get("eye_cnn_score")),
+            "yawn_cnn_score": _round_metric(result.get("yawn_cnn_score")),
+            "yawn_counter": _round_metric(result.get("yawn_counter")),
+            "head_pose_score": _round_metric(result.get("head_pose_score")),
+            "head_pitch": _round_metric(pose.get("pitch"), 2),
+            "head_yaw": _round_metric(pose.get("yaw"), 2),
+            "head_roll": _round_metric(pose.get("roll"), 2),
+            "face_detected": int(result.get("face_bbox") is not None),
+        }
+        row.update(self.sampler.sample(now_s))
+        self.writer.writerow(row)
+        self.file.flush()
+
+    def close(self):
+        self.file.close()
 
 
 def _try_open(

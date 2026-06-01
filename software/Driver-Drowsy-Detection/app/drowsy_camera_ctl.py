@@ -34,6 +34,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--jpeg-quality", type=int, default=70)
     parser.add_argument("--stream-every-n", type=int, default=1)
     parser.add_argument("--metrics-every-n", type=int, default=10)
+    parser.add_argument("--metrics-csv", default="")
+    parser.add_argument("--metrics-csv-every-n", type=int, default=1)
     parser.add_argument("--viewer-fullscreen", action="store_true")
     parser.add_argument("--viewer-title", default="Drowsiness Detection Live")
     parser.add_argument("--viewer-width", type=int, default=1024)
@@ -85,6 +87,8 @@ def spawn_daemon(args: argparse.Namespace, socket_path: str) -> None:
         str(args.stream_every_n),
         "--metrics-every-n",
         str(args.metrics_every_n),
+        "--metrics-csv-every-n",
+        str(args.metrics_csv_every_n),
         "--viewer-title",
         args.viewer_title,
         "--viewer-width",
@@ -92,6 +96,8 @@ def spawn_daemon(args: argparse.Namespace, socket_path: str) -> None:
         "--viewer-height",
         str(args.viewer_height),
     ]
+    if args.metrics_csv:
+        cmd.extend(["--metrics-csv", args.metrics_csv])
     if args.camera_path:
         cmd.extend(["--camera-path", args.camera_path])
     else:

@@ -26,6 +26,8 @@ VIEWER_HEIGHT="${VIEWER_HEIGHT:-600}"
 JPEG_QUALITY="${JPEG_QUALITY:-70}"
 STREAM_EVERY_N="${STREAM_EVERY_N:-1}"
 METRICS_EVERY_N="${METRICS_EVERY_N:-10}"
+METRICS_CSV="${METRICS_CSV:-}"
+METRICS_CSV_EVERY_N="${METRICS_CSV_EVERY_N:-1}"
 
 CAMERA_PATH="${CAMERA_PATH:-${DROWSY_CAMERA_PATH:-}}"
 if [[ -z "$CAMERA_PATH" ]]; then
@@ -43,6 +45,7 @@ CMD=(
   --jpeg-quality "$JPEG_QUALITY"
   --stream-every-n "$STREAM_EVERY_N"
   --metrics-every-n "$METRICS_EVERY_N"
+  --metrics-csv-every-n "$METRICS_CSV_EVERY_N"
   --viewer-title "$VIEWER_TITLE"
   --viewer-width "$VIEWER_WIDTH"
   --viewer-height "$VIEWER_HEIGHT"
@@ -70,6 +73,10 @@ if [[ -n "${SAVE_VIDEO:-}" ]]; then
   CMD+=(--save-video "$SAVE_VIDEO")
 fi
 
+if [[ -n "$METRICS_CSV" ]]; then
+  CMD+=(--metrics-csv "$METRICS_CSV")
+fi
+
 if [[ "$#" -gt 0 ]]; then
   CMD+=("$@")
 fi
@@ -77,6 +84,9 @@ fi
 echo "Running drowsy daemon with:"
 echo "  WIDTH=$WIDTH HEIGHT=$HEIGHT FPS=$FPS BACKEND=$BACKEND"
 echo "  VIEWER=${VIEWER_WIDTH}x${VIEWER_HEIGHT}"
+if [[ -n "$METRICS_CSV" ]]; then
+  echo "  METRICS_CSV=$METRICS_CSV"
+fi
 if [[ -n "$CAMERA_PATH" ]]; then
   echo "  CAMERA_PATH=$CAMERA_PATH"
 else

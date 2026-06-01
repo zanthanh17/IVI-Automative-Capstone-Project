@@ -185,10 +185,13 @@ class DrowsinessDetectorV2:
             - alert: bool
             - fusion_score: float [0,1]
             - ear: float
+            - perclos: float
             - mar: float
             - head_pose: dict or None
+            - head_pose_score: float
             - eye_cnn_score: float
             - yawn_cnn_score: float
+            - yawn_counter: float
             - face_bbox: (x1, y1, x2, y2) | None
             - eye_bbox: (x1, y1, x2, y2) | None
             - mouth_bbox: (x1, y1, x2, y2) | None
@@ -199,10 +202,13 @@ class DrowsinessDetectorV2:
             "alert": False,
             "fusion_score": 0.0,
             "ear": 0.0,
+            "perclos": 0.0,
             "mar": 0.0,
             "head_pose": None,
+            "head_pose_score": 0.0,
             "eye_cnn_score": 0.0,
             "yawn_cnn_score": 0.0,
+            "yawn_counter": 0.0,
             "face_bbox": None,
             "eye_bbox": None,
             "mouth_bbox": None,
@@ -236,6 +242,7 @@ class DrowsinessDetectorV2:
             perclos = sum(self.eye_closed_history) / len(self.eye_closed_history)
         else:
             perclos = 0.0
+        result["perclos"] = perclos
 
         # ── 2. Eye CNN ──
         # Output: 0=closed, 1=open. Invert for drowsiness score.
@@ -261,11 +268,13 @@ class DrowsinessDetectorV2:
             self.yawn_counter = min(1.0, self.yawn_counter + self.yawn_rise_rate)
         else:
             self.yawn_counter = max(0.0, self.yawn_counter - self.yawn_decay_rate)
+        result["yawn_counter"] = self.yawn_counter
 
         # ── 4. Head Pose ──
         pose = self.head_pose.estimate(lms, h, w)
         result["head_pose"] = pose
         head_score = self.head_pose.get_drowsiness_score(pose)
+        result["head_pose_score"] = head_score
 
         # ── Weighted Fusion ──
         fusion_score = (

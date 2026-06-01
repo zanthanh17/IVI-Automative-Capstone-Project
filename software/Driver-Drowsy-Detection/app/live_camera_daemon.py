@@ -23,6 +23,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from app.drowsy_ipc import ensure_socket_parent, resolve_socket_path
 from app.live_camera_common import (
+    MetricsCsvLogger,
     draw_overlay,
     encode_frame_packet,
     encode_jpeg,
@@ -52,6 +53,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--jpeg-quality", type=int, default=70)
     parser.add_argument("--stream-every-n", type=int, default=1)
     parser.add_argument("--metrics-every-n", type=int, default=10)
+    parser.add_argument("--metrics-csv", default="")
+    parser.add_argument("--metrics-csv-every-n", type=int, default=1)
     parser.add_argument(
         "--viewer-script",
         default="app/live_camera_viewer.py",
@@ -98,6 +101,7 @@ class DrowsyCameraDaemon:
         self.server_thread: threading.Thread | None = None
         self.detector = None
         self.writer = None
+        self.metrics_logger = None
         self.frame_counter = 0
         self.actual_index = "N/A"
         self.backend_name = "N/A"
@@ -396,6 +400,10 @@ class DrowsyCameraDaemon:
             self.writer.release()
             self.writer = None
 
+        if self.metrics_logger is not None:
+            self.metrics_logger.close()
+            self.metrics_logger = None
+
         if self.server_socket is not None:
             try:
                 self.server_socket.close()
@@ -468,8 +476,13 @@ class DrowsyCameraDaemon:
                 self.log(f"Warning: cannot open output writer: {out_path}")
                 self.writer = None
 
+        if self.args.metrics_csv:
+            self.metrics_logger = MetricsCsvLogger(self.args.metrics_csv, self.start_time)
+            self.log(f"Writing detailed metrics CSV: {self.metrics_logger.path}")
+
         export_every_n = max(1, self.args.stream_every_n)
         metrics_every_n = max(1, self.args.metrics_every_n)
+        metrics_csv_every_n = max(1, self.args.metrics_csv_every_n)
         fps_smooth = 0.0
 
         try:
@@ -507,6 +520,16 @@ class DrowsyCameraDaemon:
 
                 if self.frame_counter % export_every_n == 0:
                     self.broadcast_frame(frame, self.args.jpeg_quality)
+
+                if self.metrics_logger is not None and (self.frame_counter % metrics_csv_every_n == 0):
+                    self.metrics_logger.write(
+                        result,
+                        fps_smooth,
+                        latency_ms,
+                        self.frame_counter,
+                        actual_index,
+                        backend_name,
+                    )
 
                 if self.frame_counter % metrics_every_n == 0:
                     self.log(

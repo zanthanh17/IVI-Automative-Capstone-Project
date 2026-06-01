@@ -42,6 +42,9 @@ FPS="${FPS:-20}"
 BACKEND="${BACKEND:-v4l2}"
 CAMERA_INDEX="${CAMERA_INDEX:-0}"
 FALLBACK_SCAN_MAX="${FALLBACK_SCAN_MAX:-6}"
+METRICS_EVERY_N="${METRICS_EVERY_N:-10}"
+METRICS_CSV="${METRICS_CSV:-}"
+METRICS_CSV_EVERY_N="${METRICS_CSV_EVERY_N:-1}"
 
 CAMERA_PATH="${CAMERA_PATH:-}"
 if [[ -z "$CAMERA_PATH" ]]; then
@@ -55,6 +58,8 @@ CMD=(
   --width "$WIDTH"
   --height "$HEIGHT"
   --fps "$FPS"
+  --metrics-every-n "$METRICS_EVERY_N"
+  --metrics-csv-every-n "$METRICS_CSV_EVERY_N"
 )
 
 if [[ -n "$CAMERA_PATH" ]]; then
@@ -71,12 +76,19 @@ if [[ -n "${SAVE_VIDEO:-}" ]]; then
   CMD+=(--save-video "$SAVE_VIDEO")
 fi
 
+if [[ -n "$METRICS_CSV" ]]; then
+  CMD+=(--metrics-csv "$METRICS_CSV")
+fi
+
 if [[ "$#" -gt 0 ]]; then
   CMD+=("$@")
 fi
 
 echo "Running live camera with:"
 echo "  WIDTH=$WIDTH HEIGHT=$HEIGHT FPS=$FPS BACKEND=$BACKEND"
+if [[ -n "$METRICS_CSV" ]]; then
+  echo "  METRICS_CSV=$METRICS_CSV"
+fi
 if [[ -n "$CAMERA_PATH" ]]; then
   echo "  CAMERA_PATH=$CAMERA_PATH"
 else
