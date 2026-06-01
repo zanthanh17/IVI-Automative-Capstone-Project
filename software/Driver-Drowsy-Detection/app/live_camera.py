@@ -24,6 +24,7 @@ from app.live_camera_common import (
     list_linux_video_nodes,
     looks_like_wsl,
     open_camera,
+    resolve_project_path,
     stream_jpeg_stdout,
 )
 
@@ -160,9 +161,9 @@ def main() -> int:
         return 1
 
     detector = DrowsinessDetectorV2(
-        eye_model_path=args.eye_model,
-        yawn_model_path=args.yawn_model,
-        config_path=args.config,
+        eye_model_path=str(resolve_project_path(args.eye_model, ROOT_DIR)),
+        yawn_model_path=str(resolve_project_path(args.yawn_model, ROOT_DIR)),
+        config_path=str(resolve_project_path(args.config, ROOT_DIR)),
     )
 
     camera_path = args.camera_path
@@ -208,7 +209,7 @@ def main() -> int:
 
     writer = None
     if args.save_video:
-        out_path = Path(args.save_video)
+        out_path = resolve_project_path(args.save_video, ROOT_DIR)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(
@@ -221,14 +222,18 @@ def main() -> int:
             log(f"Warning: cannot open output writer: {out_path}")
             writer = None
 
-    export_path = Path(args.export_frame).expanduser() if args.export_frame else None
+    export_path = resolve_project_path(args.export_frame, ROOT_DIR) if args.export_frame else None
     if export_path is not None:
         export_path.parent.mkdir(parents=True, exist_ok=True)
 
     export_every_n = max(1, args.export_every_n)
     metrics_every_n = max(1, args.metrics_every_n)
     metrics_csv_every_n = max(1, args.metrics_csv_every_n)
-    metrics_logger = MetricsCsvLogger(args.metrics_csv) if args.metrics_csv else None
+    metrics_logger = (
+        MetricsCsvLogger(resolve_project_path(args.metrics_csv, ROOT_DIR))
+        if args.metrics_csv
+        else None
+    )
     if metrics_logger is not None:
         log(f"Writing detailed metrics CSV: {metrics_logger.path}")
 

@@ -12,6 +12,7 @@ fi
 
 # shellcheck source=/dev/null
 source "$VENV_DIR/bin/activate"
+cd "$ROOT_DIR"
 
 WIDTH="${WIDTH:-1024}"
 HEIGHT="${HEIGHT:-600}"

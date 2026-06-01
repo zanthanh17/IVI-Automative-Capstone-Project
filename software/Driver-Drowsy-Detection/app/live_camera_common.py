@@ -19,6 +19,13 @@ FRAME_MAGIC = b"FRAM"
 FRAME_HEADER_SIZE = 8
 
 
+def resolve_project_path(path_value: str | Path, root_dir: Path) -> Path:
+    path = Path(path_value).expanduser()
+    if path.is_absolute():
+        return path
+    return root_dir / path
+
+
 METRIC_CSV_FIELDS = [
     "timestamp_iso",
     "elapsed_s",

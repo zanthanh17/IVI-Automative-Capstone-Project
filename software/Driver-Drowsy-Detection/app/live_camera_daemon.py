@@ -30,6 +30,7 @@ from app.live_camera_common import (
     list_linux_video_nodes,
     looks_like_wsl,
     open_camera,
+    resolve_project_path,
 )
 
 
@@ -428,9 +429,9 @@ class DrowsyCameraDaemon:
             return 1
 
         self.detector = DrowsinessDetectorV2(
-            eye_model_path=self.args.eye_model,
-            yawn_model_path=self.args.yawn_model,
-            config_path=self.args.config,
+            eye_model_path=str(resolve_project_path(self.args.eye_model, ROOT_DIR)),
+            yawn_model_path=str(resolve_project_path(self.args.yawn_model, ROOT_DIR)),
+            config_path=str(resolve_project_path(self.args.config, ROOT_DIR)),
         )
 
         camera_path = self.args.camera_path
@@ -463,7 +464,7 @@ class DrowsyCameraDaemon:
         self.log(f"Daemon started on camera {actual_index} ({backend_name})")
 
         if self.args.save_video:
-            out_path = Path(self.args.save_video)
+            out_path = resolve_project_path(self.args.save_video, ROOT_DIR)
             out_path.parent.mkdir(parents=True, exist_ok=True)
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             self.writer = cv2.VideoWriter(
@@ -477,7 +478,10 @@ class DrowsyCameraDaemon:
                 self.writer = None
 
         if self.args.metrics_csv:
-            self.metrics_logger = MetricsCsvLogger(self.args.metrics_csv, self.start_time)
+            self.metrics_logger = MetricsCsvLogger(
+                resolve_project_path(self.args.metrics_csv, ROOT_DIR),
+                self.start_time,
+            )
             self.log(f"Writing detailed metrics CSV: {self.metrics_logger.path}")
 
         export_every_n = max(1, self.args.stream_every_n)

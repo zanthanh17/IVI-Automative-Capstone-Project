@@ -12,6 +12,7 @@ fi
 
 # shellcheck source=/dev/null
 source "$VENV_DIR/bin/activate"
+cd "$ROOT_DIR"
 
 if ! python3 - <<'PY'
 import numpy as np
