@@ -16,8 +16,7 @@
  *          high_beams   → TellTalesModel.highBeamsActive
  *          parked       → TellTalesModel.parkedActive
  *          airbag       → TellTalesModel.airbagActive
- *          media_play   → MediaPlayerModel (play/pause)
- *          media_next   → MediaPlayerModel (next track)
+ *          horn         -> Body ECU horn load
  */
 
 #ifndef UART_PROTOCOL_H

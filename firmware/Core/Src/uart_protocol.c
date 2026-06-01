@@ -19,8 +19,7 @@ static const char *ButtonName(uint8_t id)
         case BTN_ID_HIGH_BEAMS:   return "high_beams";
         case BTN_ID_PARKED:       return "parked";
         case BTN_ID_AIRBAG:       return "airbag";
-        case BTN_ID_MEDIA_PLAY:   return "media_play";
-        case BTN_ID_MEDIA_NEXT:   return "media_next";
+        case BTN_ID_HORN:         return "horn";
         default:                  return "unknown";
     }
 }

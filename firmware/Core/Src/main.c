@@ -27,6 +27,7 @@
 #include "uart_protocol.h"
 #include "can_protocol.h"
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 /* USER CODE END Includes */
 
@@ -40,6 +41,7 @@
 #define UART_DATA_SEND_MS    100U   /* Gửi DATA frame mỗi 100ms         */
 #define ADC_UPDATE_MS        200U   /* Cập nhật ADC mỗi 200ms           */
 #define ENCODER_UPDATE_MS     50U   /* Cập nhật encoder mỗi 50ms        */
+#define DEBUG_LOG_MS        2000U   /* In debug log mỗi 2 giây          */
 
 /* USER CODE END PD */
 
@@ -60,6 +62,9 @@ CAN_HandleTypeDef hcan;
 /* USER CODE BEGIN PV */
 static uint32_t s_data_send_tick = 0;
 static uint32_t s_adc_update_tick = 0;
+static uint32_t s_encoder_update_tick = 0;
+static uint32_t s_debug_log_tick = 0;
+static uint32_t s_led_toggle_tick = 0;
 
 /* USER CODE END PV */
 
@@ -76,6 +81,21 @@ static void MX_CAN_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+/**
+ * @brief  In debug message qua UART1 (dùng để theo dõi qua serial terminal)
+ */
+static void Debug_Printf(const char *fmt, ...)
+{
+    char buf[256];
+    va_list args;
+    va_start(args, fmt);
+    int n = vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    if (n > 0) {
+        HAL_UART_Transmit(&huart1, (uint8_t *)buf, (uint16_t)n, 50);
+    }
+}
 
 /* USER CODE END 0 */
 
@@ -110,14 +130,22 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM3_Init();
   MX_USART1_UART_Init();
+  Debug_Printf("\r\n=== IVI Debug Boot ===\r\n");
+  Debug_Printf("[BOOT] GPIO+TIM3+UART OK. ADC init...\r\n");
   MX_ADC1_Init();
+  Debug_Printf("[BOOT] ADC OK. CAN HAL init...\r\n");
   MX_CAN_Init();
+  Debug_Printf("[BOOT] CAN HAL init passed\r\n");
   /* USER CODE BEGIN 2 */
   GPIO_Handler_Init();
   Encoder_Init();
   ADC_Handler_Init();
   UART_Protocol_Init();
+  Debug_Printf("[BOOT] CAN Protocol init...\r\n");
   CAN_Protocol_Init();
+  Debug_Printf("[BOOT] CAN done init=%lu filt=%lu\r\n",
+               g_can_dbg.init_ok, g_can_dbg.filter_ok);
+  Debug_Printf("[BOOT] All init OK, main loop start\r\n");
 
   /* USER CODE END 2 */
 
@@ -130,8 +158,12 @@ int main(void)
     /* USER CODE BEGIN 3 */
     uint32_t now = HAL_GetTick();
 
-    /* === 1. Cập nhật tốc độ từ encoder (mỗi 50ms) === */
-    Encoder_Update();
+    /* === 1. Cap nhat toc do tu encoder moi 50ms, khong block nut horn === */
+    if ((now - s_encoder_update_tick) >= ENCODER_UPDATE_MS)
+    {
+      Encoder_Update();
+      s_encoder_update_tick = now;
+    }
 
     /* === 2. Cập nhật ADC fuel + battery (mỗi 200ms) === */
     if ((now - s_adc_update_tick) >= ADC_UPDATE_MS)
@@ -149,8 +181,14 @@ int main(void)
       uint8_t button_state;
       if (GPIO_Handler_PopButtonEvent(&button_id, &button_state) != 0U)
       {
-        CAN_Protocol_SendButtonEvent(button_id, button_state, &g_buttons);
+        uint8_t can_ok = CAN_Protocol_SendButtonEvent(button_id, button_state, &g_buttons);
         UART_Protocol_SendButtonEvent(button_id, button_state);
+        Debug_Printf("[DBG] BTN id=%u st=%u CAN=%s txOK=%lu noMbox=%lu ESR=0x%08lX\r\n",
+                     button_id, button_state,
+                     can_ok ? "OK" : "FAIL",
+                     g_can_dbg.tx_success,
+                     g_can_dbg.tx_fail_no_mbox,
+                     g_can_dbg.can_esr);
       }
     }
 
@@ -185,8 +223,34 @@ int main(void)
       s_data_send_tick = now;
     }
 
-    /* Delay 50ms → ~20Hz update rate */
-    HAL_Delay(ENCODER_UPDATE_MS);
+    /* === 6. In debug log CAN status mỗi 2 giây === */
+    if ((now - s_debug_log_tick) >= DEBUG_LOG_MS)
+    {
+      g_can_dbg.can_esr = hcan.Instance->ESR;
+      Debug_Printf(
+        "[CAN] init=%lu filt=%lu | tx: att=%lu ok=%lu | fail: nr=%lu mbox=%lu hal=%lu | ESR=0x%08lX err=0x%08lX\r\n",
+        g_can_dbg.init_ok,
+        g_can_dbg.filter_ok,
+        g_can_dbg.tx_attempt,
+        g_can_dbg.tx_success,
+        g_can_dbg.tx_fail_not_ready,
+        g_can_dbg.tx_fail_no_mbox,
+        g_can_dbg.tx_fail_hal,
+        g_can_dbg.can_esr,
+        g_can_dbg.hal_error_code
+      );
+      s_debug_log_tick = now;
+    }
+
+    /* === 7. LED heartbeat PC13 (nhay moi 500ms) === */
+    if ((now - s_led_toggle_tick) >= 500U)
+    {
+      HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+      s_led_toggle_tick = now;
+    }
+
+    /* Keep loop responsive for momentary horn events. */
+    HAL_Delay(1U);
   }
   /* USER CODE END 3 */
 }
@@ -378,13 +442,7 @@ static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
-  /*
-   * QUAN TRỌNG: Disable JTAG, chỉ giữ SWD.
-   * PB3 = JTDO, PB4 = JNTRST mặc định thuộc JTAG.
-   * Nếu không disable, EXTI trên PB3/PB4 sẽ xung đột → HardFault.
-   */
   __HAL_RCC_AFIO_CLK_ENABLE();
-  __HAL_AFIO_REMAP_SWJ_NOJTAG();
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
@@ -396,37 +454,44 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB1 PB2 PB3 PB4
-                           PB5 PB6 PB7 PB8 (8 nút nhấn EXTI) */
-  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4
-                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PA8 (Công tắc gạt Drive Mode - polling) */
-  GPIO_InitStruct.Pin = GPIO_PIN_8;
+  /*Configure GPIO pins : PA4 PA5 (Beam + High Beams switches, LOW = ON) */
+  GPIO_InitStruct.Pin = GPIO_PIN_4 | GPIO_PIN_5;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+  /*Configure GPIO pins : PB5 PB6 (turn stalk contacts, LOW = ON) */
+  GPIO_InitStruct.Pin = GPIO_PIN_5 | GPIO_PIN_6;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+  /*Configure GPIO pins : PB7 PB8 (toggle buttons EXTI falling) */
+  GPIO_InitStruct.Pin = GPIO_PIN_7 | GPIO_PIN_8;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  HAL_NVIC_SetPriority(EXTI3_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
+  /*Configure GPIO pin : PB9 (horn momentary, LOW = ON) */
+  GPIO_InitStruct.Pin = GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
-
+  /* EXTI interrupt init: PB5-PB9 share EXTI9_5_IRQn */
   HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
+
+  /* PC13: LED onboard Blue Pill - dung lam heartbeat debug */
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET); /* LED ON (active low) */
 
   /* USER CODE END MX_GPIO_Init_2 */
 }

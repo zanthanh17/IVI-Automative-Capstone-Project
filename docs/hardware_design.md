@@ -1,271 +1,125 @@
-# Thiết kế phần cứng IVI Automotive - Ánh xạ Dashboard UI
+# Thiết kế phần cứng IVI Automotive - STM32 CAN và Body ECU
 
-## Tổng quan
+## Tổng quan node
 
-Firmware STM32F103C8T6 được thiết kế lại để ánh xạ **đầy đủ** các tính năng hiển thị
-trên Dashboard UI (Qt Instrument Cluster).
+Hệ thống dùng chung một bus CAN 500 kbps giữa ba node chính:
 
-## Sơ đồ chân STM32F103C8T6
+| Node | Vai trò | Giao tiếp |
+|---|---|---|
+| `firmware/` STM32F103 | Đọc nút, switch, encoder, ADC và phát lệnh/trạng thái lên CAN | bxCAN `PA11/PA12` |
+| `cp/` STM32F103 | Nhận lệnh CAN và điều khiển tải: xi nhan, đèn thường, đèn pha, còi | bxCAN `PA11/PA12` |
+| Raspberry Pi / Qt | Chạy `QtInstrumentCluster`, đọc telemetry và trạng thái Body qua SocketCAN | MCP2515 `can0` |
 
-```
-                    STM32F103C8T6
-                  ┌──────────────────┐
-                  │                  │
-    Fuel (pot) ───┤ PA0  (ADC1_IN0)  │
-   Batt (pot) ───┤ PA1  (ADC1_IN1)  │
-                  │ PA2              │
-                  │ PA3              │
-                  │ PA4              │
-                  │ PA5              │
-   Encoder CLK ──┤ PA6  (TIM3_CH1)  │
-   Encoder DT  ──┤ PA7  (TIM3_CH2)  │
-  Drive Switch ──┤ PA8  (GPIO IN)   │
-  UART Debug TX ─┤ PA9  (USART1_TX) │──── → Debug UART RX
-  UART Debug RX ─┤ PA10 (USART1_RX) │──── ← Debug UART TX
-    CAN RX  ─────┤ PA11 (CAN1_RX)   │──── ← SN65HVD230 CRX/RXD
-    CAN TX  ─────┤ PA12 (CAN1_TX)   │──── → SN65HVD230 CTX/TXD
-    SWD IO ──────┤ PA13 (SWDIO)     │
-    SWD CLK ─────┤ PA14 (SWCLK)     │
-                  │ PA15             │
-                  │                  │
-                  │ PB0              │
-  Turn Left  ────┤ PB1  (EXTI1)     │──── Nút nhấn + Pull-up
-  Turn Right ────┤ PB2  (EXTI2)     │──── Nút nhấn + Pull-up
-  Beam       ────┤ PB3  (EXTI3)     │──── Nút nhấn + Pull-up (JTAG disabled)
-  High Beams ────┤ PB4  (EXTI4)     │──── Nút nhấn + Pull-up (JTAG disabled)
-  Parked     ────┤ PB5  (EXTI5)     │──── Nút nhấn + Pull-up
-  Airbag     ────┤ PB6  (EXTI6)     │──── Nút nhấn + Pull-up
-  Media Play ────┤ PB7  (EXTI7)     │──── Nút nhấn + Pull-up
-  Media Next ────┤ PB8  (EXTI8)     │──── Nút nhấn + Pull-up
-                  │                  │
-                  └──────────────────┘
-```
+Tất cả node dùng CAN standard 11-bit, DLC 8 byte, bitrate 500 kbps. STM32 chỉ xuất tín hiệu logic CAN nên mỗi board STM32 cần một transceiver như SN65HVD230 hoặc module TJA1050 tương thích mức 3.3 V/5 V theo phần cứng thực tế.
 
-## Bảng ánh xạ phần cứng ↔ Dashboard UI
+## Firmware ECU - input mapping
 
-### 1. Gauges (Đồng hồ tốc độ & vòng tua)
+Nguồn đối chiếu: [`firmware/IVI Automative CP.ioc`](../firmware/IVI%20Automative%20CP.ioc).
 
-| Phần cứng | Pin | Dashboard Property | Hiển thị |
-|-----------|-----|-------------------|----------|
-| Rotary Encoder KY-040 | PA6 (CLK), PA7 (DT) | `MainModel.speed` | Gauge trái: 0-200 km/h |
-| Tính từ speed (speed×35) | - | `MainModel.rpm` | Gauge phải: 0-7000 RPM |
-| Suy ra từ speed | - | Gear (P/D) | Chữ "P" hoặc "D" trên gauge phải |
+| Chức năng | Pin STM32 | Cấu hình | Logic |
+|---|---|---|---|
+| Cần xi nhan trái | `PB5` | `GPIO_EXTI5` rising/falling, pull-up | Gạt trái = LOW/ON, trả neutral = HIGH/OFF |
+| Cần xi nhan phải | `PB6` | `GPIO_EXTI6` rising/falling, pull-up | Gạt phải = LOW/ON, trả neutral = HIGH/OFF |
+| Nút Parked / phanh tay | `PB7` | `GPIO_EXTI7`, pull-up | Nhấn = LOW, toggle state |
+| Nút Airbag | `PB8` | `GPIO_EXTI8`, pull-up | Nhấn = LOW, toggle state |
+| Nút còi | `PB9` | `GPIO_EXTI9` rising/falling, pull-up | Giữ = LOW/ON, nhả = HIGH/OFF |
+| Switch đèn thường | `PA4` | `GPIO_Input`, pull-up | Gạt ON = LOW |
+| Switch đèn pha | `PA5` | `GPIO_Input`, pull-up | Gạt ON = LOW |
+| Encoder CLK/A | `PA6` | `TIM3_CH1` | Speed input |
+| Encoder DT/B | `PA7` | `TIM3_CH2` | Speed input |
+| UART debug TX/RX | `PA9/PA10` | `USART1` 115200 | Debug/fallback |
+| CAN RX/TX | `PA11/PA12` | `CAN1_RX/TX` | SN65HVD230/TJA1050 |
+| SWDIO/SWCLK | `PA13/PA14` | Serial Wire | ST-Link |
 
-### 2. Tell-Tales Indicators (Đèn cảnh báo trên cùng)
+PB5/PB6 là tiếp điểm cần gạt xi nhan nên firmware bám theo mức chân: LOW là ON, HIGH là OFF. PB7/PB8 vẫn là nút toggle vì chúng đại diện trạng thái duy trì. PB9 là còi nên xử lý momentary: firmware gửi event ON khi nhấn và OFF khi nhả, đồng thời bit6 trong snapshot `0x101` phản ánh trạng thái hiện tại.
 
-| Phần cứng | Pin | Dashboard Property | Icon |
-|-----------|-----|--------------------|------|
-| Nút nhấn + EXTI | PB1 | `TellTalesModel.turnLeftActive` | ← (xanh, nhấp nháy) |
-| Nút nhấn + EXTI | PB2 | `TellTalesModel.turnRightActive` | → (xanh, nhấp nháy) |
-| Nút nhấn + EXTI | PB3 | `TellTalesModel.beamActive` | Đèn chiếu gần (xanh) |
-| Nút nhấn + EXTI | PB4 | `TellTalesModel.highBeamsActive` | Đèn pha xa (xanh dương) |
-| Nút nhấn + EXTI | PB5 | `TellTalesModel.parkedActive` | Phanh tay/Đỗ xe (đỏ) |
-| Nút nhấn + EXTI | PB6 | `TellTalesModel.airbagActive` | Túi khí (đỏ) |
+## Body ECU - output mapping
 
-### 3. Status Bar (Thanh trạng thái dưới cùng)
+Nguồn đối chiếu: [`cp/cp.ioc`](../cp/cp.ioc).
 
-| Phần cứng | Pin | Dashboard Property | Hiển thị |
-|-----------|-----|-------------------|----------|
-| Biến trở 10kΩ → ADC | PA0 (ADC1_CH0) | `MainModel.fuelLevel` | Thanh nhiên liệu (0-100%) |
-| Biến trở 10kΩ → ADC | PA1 (ADC1_CH1) | `MainModel.batteryLevel` | Thanh pin (0-100%) |
-| Tính từ encoder | - | `MainModel.odo` | ODO km |
-| Tính từ odo | - | `MainModel.range` | Range km |
+| Tải | Pin STM32 Body | Cấu hình | Logic mặc định |
+|---|---|---|---|
+| Xi nhan trái | `PA0` | GPIO output push-pull | Active high |
+| Xi nhan phải | `PA1` | GPIO output push-pull | Active high |
+| Đèn thường | `PA2` | GPIO output push-pull | Active high |
+| Đèn pha | `PA3` | GPIO output push-pull | Active high |
+| Còi | `PA4` | GPIO output push-pull | Active high |
+| CAN RX/TX | `PA11/PA12` | `CAN1_RX/TX` | SN65HVD230/TJA1050 |
+| Heartbeat debug | `PC13` | GPIO output | LED onboard |
+| SWDIO/SWCLK | `PA13/PA14` | Serial Wire | ST-Link |
 
-### 4. Media Player (Khu vực giữa)
+Lưu ý an toàn: STM32 GPIO không được kéo tải trực tiếp. `PA0..PA4` phải đi qua transistor, MOSFET driver hoặc module relay có diode/biện pháp chống xung ngược phù hợp. Nếu relay module active-low, đổi `BODY_LOAD_ACTIVE_HIGH` trong [`cp/Core/Inc/body_loads.h`](../cp/Core/Inc/body_loads.h) từ `1U` sang `0U`.
 
-| Phần cứng | Pin | Dashboard Action | Chức năng |
-|-----------|-----|-----------------|-----------|
-| Nút nhấn + EXTI | PB7 | Play/Pause | Phát/Dừng nhạc |
-| Nút nhấn + EXTI | PB8 | Next Track | Chuyển bài tiếp theo |
+## Đấu nút và switch firmware
 
-### 5. Công tắc gạt (Polling)
+```text
+PB5/PB6  ───┬── [Tiếp điểm cần xi nhan] ── GND
+PB7..PB9 ───┬── [Nút nhấn] ───────────── GND
+            │
+            └── Pull-up nội 3.3V
 
-| Phần cứng | Pin | Dashboard Property | Chức năng |
-|-----------|-----|-------------------|-----------|
-| Công tắc gạt | PA8 | Drive Mode / Gear | Chế độ lái (P ↔ D) |
-
-## Giao thức CAN Bus (500 kbps, Standard ID)
-
-### Frame `0x100` - `VEHICLE_TELEMETRY` (gửi mỗi 100ms)
-
-| Byte | Nội dung |
-|---|---|
-| 0-1 | Speed km/h, uint16 big-endian |
-| 2-3 | RPM, uint16 big-endian |
-| 4 | Fuel %, 0-100 |
-| 5 | Battery %, 0-100 |
-| 6 | Gear ASCII: `P`, `D`, `N`, `R` |
-| 7 | Alive counter |
-
-### Frame `0x101` - `BUTTON_STATE` (snapshot mỗi 100ms)
-
-| Byte | Nội dung |
-|---|---|
-| 0 | Bitfield: bit0 left, bit1 right, bit2 beam, bit3 high beams, bit4 parked, bit5 airbag, bit6 media play, bit7 media next |
-| 1 | Drive mode: `0=P`, `1=D` |
-| 2 | Alive counter |
-| 3-7 | Reserved |
-
-### Frame `0x102` - `BUTTON_EVENT` (gửi ngay khi nhấn nút)
-
-| Byte | Nội dung |
-|---|---|
-| 0 | Button ID: 1..8 |
-| 1 | Button state: `0=OFF`, `1=ON` |
-| 2 | Event counter |
-| 3 | Button bitfield snapshot |
-| 4 | Drive mode snapshot |
-| 5-7 | Reserved |
-
-Tên nút: `left_signal`, `right_signal`, `beam`, `high_beams`, `parked`, `airbag`, `media_play`, `media_next`
-
-## Sơ đồ kết nối phần cứng
-
-### Nút nhấn (x8)
-```
-3.3V ──┬── [Internal Pull-up]
-       │
-PBx ───┤
-       │
-       └── [Button] ── GND
-```
-- Trạng thái nghỉ: HIGH (pull-up)
-- Nhấn nút: LOW → EXTI Falling Edge → Toggle state
-
-### Biến trở (x2, cho Fuel & Battery)
-```
-3.3V ──── [Pot pin 3]
-           │
-PA0/PA1 ── [Pot wiper (pin 2)]
-           │
-GND ───── [Pot pin 1]
-```
-- ADC 12-bit: 0V → 0 (empty), 3.3V → 4095 (full)
-- Lọc trung bình 8 mẫu để giảm nhiễu
-
-### Rotary Encoder KY-040 (cho Speed)
-```
-3.3V ──── VCC
-GND ───── GND
-PA6 ───── CLK (A)
-PA7 ───── DT  (B)
-          SW  (không dùng)
-```
-- TIM3 Encoder Mode, đếm 2 chiều
-- Xoay phải: tăng tốc, xoay trái: giảm tốc
-
-### CAN kết nối Raspberry Pi 4 qua MCP2515
-```
-STM32 PA12 (CAN_TX) ─── SN65HVD230 CTX/TXD
-STM32 PA11 (CAN_RX) ─── SN65HVD230 CRX/RXD
-STM32 3.3V ──────────── SN65HVD230 3V3
-STM32 GND ───────────── SN65HVD230 GND
-
-SN65HVD230 CANH ─────── MCP2515 CANH
-SN65HVD230 CANL ─────── MCP2515 CANL
-
-Raspberry Pi GPIO8  CE0  ─── MCP2515 CS
-Raspberry Pi GPIO9  MISO ─── MCP2515 SO
-Raspberry Pi GPIO10 MOSI ─── MCP2515 SI
-Raspberry Pi GPIO11 SCLK ─── MCP2515 SCK
-Raspberry Pi GPIO25      ─── MCP2515 INT
-Raspberry Pi 3.3V/5V     ─── MCP2515 VCC (theo module)
-Raspberry Pi GND         ─── MCP2515 GND
-```
-- CAN bitrate: 500 kbps
-- MCP2515 oscillator: 8 MHz
-- Linux interface: `can0`
-- UART PA9/PA10 vẫn có thể giữ làm debug/fallback, không còn là đường dữ liệu chính.
-
-## Danh sách linh kiện
-
-| # | Linh kiện | Số lượng | Ghi chú |
-|---|-----------|---------|---------|
-| 1 | STM32F103C8T6 (Blue Pill) | 1 | MCU chính |
-| 2 | Rotary Encoder KY-040 | 1 | Speed control |
-| 3 | Biến trở 10kΩ | 2 | Fuel + Battery level |
-| 4 | Nút nhấn 4 chân | 8 | Tell-tales + Media |
-| 5 | Công tắc gạt (toggle switch) | 1 | Drive mode |
-| 6 | SN65HVD230 CAN transceiver | 1 | STM32 CAN_TX/RX ↔ CANH/CANL |
-| 7 | MCP2515 CAN module | 1 | Raspberry Pi SPI ↔ CANH/CANL |
-| 8 | Breadboard + dây jumper | - | Prototype |
-| 9 | Nguồn 3.3V / USB | 1 | Cấp nguồn |
-
-## Cấu trúc firmware
-
-```
-firmware/Core/
-├── Inc/
-│   ├── main.h
-│   ├── gpio_handler.h      ← 8 nút + 1 switch, ánh xạ Tell-Tales
-│   ├── encoder_handler.h   ← Speed encoder (TIM3)
-│   ├── adc_handler.h       ← [MỚI] Fuel + Battery (ADC1)
-│   ├── can_protocol.h      ← [MỚI] CAN frames gửi data cho Qt app
-│   └── uart_protocol.h     ← Debug/fallback UART
-├── Src/
-│   ├── main.c              ← Main loop tích hợp tất cả module
-│   ├── gpio_handler.c      ← Cập nhật: 8 buttons thay vì 6
-│   ├── encoder_handler.c   ← Giữ nguyên
-│   ├── adc_handler.c       ← [MỚI] Đọc ADC với lọc trung bình
-│   ├── can_protocol.c      ← [MỚI] Giao thức CAN 0x100/0x101/0x102
-│   └── uart_protocol.c     ← Debug/fallback UART
+PA4/PA5  ───┬── [Switch] ── GND
+            │
+            └── Pull-up nội 3.3V
 ```
 
-## Cấu trúc Qt Software (phía nhận)
+- Trạng thái nghỉ: HIGH.
+- Nhấn/gạt ON: LOW.
+- PB5/PB6 và PB9 cần bắt cả cạnh xuống/cạnh lên để OFF ngay khi trả cần hoặc nhả còi.
 
-```
-software/QtInstrumentCluster/
-├── src/
-│   ├── canreceiver.h/cpp     ← [MỚI] Nhận Raw SocketCAN can0, parse 0x100/0x101/0x102
-│   ├── serialreceiver.h/cpp  ← UART fallback/debug
-│   ├── mainmodel.h/cpp       ← Cập nhật: thêm fuelLevel, batteryLevel, gearText
-│   └── ...
-├── models/
-│   ├── MainModel.qml         ← Cập nhật: modelUpdated() nhận fuel/batt/gear
-│   └── ...
-├── view/
-│   ├── NormalMode.qml         ← Cập nhật: gear hiển thị từ gearShiftText
-│   └── ...
-├── main.cpp                   ← Cập nhật: khởi tạo SerialReceiver
-└── main.qml                   ← Cập nhật: Connections{} binding HW → QML models
+## Đấu tải Body ECU
+
+```text
+STM32 Body PA0 ── Driver ── Xi nhan trái
+STM32 Body PA1 ── Driver ── Xi nhan phải
+STM32 Body PA2 ── Driver ── Đèn thường
+STM32 Body PA3 ── Driver ── Đèn pha
+STM32 Body PA4 ── Driver ── Còi
 ```
 
-## Kiến trúc hệ thống CAN: STM32 → Raspberry Pi → Qt
+Xi nhan trái/phải blink trong Body ECU với chu kỳ 500 ms. Đèn thường, đèn pha và còi bám trực tiếp theo command mask nhận từ CAN.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  GIAI ĐOẠN 1: Phát triển trên PC Host                   │
-│                                                         │
-│  STM32 ──(CAN)──→ USB/CAN hoặc vcan0 test frame        │
-│                                        │                │
-│                                  Qt Dashboard App       │
-│                                  CanReceiver            │
-│                                  IVI_CAN_IFACE=vcan0    │
-└─────────────────────────────────────────────────────────┘
+## Đấu CAN bus
 
-┌─────────────────────────────────────────────────────────┐
-│  GIAI ĐOẠN 2: Deploy trên Raspberry Pi                   │
-│                                                         │
-│  STM32 PA12/PA11 ─→ SN65HVD230 ─→ CANH/CANL             │
-│  CANH/CANL ─→ MCP2515 ─→ SPI Raspberry Pi 4             │
-│  Linux SocketCAN: can0, 500 kbps                         │
-│                                        │                │
-│                                  Qt Dashboard App       │
-│                                  CanReceiver            │
-│                                  UART fallback optional │
-│                                                         │
-│  *** Qt ưu tiên CAN, UART chỉ dùng debug/fallback ***   │
-└─────────────────────────────────────────────────────────┘
+Mỗi STM32 dùng `PA12` làm CAN TX và `PA11` làm CAN RX:
+
+```text
+STM32 PA12 (CAN_TX) ─── Transceiver TXD/CTX
+STM32 PA11 (CAN_RX) ─── Transceiver RXD/CRX
+STM32 3.3V/GND ──────── Transceiver VCC/GND
+
+Transceiver CANH ────── CANH bus ────── MCP2515 CANH
+Transceiver CANL ────── CANL bus ────── MCP2515 CANL
+GND các node ────────── nối chung
 ```
 
-### Khi chuyển sang Raspberry Pi, chỉ cần:
+- Hai đầu xa nhất của bus cần điện trở kết thúc 120 ohm giữa `CANH` và `CANL`.
+- Khi tắt nguồn và đo giữa `CANH-CANL`, bus có hai điện trở kết thúc đúng thường khoảng 60 ohm.
+- Không đảo `CANH/CANL`; đảo dây sẽ làm node không ACK frame.
 
-1. **Cross-compile Qt app** cho ARM (hoặc build trực tiếp trên Pi)
-2. **Nối dây CAN + SPI** theo sơ đồ SN65HVD230/MCP2515 ở trên.
-3. **Cấu hình MCP2515 SocketCAN**:
-   - `./scripts/pi/setup_socketcan_mcp2515.sh`
-   - reboot Raspberry Pi
-4. **Kiểm tra CAN**:
-   - `ip -details link show can0`
-   - `candump can0`
-5. **Chạy app**: `./scripts/pi/run_pi_qt5.sh` — `CanReceiver` mở `can0` mặc định.
+## CAN command bitfield
+
+Frame `0x101` byte `B0` và frame `0x102` byte `B3` dùng cùng bit layout:
+
+| Bit | Nguồn firmware | Ý nghĩa Body/Qt |
+|---|---|---|
+| bit0 | `PB5` | Left signal |
+| bit1 | `PB6` | Right signal |
+| bit2 | `PA4` | Beam / đèn thường |
+| bit3 | `PA5` | High beams / đèn pha |
+| bit4 | `PB7` | Parked |
+| bit5 | `PB8` | Airbag |
+| bit6 | `PB9` | Horn / còi |
+| bit7 | - | Reserved |
+
+Frame `0x102` button event gửi cho các nút có event:
+
+| Button ID | Pin | Tên |
+|---|---|---|
+| 1 | `PB5` | `left_signal` |
+| 2 | `PB6` | `right_signal` |
+| 5 | `PB7` | `parked` |
+| 6 | `PB8` | `airbag` |
+| 7 | `PB9` | `horn` |
+
+`beam` và `high_beams` là switch trạng thái nên đi qua snapshot `0x101`; không cần event riêng.

@@ -47,6 +47,8 @@ Về logic, kiến trúc phần mềm có thể chia thành 4 lớp:
 ```mermaid
 graph TD
     STM32["STM32 Firmware<br/>CAN 0x100 / 0x101 / 0x102"] --> CAN["CanReceiver<br/>Raw SocketCAN parser"]
+    STM32 --> BODY["STM32 Body ECU<br/>controls loads"]
+    BODY --> CAN
     STM32 -. "UART debug/fallback" .-> SR["SerialReceiver<br/>QSerialPort parser"]
     CAN --> MMC["MainModel (C++)"]
     CAN --> TTM["TellTalesModel.qml"]
@@ -117,10 +119,10 @@ Các singleton được publish ra QML gồm:
 
 #### Luồng 1: Telemetry từ STM32 lên dashboard
 
-1. STM32 gửi frame CAN `0x100`, `0x101`, `0x102` qua CAN bus 500 kbps
-2. `CanReceiver` đọc Raw SocketCAN từ `can0` và parse dữ liệu
-3. `main.qml` dùng `Connections { target: canReceiver }` để đưa dữ liệu vào `MainModel` và `TellTalesModel`
-4. Các QML view tự động redraw thông qua property binding
+1. STM32 firmware ECU gửi `0x100`, `0x101`, `0x102` qua CAN bus 500 kbps
+2. Body ECU nhận `0x101/0x102`, điều khiển tải và phát status `0x201`
+3. `CanReceiver` đọc Raw SocketCAN từ `can0`, parse telemetry/control/status
+4. `main.qml` dùng `Connections { target: canReceiver }` để đưa telemetry/telltales vào model QML
 5. Nếu CAN không mở được, `SerialReceiver` vẫn có thể nhận UART text frame làm fallback/debug
 
 #### Luồng 2: GPS đến navigation và weather
@@ -352,11 +354,11 @@ Mặc dù không nằm trong danh sách service người dùng yêu cầu, đây
 Chức năng chính:
 
 - `CanReceiver` dùng Linux Raw SocketCAN để đọc `can0` mặc định, có thể đổi bằng `IVI_CAN_IFACE`.
-- Parse 3 loại CAN frame: `0x100` telemetry, `0x101` button snapshot, `0x102` button event.
+- Parse 4 loại CAN frame: `0x100` telemetry, `0x101` control snapshot, `0x102` control event, `0x201` Body status.
 - `SerialReceiver` dùng `QSerialPort` cho UART debug/fallback khi CAN chưa sẵn sàng.
 - Cả hai receiver phát cùng nhóm signal typed sang lớp trên để QML không phải biết chi tiết transport.
 
-Thiết kế này giúp firmware STM32 và Qt app loosely coupled theo semantic signals, trong đó CAN là transport chính.
+Thiết kế này giúp firmware STM32, Body ECU và Qt app loosely coupled theo semantic signals, trong đó CAN là transport chính.
 
 ## 4.2. Bluetooth service
 

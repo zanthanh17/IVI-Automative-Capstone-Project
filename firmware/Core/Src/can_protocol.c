@@ -7,6 +7,9 @@
 
 extern CAN_HandleTypeDef hcan;
 
+/* ============ Debug counters - xem qua ST-LINK Variable Viewer ============ */
+CAN_Debug_t g_can_dbg = {0};
+
 static uint8_t s_can_ready = 0U;
 static uint8_t s_telemetry_counter = 0U;
 static uint8_t s_button_state_counter = 0U;
@@ -26,8 +29,7 @@ static uint8_t CAN_Protocol_ButtonMask(const VehicleButtons_t *buttons)
     if (buttons->high_beams   != 0U) mask |= (1U << 3);
     if (buttons->parked       != 0U) mask |= (1U << 4);
     if (buttons->airbag       != 0U) mask |= (1U << 5);
-    if (buttons->media_play   != 0U) mask |= (1U << 6);
-    if (buttons->media_next   != 0U) mask |= (1U << 7);
+    if (buttons->horn          != 0U) mask |= (1U << 6);
 
     return mask;
 }
@@ -37,11 +39,18 @@ static uint8_t CAN_Protocol_Transmit(uint16_t std_id, const uint8_t *payload, ui
     CAN_TxHeaderTypeDef tx_header;
     uint32_t tx_mailbox;
 
+    g_can_dbg.tx_attempt++;
+
     if (s_can_ready == 0U || payload == NULL || dlc > 8U) {
+        g_can_dbg.tx_fail_not_ready++;
         return 0U;
     }
 
+    /* Snapshot CAN Error Status Register mỗi lần transmit */
+    g_can_dbg.can_esr = hcan.Instance->ESR;
+
     if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) == 0U) {
+        g_can_dbg.tx_fail_no_mbox++;
         return 0U;
     }
 
@@ -52,7 +61,14 @@ static uint8_t CAN_Protocol_Transmit(uint16_t std_id, const uint8_t *payload, ui
     tx_header.DLC = dlc;
     tx_header.TransmitGlobalTime = DISABLE;
 
-    return (HAL_CAN_AddTxMessage(&hcan, &tx_header, (uint8_t *)payload, &tx_mailbox) == HAL_OK) ? 1U : 0U;
+    if (HAL_CAN_AddTxMessage(&hcan, &tx_header, (uint8_t *)payload, &tx_mailbox) == HAL_OK) {
+        g_can_dbg.tx_success++;
+        return 1U;
+    } else {
+        g_can_dbg.tx_fail_hal++;
+        g_can_dbg.hal_error_code = HAL_CAN_GetError(&hcan);
+        return 0U;
+    }
 }
 
 void CAN_Protocol_Init(void)
@@ -71,16 +87,22 @@ void CAN_Protocol_Init(void)
     filter.SlaveStartFilterBank = 14U;
 
     s_can_ready = 0U;
+    g_can_dbg.init_ok = 0U;
+    g_can_dbg.filter_ok = 0U;
 
     if (HAL_CAN_ConfigFilter(&hcan, &filter) != HAL_OK) {
+        g_can_dbg.hal_error_code = HAL_CAN_GetError(&hcan);
         return;
     }
+    g_can_dbg.filter_ok = 1U;
 
     if (HAL_CAN_Start(&hcan) != HAL_OK) {
+        g_can_dbg.hal_error_code = HAL_CAN_GetError(&hcan);
         return;
     }
 
     s_can_ready = 1U;
+    g_can_dbg.init_ok = 1U;
 }
 
 uint8_t CAN_Protocol_IsReady(void)

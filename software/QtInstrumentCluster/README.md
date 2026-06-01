@@ -66,7 +66,7 @@ After setup, re-login (or run `newgrp dialout`), then:
 - Mapbox API network reachability
 - serial permission (`dialout`) and device node presence
 
-For STM32 CAN integration, configure MCP2515/SocketCAN and verify `can0`:
+For STM32/Body ECU CAN integration, configure MCP2515/SocketCAN and verify `can0`:
 
 ```bash
 ./scripts/pi/setup_socketcan_mcp2515.sh
@@ -74,6 +74,8 @@ sudo reboot
 ip -details link show can0
 candump can0
 ```
+
+Expected CAN traffic includes firmware frames `0x100`, `0x101`, `0x102` and Body ECU status `0x201`. Button ID `7` is mapped as `horn`, not media play.
 
 If you use UART fallback from STM32, verify serial devices:
 
@@ -230,7 +232,7 @@ Notes:
 - Qt5 build output is isolated in `build-pi-qt5/` (does not overwrite Qt6 build output).
 - If both Qt5 and Qt6 are installed, `build_pi_qt5.sh` explicitly resolves a Qt5 qmake.
 - Put `MAPBOX_ACCESS_TOKEN` in `.env` (or export in shell) for Mapbox map + Search Box + routing on Qt5.
-- CAN defaults to SocketCAN `can0`. Override with `IVI_CAN_IFACE=vcan0` for desktop simulation or a USB-CAN adapter.
+- CAN defaults to SocketCAN `can0`. Override with `IVI_CAN_IFACE=vcan0` for desktop simulation or a USB-CAN adapter. The parser handles `0x201` Body status in addition to firmware telemetry/control frames.
 - MCP2515 setup defaults: 500 kbps CAN, 8 MHz oscillator, GPIO25 interrupt.
 - `MAPBOX_STYLE_URL` is optional; Qt5 flow defaults to `mapbox://styles/mapbox/navigation-guidance-night-v2
 
