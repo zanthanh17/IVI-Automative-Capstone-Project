@@ -1023,8 +1023,25 @@ void ExternalMediaController::onPlayerPropertiesChanged(
 
         qDebug() << "[ExternalMedia] Invalidated properties detected, re-fetching via GetAll...";
 
+        // Use the connected path as fallback: m_linuxPlayerPath may be empty if a
+        // setSystemSessionState(false,...) call cleared it while the signal subscription
+        // (on m_linuxPlayerPathConnected) is still active.
+        const QString fetchPath = m_linuxPlayerPath.isEmpty()
+                                  ? m_linuxPlayerPathConnected
+                                  : m_linuxPlayerPath;
+
+        if (fetchPath.isEmpty()) {
+            qWarning() << "[ExternalMedia] No player path available for GetAll re-fetch, skipping.";
+            return;
+        }
+
+        // Ensure m_linuxPlayerPath stays consistent for subsequent polls
+        if (m_linuxPlayerPath.isEmpty()) {
+            m_linuxPlayerPath = m_linuxPlayerPathConnected;
+        }
+
         QDBusInterface propsIface(QStringLiteral("org.bluez"),
-                                  m_linuxPlayerPath,
+                                  fetchPath,
                                   QStringLiteral("org.freedesktop.DBus.Properties"),
                                   QDBusConnection::systemBus());
         if (propsIface.isValid()) {

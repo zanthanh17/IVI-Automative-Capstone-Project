@@ -491,6 +491,28 @@ Item {
         navMap.zoomLevel = clamp(navMap.zoomLevel + delta, minZoomLevel, maxZoomLevel)
     }
 
+    function cancelNavigation() {
+        navigationActive = false
+        liveRouteReady = false
+        destinationCoordinate = QtPositioning.coordinate()
+        destinationSearchText = ""
+        routePath = []
+        pastPath = []
+        mainPath = []
+        cautionPath = []
+        finalPath = []
+        osrmRetryCount = 0
+        lastRouteRequestMs = 0
+        NavigationModel.setRouteSteps([])
+        followVehicle = true
+        autoHeading = false
+        navMap.bearing = 0
+        navMap.tilt = clamp(defaultTilt, minTilt, maxTilt)
+        navMap.zoomLevel = clamp(defaultZoomLevel, minZoomLevel, maxZoomLevel)
+        syncCameraToVehicle(true)
+        console.log("[NavMap] Navigation cancelled — route and destination cleared.")
+    }
+
     function applyPreferredMapType() {
         if (!navMap.supportedMapTypes || navMap.supportedMapTypes.length === 0) {
             return
@@ -1435,7 +1457,7 @@ Item {
         Row {
             anchors.centerIn: parent
             spacing: 8
-            
+
             Image {
                 width: 20
                 height: 20
@@ -1460,11 +1482,7 @@ Item {
                 navMapRoot.navigationActive = true
                 navMapRoot.followVehicle = true
                 navMapRoot.autoHeading = true
-                
-                // 2. Inject parsed map steps into the instruction model
                 NavigationModel.setRouteSteps(OsrmRoute.routeSteps)
-                
-                // 3. Transform map perspective
                 navMapRoot.overviewMode = false
                 navMap.zoomLevel = 18.0
                 navMap.tilt = 60.0
@@ -1473,6 +1491,50 @@ Item {
         }
     }
 
+    /* ── Stop / Cancel Navigation Button — shown when navigation is active ── */
+    /* Anchored below topMiniGuide so it does not overlap the turn-by-turn card. */
+    Rectangle {
+        id: stopNavButton
+        anchors.left: mapArea.left
+        anchors.leftMargin: navMapRoot.overlayInset
+        anchors.top: topMiniGuide.bottom
+        anchors.topMargin: navMapRoot.overlayGap
+        width: 152
+        height: 44
+        radius: 22
+        color: stopArea.pressed ? "#7a1010" : "#B03030"
+        visible: navMapRoot.navigationActive
+        z: 45
+        border.width: 1
+        border.color: "#66FF8888"
 
+        Row {
+            anchors.centerIn: parent
+            spacing: 8
+
+            Rectangle {
+                width: 14
+                height: 14
+                radius: 3
+                color: "#FFFFFF"
+                opacity: 0.90
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Text {
+                text: "Stop Route"
+                color: "#FFFFFF"
+                font.pixelSize: 15
+                font.bold: true
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
+        MouseArea {
+            id: stopArea
+            anchors.fill: parent
+            onClicked: navMapRoot.cancelNavigation()
+        }
+    }
 
 }

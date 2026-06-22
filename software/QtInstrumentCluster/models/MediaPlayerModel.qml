@@ -7,6 +7,7 @@ QtObject {
 
     readonly property string modeLabel: "External"
     readonly property bool mediaPlayback: ExternalMedia.playing
+    readonly property bool mediaAvailable: ExternalMedia.available
     readonly property int changeSongDuration: 300
 
     readonly property string currentArtist: ExternalMedia.currentArtist.length > 0
