@@ -328,13 +328,13 @@ void BluetoothController::rememberLastConnected(const QString &address)
 
 bool BluetoothController::allowAgentForDevice(const QString &path) const
 {
-    if (!m_pairMode) {
-        return false;
-    }
-    if (m_pairTargetPath.isEmpty()) {
-        return true;
-    }
-    return m_pairTargetPath == path;
+    Q_UNUSED(path)
+    // Auto-accept ALL pairing requests whenever Bluetooth is powered on.
+    // This is standard IVI "Just Works" behaviour: any phone or laptop can pair
+    // without a PIN or confirmation dialog on either side.
+    // The Pair Mode toggle still controls Discoverable (whether the Pi appears in
+    // scans) but does not gate the agent's acceptance of incoming requests.
+    return m_powered;
 }
 
 void BluetoothController::rebuildDeviceList()
@@ -891,6 +891,15 @@ void BluetoothController::handleManagedObjectsReply(const QVariant &value)
         m_pairTargetPath.clear();
         emit pairModeChanged();
         unregisterAgent();
+    }
+
+    // Register the agent and make the adapter pairable as soon as BT is powered on,
+    // so any device can pair at any time without the user enabling "Pair Mode" first.
+    if (m_powered && m_adapterPresent && !m_agentRegistered) {
+        registerAgentIfNeeded();
+        setAdapterProperty(QStringLiteral("PairableTimeout"),    QVariant::fromValue(quint32(0)));
+        setAdapterProperty(QStringLiteral("DiscoverableTimeout"), QVariant::fromValue(quint32(0)));
+        setAdapterProperty(QStringLiteral("Pairable"), true);
     }
 
     if (oldAdapterPresent != m_adapterPresent) {
