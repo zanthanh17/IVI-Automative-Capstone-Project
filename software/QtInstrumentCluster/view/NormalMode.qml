@@ -97,10 +97,15 @@ Item {
         scale: root.scale * 1.35
         centerX: vehiclePanelCenterX + vehicleCenterOffsetX
         baseY: leftPaneY + leftPaneHeight - vehicleBottomInset
-        z: 1
+        z: 3
     }
 
-    // Right Card contents fill the entire area
+    // Right Card contents fill the entire area.
+    // layer.enabled forces off-screen FBO rendering when the navigation map is
+    // active. The Qt Location Mapbox GL plugin uses QSGRenderNode which writes
+    // directly to the OpenGL framebuffer and ignores QML clip: true. Compositing
+    // via an FBO confines the map to this item's bounds and prevents it from
+    // bleeding into the cluster pane.
     Item {
         id: mainElement;
         x: rightPaneX
@@ -108,6 +113,8 @@ Item {
         width: rightPaneWidth
         height: rightPaneHeight
         clip: true
+        layer.enabled: menu == NormalModeModel.NavigationMenu
+        layer.smooth: false
 
         MediaPlayer {
             activeMode: active;
@@ -139,6 +146,7 @@ Item {
         id: leftGauge;
         x: leftPaneX + gaugeInset
         y: gaugeTopY
+        z: 2
         scale: 0.90
         valueHorizontalCenterOffset: -96
         labelHorizontalCenterOffset: -96
@@ -171,6 +179,7 @@ Item {
         id: rightGauge;
         x: leftPaneX + leftPaneWidth - rightGauge.width - gaugeInset
         y: gaugeTopY
+        z: 2
         scale: 0.90
         valueHorizontalCenterOffset: 96
         labelHorizontalCenterOffset: 96
