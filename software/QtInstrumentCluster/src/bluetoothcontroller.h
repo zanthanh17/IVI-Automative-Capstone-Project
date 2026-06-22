@@ -98,6 +98,11 @@ private:
     void registerAgentIfNeeded();
     void unregisterAgent();
     bool hasBluezService() const;
+    // Make the head unit accept incoming connections without a manual pairing
+    // step: keep the adapter pairable/discoverable and auto-trust devices.
+    void applyConnectableDefaults();
+    void setDeviceTrusted(const QString &path);
+    void autoTrustConnectedDevices();
 
 private slots:
     void onInterfacesAdded(const QDBusObjectPath &objectPath, const QVariantMap &interfaces);

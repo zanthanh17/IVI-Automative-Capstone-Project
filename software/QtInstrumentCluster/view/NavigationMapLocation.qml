@@ -323,6 +323,26 @@ Item {
         requestRouteToDestination()
     }
 
+    // Clear the chosen destination and any computed route so the user can pick
+    // a different destination. Also stops navigation if it was running.
+    function clearDestination() {
+        navigationActive = false
+        liveRouteReady = false
+        overviewMode = false
+        osrmRetryCount = 0
+        destinationCoordinate = QtPositioning.coordinate()
+        destinationSearchText = ""
+        routePath = []
+        updateSegmentedPath()
+        MapboxSearch.clearSuggestions()
+        searchPanelVisible = false
+        // Return the camera to a free-look follow state for re-selection.
+        followVehicle = true
+        autoHeading = false
+        navMap.tilt = navMapRoot.defaultTilt
+        syncCameraToVehicle(true)
+    }
+
     function rebuildRouteFromActiveSource() {
         if (liveRouteReady && OsrmRoute.routePath.length > 1) {
             routePath = OsrmRoute.routePath
@@ -1460,10 +1480,10 @@ Item {
                 navMapRoot.navigationActive = true
                 navMapRoot.followVehicle = true
                 navMapRoot.autoHeading = true
-                
+
                 // 2. Inject parsed map steps into the instruction model
                 NavigationModel.setRouteSteps(OsrmRoute.routeSteps)
-                
+
                 // 3. Transform map perspective
                 navMapRoot.overviewMode = false
                 navMap.zoomLevel = 18.0
@@ -1473,6 +1493,51 @@ Item {
         }
     }
 
+    /* ── Cancel destination / stop navigation ── */
+    Rectangle {
+        id: cancelNavButton
+        anchors.top: startNavButton.top
+        anchors.left: mapArea.left
+        // Sit to the right of Start while choosing; take Start's place once
+        // navigation is running (Start is hidden then).
+        anchors.leftMargin: navMapRoot.navigationActive
+                            ? navMapRoot.overlayInset
+                            : navMapRoot.overlayInset + startNavButton.width + navMapRoot.overlayGap
+        width: 120
+        height: 48
+        radius: 24
+        color: cancelArea.pressed ? "#7A1B2B" : "#3A2030"
+        visible: navMapRoot.liveRouteReady || navMapRoot.navigationActive
+        z: 40
+        border.width: 1
+        border.color: "#66FF6F88"
 
+        Row {
+            anchors.centerIn: parent
+            spacing: 8
+
+            Text {
+                text: "✕"
+                color: "#FFD7DE"
+                font.pixelSize: 16
+                font.bold: true
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Text {
+                text: navMapRoot.navigationActive ? "Stop" : "Cancel"
+                color: "#FFD7DE"
+                font.pixelSize: 16
+                font.bold: true
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
+        MouseArea {
+            id: cancelArea
+            anchors.fill: parent
+            onClicked: navMapRoot.clearDestination()
+        }
+    }
 
 }

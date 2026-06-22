@@ -178,6 +178,12 @@ BluetoothController::BluetoothController(QObject *parent)
     if (m_supported) {
         subscribeBluezSignals();
         queryManagedObjects();
+        // Register a default "just works" agent and keep the adapter connectable
+        // so phones can connect without an explicit pairing step from the UI.
+        QTimer::singleShot(1200, this, [this]() {
+            registerAgentIfNeeded();
+            applyConnectableDefaults();
+        });
         QTimer::singleShot(2000, this, &BluetoothController::reconnectLastDevice);
     } else {
         setLastError(QStringLiteral("BlueZ service unavailable"));
@@ -281,13 +287,11 @@ void BluetoothController::rememberLastConnected(const QString &address)
 
 bool BluetoothController::allowAgentForDevice(const QString &path) const
 {
-    if (!m_pairMode) {
-        return false;
-    }
-    if (m_pairTargetPath.isEmpty()) {
-        return true;
-    }
-    return m_pairTargetPath == path;
+    Q_UNUSED(path)
+    // Auto-accept all pairing/authorization requests while powered so that
+    // devices (phones, headsets) can connect without a manual pairing step.
+    // This is "just works" pairing driven by the NoInputNoOutput agent.
+    return m_powered;
 }
 
 void BluetoothController::rebuildDeviceList()
@@ -396,10 +400,9 @@ void BluetoothController::setPairMode(bool enabled)
         m_pairMode = false;
         m_pairTargetPath.clear();
         emit pairModeChanged();
+        // Only hide the adapter from active scanning. Keep the agent registered
+        // and the adapter pairable so already-known phones still auto-connect.
         setAdapterProperty(QStringLiteral("Discoverable"), false);
-        setAdapterProperty(QStringLiteral("Pairable"), false, [this](bool) {
-            unregisterAgent();
-        });
     }
 #else
     Q_UNUSED(enabled)
@@ -835,6 +838,12 @@ void BluetoothController::handleManagedObjectsReply(const QVariant &value)
     }
     if (oldPowered != m_powered) {
         emit poweredChanged();
+        if (m_powered) {
+            // Adapter just powered on: ensure the agent is live and the
+            // adapter stays connectable so phones can pair "just works".
+            registerAgentIfNeeded();
+            applyConnectableDefaults();
+        }
     }
     if (oldDiscovering != m_discovering) {
         emit discoveringChanged();
@@ -868,6 +877,7 @@ void BluetoothController::handleManagedObjectsReply(const QVariant &value)
 
     m_deviceMap = nextDevices;
     rebuildDeviceList();
+    autoTrustConnectedDevices();
 }
 
 void BluetoothController::setAdapterProperty(const QString &name,
@@ -980,7 +990,52 @@ void BluetoothController::registerAgentIfNeeded()
         return;
     }
 
+    // Become the system default agent so BlueZ routes every incoming pairing
+    // request here (and the agent auto-accepts them via allowAgentForDevice).
+    managerIface.call(QStringLiteral("RequestDefaultAgent"), QDBusObjectPath(agentPath));
+
     m_agentRegistered = true;
+}
+
+void BluetoothController::applyConnectableDefaults()
+{
+    if (!m_supported || !m_adapterPresent || m_adapterPath.isEmpty() || !m_powered) {
+        return;
+    }
+    // Keep the adapter pairable and discoverable indefinitely so new devices
+    // can find and connect to the head unit without toggling pair mode.
+    setAdapterProperty(QStringLiteral("Pairable"), true);
+    setAdapterProperty(QStringLiteral("PairableTimeout"), QVariant::fromValue<quint32>(0));
+    setAdapterProperty(QStringLiteral("Discoverable"), true);
+    setAdapterProperty(QStringLiteral("DiscoverableTimeout"), QVariant::fromValue<quint32>(0));
+}
+
+void BluetoothController::setDeviceTrusted(const QString &path)
+{
+    QDBusInterface propertiesIface(QStringLiteral("org.bluez"),
+                                   path,
+                                   QStringLiteral("org.freedesktop.DBus.Properties"),
+                                   QDBusConnection::systemBus());
+    if (!propertiesIface.isValid()) {
+        return;
+    }
+    QList<QVariant> arguments;
+    arguments << QVariant::fromValue(QStringLiteral("org.bluez.Device1"))
+              << QVariant::fromValue(QStringLiteral("Trusted"))
+              << QVariant::fromValue(QDBusVariant(true));
+    propertiesIface.asyncCallWithArgumentList(QStringLiteral("Set"), arguments);
+}
+
+void BluetoothController::autoTrustConnectedDevices()
+{
+    // Trusting a connected device lets BlueZ auto-accept its future
+    // reconnections (and A2DP/AVRCP service requests) without re-pairing.
+    for (auto it = m_deviceMap.cbegin(); it != m_deviceMap.cend(); ++it) {
+        const DeviceInfo &device = it.value();
+        if (device.connected && !device.trusted) {
+            setDeviceTrusted(device.path);
+        }
+    }
 }
 
 void BluetoothController::unregisterAgent()
