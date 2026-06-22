@@ -736,17 +736,13 @@ Item {
         radius: navMapRoot.mapCornerRadius
 
         /*
-         * Use layer + OpacityMask for true rounded-corner clipping.
-         * This works even for native OpenGL content like QtLocation Map.
+         * NOTE: A layer + OpacityMask was previously used for rounded-corner
+         * clipping of the native OpenGL Map. On the Pi's V3D 4.2 driver this FBO
+         * pass skews/tilts the whole scene (and corrupts later draws on other
+         * pages until restart). Use plain clip instead: corners are square but
+         * rendering is correct. Re-enable the mask only on desktop GPUs.
          */
-        layer.enabled: true
-        layer.effect: OpacityMask {
-            maskSource: Rectangle {
-                width: mapArea.width
-                height: mapArea.height
-                radius: navMapRoot.mapCornerRadius
-            }
-        }
+        clip: true
 
         // Dark base fill behind the map
         Rectangle {

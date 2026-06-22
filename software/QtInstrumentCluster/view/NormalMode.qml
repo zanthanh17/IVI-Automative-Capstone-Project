@@ -101,11 +101,10 @@ Item {
     }
 
     // Right Card contents fill the entire area.
-    // layer.enabled forces off-screen FBO rendering when the navigation map is
-    // active. The Qt Location Mapbox GL plugin uses QSGRenderNode which writes
-    // directly to the OpenGL framebuffer and ignores QML clip: true. Compositing
-    // via an FBO confines the map to this item's bounds and prevents it from
-    // bleeding into the cluster pane.
+    // NOTE: Do NOT use layer.enabled here. FBO compositing on the Pi's V3D 4.2
+    // driver skews/tilts the rendered frame (and corrupts subsequent draws on
+    // other pages until restart). The Mapbox map overflow is instead constrained
+    // inside NavigationMapLocation.qml by gating the map's render visibility.
     Item {
         id: mainElement;
         x: rightPaneX
@@ -113,8 +112,6 @@ Item {
         width: rightPaneWidth
         height: rightPaneHeight
         clip: true
-        layer.enabled: menu == NormalModeModel.NavigationMenu
-        layer.smooth: false
 
         MediaPlayer {
             activeMode: active;
