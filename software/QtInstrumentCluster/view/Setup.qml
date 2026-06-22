@@ -186,6 +186,17 @@ NormalModeContentItem {
                 color: "#444"
                 anchors.verticalCenter: parent.verticalCenter
 
+                // Tap anywhere on track to jump to that position
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        var ratio = Math.max(0, Math.min(1,
+                            mouseX / (volumeTrack.width - volumeHandle.width)))
+                        NormalModeModel.volumeLevel = ratio
+                        SystemSettings.volumeLevel = ratio
+                    }
+                }
+
                 Rectangle {
                     width: volumeHandle.x + volumeHandle.width / 2
                     height: parent.height
@@ -201,9 +212,19 @@ NormalModeContentItem {
                     border.color: "white"
                     border.width: 2
                     y: (parent.height - height) / 2
-                    x: NormalModeModel.volumeLevel * (parent.width - width)
+
+                    // Binding with when: preserves the handle↔model sync.
+                    // During drag the binding suspends so the handle moves freely;
+                    // it re-activates on release and snaps to the final model value.
+                    Binding {
+                        target: volumeHandle
+                        property: "x"
+                        value: NormalModeModel.volumeLevel * (volumeTrack.width - volumeHandle.width)
+                        when: !volumeDragArea.drag.active
+                    }
 
                     MouseArea {
+                        id: volumeDragArea
                         anchors.fill: parent
                         drag.target: parent
                         drag.axis: Drag.XAxis
@@ -245,6 +266,17 @@ NormalModeContentItem {
                 color: "#444"
                 anchors.verticalCenter: parent.verticalCenter
 
+                // Tap anywhere on track to jump to that position
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        var ratio = Math.max(0, Math.min(1,
+                            mouseX / (brightnessTrack.width - brightnessHandle.width)))
+                        NormalModeModel.brightnessLevel = ratio
+                        SystemSettings.brightnessLevel = ratio
+                    }
+                }
+
                 Rectangle {
                     width: brightnessHandle.x + brightnessHandle.width / 2
                     height: parent.height
@@ -260,9 +292,16 @@ NormalModeContentItem {
                     border.color: "white"
                     border.width: 2
                     y: (parent.height - height) / 2
-                    x: NormalModeModel.brightnessLevel * (parent.width - width)
+
+                    Binding {
+                        target: brightnessHandle
+                        property: "x"
+                        value: NormalModeModel.brightnessLevel * (brightnessTrack.width - brightnessHandle.width)
+                        when: !brightnessDragArea.drag.active
+                    }
 
                     MouseArea {
+                        id: brightnessDragArea
                         anchors.fill: parent
                         drag.target: parent
                         drag.axis: Drag.XAxis

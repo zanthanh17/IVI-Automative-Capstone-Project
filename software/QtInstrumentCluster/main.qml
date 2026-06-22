@@ -242,6 +242,7 @@ Window {
                         anchors.horizontalCenter: parent.horizontalCenter
                         spacing: 6
                         Text {
+                            id: timeHourMin
                             text: Qt.formatDateTime(root.currentDateTime, "h:mm")
                             color: "#ffffff"
                             font.pixelSize: 28
@@ -249,7 +250,7 @@ Window {
                             font.letterSpacing: 1
                         }
                         Text {
-                            anchors.baseline: parent.children[0].baseline
+                            anchors.baseline: timeHourMin.baseline
                             text: Qt.formatDateTime(root.currentDateTime, "ap")
                             color: "#ffffff"
                             font.pixelSize: 14

@@ -534,12 +534,12 @@ void SystemSettingsController::applyBluetoothToSystem(bool on)
 void SystemSettingsController::applyVolumeToSystem(qreal level)
 {
 #if defined(Q_OS_LINUX)
-    const int percent = static_cast<int>(level * 100.0);
+    const int percent = qRound(level * 100.0);
     if (m_audioBackend == QStringLiteral("pactl")) {
         QProcess::startDetached(QStringLiteral("pactl"),
             { QStringLiteral("set-sink-volume"), QStringLiteral("@DEFAULT_SINK@"),
               QStringLiteral("%1%").arg(percent) });
-    } else {
+    } else if (m_audioBackend == QStringLiteral("amixer")) {
         QProcess::startDetached(QStringLiteral("amixer"),
             { QStringLiteral("sset"), QStringLiteral("Master"),
               QStringLiteral("%1%").arg(percent) });

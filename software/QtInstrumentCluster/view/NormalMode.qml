@@ -14,9 +14,11 @@ Item {
     
     readonly property real leftPaneX: layoutMargin
     readonly property real leftPaneY: layoutMargin + headerHeight + layoutGap
-    readonly property real leftPaneWidth: 504
+    // Both panes share available width equally so the cluster and feature panels
+    // are symmetric around the screen centre on any resolution.
+    readonly property real leftPaneWidth: Math.floor((root.width - 2 * layoutMargin - layoutGap) / 2)
     readonly property real leftPaneHeight: root.height - leftPaneY - layoutMargin
-    
+
     readonly property real rightPaneX: leftPaneX + leftPaneWidth + layoutGap
     readonly property real rightPaneY: leftPaneY
     readonly property real rightPaneWidth: root.width - rightPaneX - layoutMargin
