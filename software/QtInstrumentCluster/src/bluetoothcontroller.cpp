@@ -980,6 +980,17 @@ void BluetoothController::registerAgentIfNeeded()
         return;
     }
 
+    // Make this the default agent so BlueZ routes all pairing/auth requests to us.
+    // Without this, bluetoothd may handle incoming pair requests itself and reject them.
+    QDBusReply<void> defaultReply = managerIface.call(QStringLiteral("RequestDefaultAgent"),
+                                                      QDBusObjectPath(agentPath));
+    if (!defaultReply.isValid()) {
+        qWarning() << "[Bluetooth] RequestDefaultAgent failed (non-fatal):"
+                   << defaultReply.error().message();
+    } else {
+        qDebug() << "[Bluetooth] Agent registered as default at" << agentPath;
+    }
+
     m_agentRegistered = true;
 }
 
