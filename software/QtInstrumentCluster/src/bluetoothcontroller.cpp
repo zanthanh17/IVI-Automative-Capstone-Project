@@ -84,12 +84,16 @@ public:
     }
 
 public slots:
-    void Release() {}
-    void Cancel() {}
+    void Release() { qDebug() << "[BT Agent] Release"; }
+    void Cancel()  { qDebug() << "[BT Agent] Cancel"; }
 
     QString RequestPinCode(const QDBusObjectPath &device)
     {
+        qDebug() << "[BT Agent] RequestPinCode from" << device.path();
         if (!allow(device.path())) {
+            qWarning() << "[BT Agent] RequestPinCode REJECTED for" << device.path()
+                       << "pairMode=" << (m_controller ? m_controller->m_pairMode : false)
+                       << "target=" << (m_controller ? m_controller->m_pairTargetPath : "(null)");
             reject(QStringLiteral("Pair mode disabled"));
             return QString();
         }
@@ -98,7 +102,9 @@ public slots:
 
     quint32 RequestPasskey(const QDBusObjectPath &device)
     {
+        qDebug() << "[BT Agent] RequestPasskey from" << device.path();
         if (!allow(device.path())) {
+            qWarning() << "[BT Agent] RequestPasskey REJECTED for" << device.path();
             reject(QStringLiteral("Pair mode disabled"));
             return 0;
         }
@@ -107,38 +113,58 @@ public slots:
 
     void DisplayPinCode(const QDBusObjectPath &device, const QString &pincode)
     {
-        Q_UNUSED(device)
-        Q_UNUSED(pincode)
+        qDebug() << "[BT Agent] DisplayPinCode" << pincode << "for" << device.path();
     }
 
     void DisplayPasskey(const QDBusObjectPath &device, quint32 passkey, quint16 entered)
     {
-        Q_UNUSED(device)
-        Q_UNUSED(passkey)
-        Q_UNUSED(entered)
+        qDebug() << "[BT Agent] DisplayPasskey" << passkey << "entered" << entered
+                 << "for" << device.path();
     }
 
     void RequestConfirmation(const QDBusObjectPath &device, quint32 passkey)
     {
-        Q_UNUSED(passkey)
+        qDebug() << "[BT Agent] RequestConfirmation passkey" << passkey
+                 << "from" << device.path();
         if (!allow(device.path())) {
+            qWarning() << "[BT Agent] RequestConfirmation REJECTED for" << device.path()
+                       << "pairMode=" << (m_controller ? m_controller->m_pairMode : false)
+                       << "target=" << (m_controller ? m_controller->m_pairTargetPath : "(null)");
             reject(QStringLiteral("Pair request not active in UI"));
+            return;
         }
+        qDebug() << "[BT Agent] RequestConfirmation ACCEPTED";
     }
 
     void RequestAuthorization(const QDBusObjectPath &device)
     {
+        qDebug() << "[BT Agent] RequestAuthorization from" << device.path();
         if (!allow(device.path())) {
+            qWarning() << "[BT Agent] RequestAuthorization REJECTED for" << device.path();
             reject(QStringLiteral("Pair request not active in UI"));
+            return;
         }
+        qDebug() << "[BT Agent] RequestAuthorization ACCEPTED";
     }
 
     void AuthorizeService(const QDBusObjectPath &device, const QString &uuid)
     {
-        Q_UNUSED(uuid)
-        if (!allow(device.path())) {
-            reject(QStringLiteral("Service not authorized"));
+        qDebug() << "[BT Agent] AuthorizeService uuid" << uuid << "from" << device.path();
+
+        // Always authorize audio/media profiles for already-paired or trusted devices.
+        // This ensures A2DP/AVRCP reconnection works even when pair mode is off.
+        if (isAudioUuid(uuid) && isDevicePairedOrTrusted(device.path())) {
+            qDebug() << "[BT Agent] AuthorizeService ACCEPTED (audio, paired/trusted)";
+            return;
         }
+
+        if (!allow(device.path())) {
+            qWarning() << "[BT Agent] AuthorizeService REJECTED uuid" << uuid
+                       << "for" << device.path();
+            reject(QStringLiteral("Service not authorized"));
+            return;
+        }
+        qDebug() << "[BT Agent] AuthorizeService ACCEPTED";
     }
 
 private:
@@ -152,6 +178,27 @@ private:
         if (calledFromDBus()) {
             sendErrorReply(QStringLiteral("org.bluez.Error.Rejected"), message);
         }
+    }
+
+    static bool isAudioUuid(const QString &uuid)
+    {
+        const QString lower = uuid.toLower();
+        // A2DP Sink/Source, AVRCP Target/Controller, HFP, HSP, HFP-GW
+        return lower.startsWith(QLatin1String("0000110b")) // A2DP Sink
+            || lower.startsWith(QLatin1String("0000110a")) // A2DP Source
+            || lower.startsWith(QLatin1String("0000110e")) // AVRCP Controller
+            || lower.startsWith(QLatin1String("0000110c")) // AVRCP Target
+            || lower.startsWith(QLatin1String("0000111e")) // HFP
+            || lower.startsWith(QLatin1String("0000111f")) // HFP-GW
+            || lower.startsWith(QLatin1String("00001108")) // HSP
+            || lower.startsWith(QLatin1String("00001105")); // OPP (common pairing service)
+    }
+
+    bool isDevicePairedOrTrusted(const QString &path) const
+    {
+        if (!m_controller) return false;
+        const BluetoothController::DeviceInfo *dev = m_controller->findDevice(path);
+        return dev && (dev->paired || dev->trusted);
     }
 
     BluetoothController *m_controller = nullptr;
@@ -389,9 +436,17 @@ void BluetoothController::setPairMode(bool enabled)
     if (enabled) {
         registerAgentIfNeeded();
         m_pairMode = true;
+        // Clear any stale target so ANY device can pair (e.g. iPhone initiating from phone).
+        // pairDevice() will set it again when the user taps a specific device.
+        m_pairTargetPath.clear();
         emit pairModeChanged();
+        // Set timeouts to 0 (unlimited) so the Pi stays pairable/discoverable until
+        // the user explicitly turns pair mode off — prevents silent 180s expiry.
+        setAdapterProperty(QStringLiteral("PairableTimeout"),   QVariant::fromValue(quint32(0)));
+        setAdapterProperty(QStringLiteral("DiscoverableTimeout"), QVariant::fromValue(quint32(0)));
         setAdapterProperty(QStringLiteral("Pairable"), true);
         setAdapterProperty(QStringLiteral("Discoverable"), true);
+        qDebug() << "[Bluetooth] Pair mode ON — accepting any device";
     } else {
         m_pairMode = false;
         m_pairTargetPath.clear();
@@ -400,6 +455,7 @@ void BluetoothController::setPairMode(bool enabled)
         setAdapterProperty(QStringLiteral("Pairable"), false, [this](bool) {
             unregisterAgent();
         });
+        qDebug() << "[Bluetooth] Pair mode OFF";
     }
 #else
     Q_UNUSED(enabled)
@@ -494,10 +550,17 @@ void BluetoothController::pairDevice(const QString &path)
     m_pairTargetPath = path;
     setDeviceBusy(path, true);
     callDeviceMethod(path, QStringLiteral("Pair"), {}, [this, path](bool ok) {
+        // Always clear the target after pairing completes (success or failure) so other
+        // devices (e.g. iPhone initiating next) are not blocked by the stale target.
+        m_pairTargetPath.clear();
+
         if (!ok) {
+            qWarning() << "[Bluetooth] Pair failed for" << path;
             setDeviceBusy(path, false);
             return;
         }
+
+        qDebug() << "[Bluetooth] Pair succeeded for" << path << "— setting Trusted";
 
         QDBusInterface propertiesIface(QStringLiteral("org.bluez"),
                                        path,
